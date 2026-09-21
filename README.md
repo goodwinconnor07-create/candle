@@ -24,5 +24,29 @@ smoke rises, and a soft two-note chime plays.
   glow, the light thrown on the room and the wax, and the tint of the
   countdown all follow it.
 
+- **Send to someone** — appears once the candle is lit. Put in your name and
+  it gives you a message and a link to send: *"Kavi has started a candle for
+  25 min"*. Whoever opens it watches the same candle burn down in real time,
+  in the same colour, read-only.
+
 State is kept in `localStorage`, including the burn length and flame colour
-you chose, so a refresh or a closed tab won't lose your place. A candle left burning keeps burning in real time while the page is shut.
+you chose, so a refresh or a closed tab won't lose your place.
+
+## Sharing a candle
+
+There's no server. The whole candle — name, end time, length, colour — is
+encoded into the link itself, and the watcher's page rebuilds it locally.
+Both ends count down from the same absolute timestamp, so they stay in sync
+without ever talking to each other.
+
+That also sets the limit. The watcher sees the candle burning and sees it
+finish, but **cannot see if you blow it out early** — nothing can travel back
+up the link. Their page says so plainly rather than implying it's proof. The
+same goes for changing the length after you've shared: the link they hold
+keeps the end time it was made with.
+
+Watching someone else's candle never touches your own saved state, and the
+watcher can't light, stop or reset anything.
+
+Making that last step work — your friend actually seeing you stop — needs a
+small backend, which isn't built yet. A candle left burning keeps burning in real time while the page is shut.

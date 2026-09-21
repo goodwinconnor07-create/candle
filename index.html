@@ -230,25 +230,26 @@
   .lit .label{ color:var(--accent-soft); }
 
   .controls{ margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-  button.ctl{
+  .ctl{
     font: inherit; font-size:.78rem; letter-spacing:.14em; text-transform:uppercase;
     color:rgba(232,220,198,.6); background:transparent;
     border:1px solid rgba(232,220,198,.22); border-radius:999px;
     padding:9px 18px; cursor:pointer;
     transition: color .25s ease, border-color .25s ease, background .25s ease;
   }
-  button.ctl:hover{ color:#ffd9a0; border-color:rgba(255,190,120,.5); background:rgba(255,160,60,.07); }
-  button.ctl:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:3px; }
-  button.ctl[hidden]{ display:none; }
+  .ctl:hover{ color:#ffd9a0; border-color:rgba(255,190,120,.5); background:rgba(255,160,60,.07); }
+  .ctl:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:3px; }
+  .ctl[hidden]{ display:none; }
+  a.ctl{ display:inline-block; text-decoration:none; }
 
   /* ---------- burn-time picker ---------- */
   .picker{ margin-top:18px; }
-  .picker-tabs{ display:flex; align-items:center; justify-content:center; gap:10px; }
+  .picker-tabs{ display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; }
   .picker-sep{ color:rgba(232,220,198,.2); font-size:.7rem; }
   .picker-toggle{
     font: inherit; font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
     color:rgba(232,220,198,.34); background:transparent; border:0; padding:6px 4px;
-    cursor:pointer; border-bottom:1px dotted rgba(232,220,198,.28);
+    cursor:pointer; white-space:nowrap; border-bottom:1px dotted rgba(232,220,198,.28);
     transition: color .25s ease, border-color .25s ease;
   }
   .picker-toggle:hover{ color:rgba(255,205,145,.8); border-bottom-color:rgba(255,190,120,.5); }
@@ -305,6 +306,37 @@
     color:rgba(232,220,198,.24); text-align:center;
   }
 
+  /* ---------- share panel ---------- */
+  #sharePanel.open{ max-height:320px; }
+  .share-field{
+    display:block; width:100%; margin-top:13px; padding:9px 12px;
+    font: inherit; font-size:.92rem; color:#e8dcc6; text-align:center;
+    background:rgba(0,0,0,.34); border:1px solid rgba(232,220,198,.18); border-radius:10px;
+  }
+  .share-field::placeholder{ color:rgba(232,220,198,.24); }
+  .share-field:focus{ outline:none; border-color:var(--accent-mid); }
+  .share-preview{
+    margin-top:13px; font-size:.76rem; line-height:1.5;
+    color:var(--accent-soft); min-height:2.2em;
+  }
+  .share-actions{ margin-top:13px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .share-actions .ctl{ padding:8px 16px; font-size:.72rem; }
+
+  /* ---------- watcher's view ---------- */
+  .watch-head{ text-align:center; }
+  .watch-name{
+    font-size:.82rem; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--accent-soft); transition:color 1.2s ease;
+  }
+  .watch-sub{
+    margin-top:7px; font-size:.68rem; letter-spacing:.14em;
+    color:rgba(232,220,198,.3);
+  }
+  .watch-foot{ margin-top:20px; }
+  .watch .wick-hit{ pointer-events:none; cursor:default; }
+  .watch .controls, .watch .picker{ display:none; }
+  [hidden]{ display:none !important; }
+
   .swatches{
     display:flex; justify-content:center; align-items:center;
     gap:10px; flex-wrap:wrap; margin-top:15px;
@@ -324,7 +356,14 @@
   }
   @media (prefers-reduced-motion: reduce){ .swatch:hover{ transform:none; } }
 
+  @media (max-width:440px){
+    /* the row wraps at this width, and a trailing dot on the first row looks
+       like a mistake, so space the tabs instead of separating them */
+    .picker-sep{ display:none; }
+    .picker-tabs{ gap:8px 16px; }
+  }
   @media (max-width:380px){
+    .picker-toggle{ font-size:.66rem; letter-spacing:.13em; padding:6px 2px; }
     /* keep all six on one row rather than wrapping 5 + 1 */
     .picker-inner{ padding:14px 14px 12px; }
     .swatches{ gap:8px; }
@@ -344,6 +383,11 @@
   <div class="room" id="room"></div>
 
   <main class="stage" id="stage">
+    <div class="watch-head" id="watchHead" hidden>
+      <div class="watch-name" id="watchName"></div>
+      <div class="watch-sub" id="watchSub"></div>
+    </div>
+
     <div class="candle-area">
       <div class="pool"></div>
 
@@ -380,6 +424,8 @@
           <button class="picker-toggle" id="pickerToggle" aria-expanded="false" aria-controls="pickerPanel">change time</button>
           <span class="picker-sep" aria-hidden="true">&middot;</span>
           <button class="picker-toggle" id="colourToggle" aria-expanded="false" aria-controls="colourPanel">flame colour</button>
+          <span class="picker-sep" id="shareSep" aria-hidden="true" hidden>&middot;</span>
+          <button class="picker-toggle" id="shareToggle" aria-expanded="false" aria-controls="sharePanel" hidden>send to someone</button>
         </div>
 
         <div class="picker-panel" id="pickerPanel">
@@ -393,6 +439,20 @@
           </div>
         </div>
 
+        <div class="picker-panel" id="sharePanel">
+          <div class="picker-inner">
+            <div class="picker-value">Nominate a witness</div>
+            <input class="share-field" id="shareName" type="text" maxlength="24"
+                   placeholder="your name" autocomplete="name" aria-label="Your name">
+            <p class="share-preview" id="sharePreview"></p>
+            <div class="share-actions">
+              <button class="ctl" id="shareSend" hidden>Send</button>
+              <button class="ctl" id="shareCopy">Copy link</button>
+            </div>
+            <p class="picker-note">They'll see it burning, not if you stop.</p>
+          </div>
+        </div>
+
         <div class="picker-panel" id="colourPanel">
           <div class="picker-inner">
             <div class="picker-value" id="colourValue">Amber</div>
@@ -400,6 +460,10 @@
             <p class="picker-note">Sets the flame and the light it throws.</p>
           </div>
         </div>
+      </div>
+      <div class="watch-foot" id="watchFoot" hidden>
+        <p class="picker-note">You'll see this candle finish, but not if it's blown out early.</p>
+        <a class="ctl" id="watchStart" href="./">Light your own</a>
       </div>
     </div>
   </main>
@@ -478,6 +542,38 @@
       '--accent-mid':'rgba(190,215,255,.8)', '--thumb-1':'#f4f8ff', '--thumb-2':'#b9d0f5' } }
   ];
 
+  const NAME_KEY = 'candle-name';
+
+  // a shared candle travels entirely in the link — no server, nothing stored
+  function b64url(str){
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    bytes.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function unb64url(str){
+    const pad = str.length % 4 ? '='.repeat(4 - (str.length % 4)) : '';
+    const bin = atob(str.replace(/-/g,'+').replace(/_/g,'/') + pad);
+    return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+  }
+
+  // set when this page is watching someone else's candle, null when it's yours
+  const WATCH = (function(){
+    const m = /[#&]c=([A-Za-z0-9\-_]+)/.exec(location.hash);
+    if(!m) return null;
+    try{
+      const d = JSON.parse(unb64url(m[1]));
+      if(typeof d.e !== 'number' || typeof d.t !== 'number') return null;
+      return {
+        name: String(d.n || 'Someone').trim().slice(0,24) || 'Someone',
+        endAt: d.e,
+        startedAt: typeof d.s === 'number' ? d.s : 0,
+        totalMs: Math.min(MAX_MINS * 60000, Math.max(MIN_MINS * 60000, d.t)),
+        flameId: FLAMES.some(f => f.id === d.f) ? d.f : FLAMES[0].id
+      };
+    }catch(e){ return null; }
+  })();
+
   const stage  = document.getElementById('stage');
   const room   = document.getElementById('room');
   const wick   = document.getElementById('wick');
@@ -496,6 +592,18 @@
   const colPanel   = document.getElementById('colourPanel');
   const colValue   = document.getElementById('colourValue');
   const swatches   = document.getElementById('swatches');
+  const shareToggle= document.getElementById('shareToggle');
+  const shareSep   = document.getElementById('shareSep');
+  const sharePanel = document.getElementById('sharePanel');
+  const shareName  = document.getElementById('shareName');
+  const sharePrev  = document.getElementById('sharePreview');
+  const shareSend  = document.getElementById('shareSend');
+  const shareCopy  = document.getElementById('shareCopy');
+  const watchHead  = document.getElementById('watchHead');
+  const watchName  = document.getElementById('watchName');
+  const watchSub   = document.getElementById('watchSub');
+  const watchFoot  = document.getElementById('watchFoot');
+  const watchStart = document.getElementById('watchStart');
 
   // state: 'unlit' | 'burning' | 'paused' | 'done'
   let state = 'unlit';
@@ -503,6 +611,7 @@
   let flameId = FLAMES[0].id; // which flame colour is burning
   let remaining = totalMs;    // ms left, authoritative while not burning
   let endAt = 0;              // timestamp the candle runs out, while burning
+  let startedAt = 0;          // when the flame caught, for the share message
   let raf = null;
   let flickerTimer = null;
   let audioCtx = null;
@@ -529,8 +638,9 @@
   function setLabel(text){ label.textContent = text; }
 
   function save(){
+    if(WATCH) return;          // watching someone else must not touch your own candle
     try{
-      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs, flameId }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs, flameId, startedAt }));
     }catch(e){ /* private mode, storage off — the timer still runs */ }
   }
 
@@ -547,6 +657,7 @@
       syncPicker();
       paint();
     }
+    if(typeof d.startedAt === 'number') startedAt = d.startedAt;
     if(d.state === 'burning' && typeof d.endAt === 'number'){
       if(d.endAt - Date.now() > 0){ endAt = d.endAt; light(true); return; }
       remaining = 0; finish(true); return;
@@ -585,7 +696,7 @@
   function light(resuming){
     if(state === 'burning') return;
     if(state === 'done' && remaining <= 0) return;   // nothing left to burn
-    if(!resuming) endAt = Date.now() + remaining;
+    if(!resuming){ endAt = Date.now() + remaining; startedAt = Date.now(); }
     state = 'burning';
 
     stage.classList.remove('done');
@@ -596,6 +707,7 @@
     wick.setAttribute('aria-label','Blow out the candle');
 
     snuff.hidden = false; reset.hidden = false;
+    syncShareTab();
     setLabel('burning');
     startFlicker();
 
@@ -621,6 +733,7 @@
 
     wick.setAttribute('aria-label','Light the candle');
     snuff.hidden = true; reset.hidden = false;
+    syncShareTab();
     setLabel('paused — click the wick to relight');
     paint();
     save();
@@ -644,7 +757,8 @@
     }
     wick.setAttribute('aria-label','Candle burnt out — reset to start again');
     snuff.hidden = true; reset.hidden = false;
-    setLabel('burnt out');
+    syncShareTab();
+    setLabel(WATCH ? 'finished · ' + fmtDur(Math.round(totalMs / 60000)) : 'burnt out');
     paint();
     save();
   }
@@ -661,6 +775,7 @@
     if(raf){ cancelAnimationFrame(raf); raf = null; }
     wick.setAttribute('aria-label','Light the candle');
     snuff.hidden = true; reset.hidden = true;
+    syncShareTab();
     setLabel('click the wick to light');
     paint();
     save();
@@ -730,6 +845,7 @@
       doReset();              // fresh unlit candle, full height
     }
     syncPicker();
+    syncShare();
   }
 
   // ---------- flame colour ----------
@@ -760,10 +876,84 @@
     swatches.appendChild(b);
   });
 
+  // ---------- sending the candle to someone ----------
+  function clock(ts){
+    try{ return new Date(ts).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }); }
+    catch(e){ return ''; }
+  }
+
+  function shareMessage(){
+    const who = shareName.value.trim() || 'Someone';
+    return who + ' has started a candle for ' + fmtDur(Math.round(totalMs / 60000));
+  }
+
+  function shareUrl(){
+    const payload = { n: shareName.value.trim().slice(0,24), e: endAt, s: startedAt, t: totalMs, f: flameId };
+    return location.href.split('#')[0] + '#c=' + b64url(JSON.stringify(payload));
+  }
+
+  function syncShare(){
+    sharePrev.textContent = '\u201c' + shareMessage() + '\u201d';
+  }
+
+  // the tab only makes sense while a candle is actually burning
+  function syncShareTab(){
+    const on = !WATCH && state === 'burning';
+    shareToggle.hidden = !on;
+    shareSep.hidden = !on;
+    if(!on && sharePanel.classList.contains('open')) openMenu(null, false);
+  }
+
+  function flash(btn, text){
+    const was = btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => { btn.textContent = was; }, 1600);
+  }
+
+  // clipboard API needs a secure context; fall back for file:// and plain http
+  function legacyCopy(text){
+    try{
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly','');
+      ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    }catch(e){ return false; }
+  }
+
+  try{ shareName.value = localStorage.getItem(NAME_KEY) || ''; }catch(e){ /* storage off */ }
+
+  shareName.addEventListener('input', () => {
+    syncShare();
+    try{ localStorage.setItem(NAME_KEY, shareName.value.trim().slice(0,24)); }catch(e){ /* storage off */ }
+  });
+
+  shareSend.hidden = !navigator.share;
+  shareSend.addEventListener('click', () => {
+    navigator.share({ text: shareMessage(), url: shareUrl() })
+      .then(() => flash(shareSend, 'Sent'))
+      .catch(() => { /* dismissed the share sheet */ });
+  });
+
+  shareCopy.addEventListener('click', () => {
+    const text = shareMessage() + ' — ' + shareUrl();
+    const done = ok => flash(shareCopy, ok ? 'Copied' : 'Press ⌘/Ctrl+C');
+    if(navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
+    }else{
+      done(legacyCopy(text));
+    }
+  });
+
   // ---------- one menu open at a time ----------
   const MENUS = [
     { panel: pickPanel, toggle: pickToggle, onOpen: () => { syncPicker(); pickRange.focus({ preventScroll:true }); } },
-    { panel: colPanel,  toggle: colToggle,  onOpen: () => { const on = swatches.querySelector('[aria-pressed="true"]') || swatches.firstElementChild; if(on) on.focus({ preventScroll:true }); } }
+    { panel: colPanel,  toggle: colToggle,  onOpen: () => { const on = swatches.querySelector('[aria-pressed="true"]') || swatches.firstElementChild; if(on) on.focus({ preventScroll:true }); } },
+    { panel: sharePanel, toggle: shareToggle, onOpen: () => { syncShare(); shareName.focus({ preventScroll:true }); } }
   ];
 
   function openMenu(menu, open){
@@ -813,10 +1003,47 @@
   });
   window.addEventListener('beforeunload', save);
 
-  setFlame(flameId, false);
-  syncPicker();
-  paint();
-  load();
+  // opening a different candle link on an open page only changes the hash,
+  // which wouldn't otherwise re-read it
+  window.addEventListener('hashchange', () => location.reload());
+
+  function startWatching(){
+    document.body.classList.add('watch');
+    totalMs = WATCH.totalMs;
+    flameId = WATCH.flameId;
+    setFlame(flameId, false);
+
+    const possessive = WATCH.name + (/s$/i.test(WATCH.name) ? '\u2019' : '\u2019s');
+    document.title = possessive + ' candle';
+    watchName.textContent = possessive + ' candle';
+    watchSub.textContent = fmtDur(Math.round(totalMs / 60000)) + ' candle'
+      + (WATCH.startedAt ? ' · lit ' + clock(WATCH.startedAt) : '');
+    watchHead.hidden = false;
+    watchFoot.hidden = false;
+    watchStart.href = location.pathname;
+
+    wick.setAttribute('aria-label', possessive + ' candle');
+    wick.tabIndex = -1;
+
+    if(WATCH.endAt - Date.now() > 0){
+      endAt = WATCH.endAt;
+      remaining = Math.max(0, endAt - Date.now());
+      light(true);
+    }else{
+      remaining = 0;
+      finish(true);
+    }
+  }
+
+  if(WATCH){
+    startWatching();
+  }else{
+    setFlame(flameId, false);
+    syncPicker();
+    syncShare();
+    paint();
+    load();
+  }
 })();
 </script>
 </body>
