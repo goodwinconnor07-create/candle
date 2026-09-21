@@ -87,6 +87,16 @@ async function handleCreate(request, env) {
   totalMs = mins * 60000;
 
   const now = Date.now();
+
+  // Trust the browser's own already-ticking endAt when it's sane, so the
+  // delay between lighting the candle and actually sharing it doesn't hand
+  // the watcher extra time the owner's own page doesn't have.
+  const rawEndAt = Number(body.endAt);
+  const endAt = Number.isFinite(rawEndAt) && Math.abs(rawEndAt - (now + totalMs)) < totalMs
+    ? rawEndAt
+    : now + totalMs;
+  const startedAt = endAt - totalMs;
+
   const id = newId();
   const token = newToken();
 
@@ -96,8 +106,8 @@ async function handleCreate(request, env) {
     note,
     flameId,
     totalMs,
-    startedAt: now,
-    endAt: now + totalMs,
+    startedAt,
+    endAt,
     status: 'burning', // 'burning' | 'blown_out'
     endedAt: null,
     lastSeenAt: now,
@@ -121,7 +131,21 @@ async function handleHeartbeat(request, env, id) {
   if (token !== candle.token) return err(403, 'wrong token');
   if (candle.status !== 'burning') return json(publicView(candle)); // nothing to do once stopped
 
-  candle.lastSeenAt = Date.now();
+  let body = {};
+  try { body = await request.json(); } catch (e) { /* a plain heartbeat with no body is fine */ }
+
+  const now = Date.now();
+  candle.lastSeenAt = now;
+
+  // the owner may have changed the length mid-burn; adopt it so a watcher stays in step
+  const newEndAt = Number(body.endAt);
+  const newTotalMs = Number(body.totalMs);
+  if (Number.isFinite(newEndAt) && newEndAt > now && Number.isFinite(newTotalMs)) {
+    const mins = Math.min(MAX_MINS, Math.max(MIN_MINS, Math.round(newTotalMs / 60000)));
+    candle.totalMs = mins * 60000;
+    candle.endAt = newEndAt;
+  }
+
   await writeCandle(env, id, candle);
   return json(publicView(candle));
 }

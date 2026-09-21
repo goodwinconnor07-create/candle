@@ -933,7 +933,7 @@
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         name: shareName.value.trim() || 'Someone',
-        totalMs, flameId
+        totalMs, endAt, flameId
       })
     })
       .then(res => { if(!res.ok) throw new Error('create failed'); return res.json(); })
