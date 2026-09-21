@@ -10,4 +10,4 @@ binding = "ASSETS"
 # that command prints replaces the placeholder below. See DEPLOY.md.
 [[kv_namespaces]]
 binding = "CANDLES"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "b927147c8c8a4062a387730718c2c195"
