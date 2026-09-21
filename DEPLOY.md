@@ -1,92 +1,52 @@
-# Deploying the candle's backend
+# Deploying
 
-The site (`public/index.html`) works with no backend at all — sharing falls
-back to a link that encodes the whole candle, which syncs but can't show a
-blow-out. Deploying the Worker below upgrades sharing to a live one, where
-blowing it out actually shows up on your friend's screen. Everything's
-written and tested; this is what's left, and it's about ten minutes.
+The app is already live at https://candle-timer.candle-timer.workers.dev.
+This is what's involved if you ever need to do it again from scratch, or from
+a different machine.
 
-## Why you, and not me
+## Making a change
 
-This needs a Cloudflare account and a login. That's an OAuth flow through
-your browser — I have no access to your browser, email, or the ability to
-accept Cloudflare's terms on your behalf, so there's no way to script around
-this part. Once it's deployed, though, updates are one command and I can
-walk you through those too.
-
-## 1. Create a Cloudflare account (skip if you have one)
-
-Go to https://dash.cloudflare.com/sign-up and sign up. Free tier is enough
-for this — the whole app fits comfortably inside it.
-
-## 2. Log in from this machine
-
-From the `candle` project folder:
-
-```
-npx wrangler login
-```
-
-This opens a browser tab and asks you to approve access. Approve it, then
-come back to the terminal.
-
-## 3. Create the KV namespace
-
-This is the storage the candles live in:
-
-```
-npx wrangler kv namespace create CANDLES
-```
-
-It prints something like:
-
-```
-🌀 Creating namespace with title "candle-timer-CANDLES"
-✨ Success!
-Add the following to your configuration file:
-[[kv_namespaces]]
-binding = "CANDLES"
-id = "a1b2c3d4e5f6..."
-```
-
-Copy that `id` value.
-
-## 4. Put the id in `wrangler.toml`
-
-Open `wrangler.toml` and replace `REPLACE_WITH_KV_NAMESPACE_ID` with the id
-you just copied. That's the only edit this whole process needs.
-
-## 5. Deploy
+Edit `worker.js` or `public/index.html`, then:
 
 ```
 npx wrangler deploy
 ```
 
-It prints a URL — something like `https://candle-timer.<you>.workers.dev`.
-That's the app, live, with the backend wired up. Open it, light a candle,
-and the "send to someone" panel will start handing out real links.
+Same command every time. There's no build step, and nothing to migrate — the
+Durable Object binding is already in `wrangler.toml` and doesn't change.
 
-## Checking it worked
+## From a fresh machine
 
-Light a candle, open the share panel, hit **Copy link**, and check the note
-under it says *"They'll see if you stop it early, too."* — that's the
-Worker responding. If it instead says it couldn't reach the server, the
-deploy didn't go through; rerun `npx wrangler deploy` and check for errors.
+You need to be logged in to Cloudflare first:
 
-## Custom domain (optional)
+```
+npx wrangler login
+```
 
-If you want this on your own domain instead of `*.workers.dev`, Cloudflare's
-dashboard → your Worker → Settings → Domains & Routes lets you attach one
-you already manage through Cloudflare. Not required for any of the above.
+That opens a browser tab to approve access. If you're somewhere that can't
+open a browser (a remote shell, a container), that flow times out — use an API
+token instead. Create one at **dash.cloudflare.com → your profile → API
+Tokens** with the "Edit Cloudflare Workers" template, then:
 
-## Making a change later
+```
+CLOUDFLARE_API_TOKEN=your-token npx wrangler deploy
+```
 
-Edit `worker.js` or anything in `public/`, then run `npx wrangler deploy`
-again. Same command every time; there's no separate build step.
+## Testing before you deploy
+
+```
+npx wrangler dev
+```
+
+This runs a real Durable Object locally on http://localhost:8787. Open it in
+two browser windows — one normal, one private, so they don't share the same
+saved seat — and you can play a full race against yourself.
 
 ## What's actually running
 
-One Worker, one KV namespace. No database to manage, nothing to patch, no
-server that can go down from lack of attention — Cloudflare runs it.
-Records expire on their own after 7 days, so there's nothing to clean up
-either.
+One Worker and one Durable Object per race. No database, no KV, nothing to
+clean up: each race room deletes itself a day after its last activity, and the
+free tier covers all of this comfortably.
+
+If you want this on your own domain instead of `*.workers.dev`, it's
+Cloudflare's dashboard → your Worker → Settings → Domains & Routes.

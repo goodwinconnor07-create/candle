@@ -1,75 +1,84 @@
-# Candle Timer
+# Candle Race
 
-A two-hour timer that looks like a candle burning down.
+Two friends, the same questions, two candles burning down. Answer one right
+and your opponent's candle flares up and burns faster. Answer one wrong and
+yours does instead. Last flame still burning wins.
+
+Live at https://candle-timer.candle-timer.workers.dev
+
+The earlier version of this project — a solo candle that burns down as an
+accountability timer, with shareable links so a friend could watch — is kept
+on the `v1-accountability-candle` branch.
+
+## The rules
+
+- Both players see the same question at the same time, with **10 seconds** to
+  answer. Four choices; 1-4 on the keyboard works too.
+- **Right** → the *other* candle burns at triple speed for about four seconds.
+- **Wrong, or out of time** → *your* candle burns fast instead. Running out
+  the clock is treated exactly like getting it wrong.
+- **Three right in a row** → you get wax back, capped at a full candle. The
+  pips under your candle show how close you are.
+- Both candles burn at the base rate the whole time regardless, so an evenly
+  matched race still ends rather than stalling.
+- First candle to run out loses. Both at once is a draw.
+
+A candle holds three minutes of burn at the base rate, so a game usually runs
+two to four minutes depending on how badly you're hurting each other.
+
+Questions are single-digit addition and subtraction for now — enough to prove
+the mechanic works. The generator lives in `makeQuestion()` in `worker.js` and
+is the one place to change to make this about something you're actually
+studying.
+
+## Starting a race
+
+One player opens the app, types a name, and hits **Start a race**. That gives
+them a link to send. Whoever opens it sees who challenged them, enters their
+own name and clicks **I'm ready** — at which point the first player sees
+they're ready and the **Start the race** button comes alive. Only the player
+who created the race can start it, or rematch afterwards.
+
+Only two people can be in a race. A third person opening the link is told the
+race is full. If either player refreshes or their phone locks, they land back
+in the same race where they left it — the browser remembers which seat was
+theirs, and the race carries on burning while they're gone.
+
+## How it's built
+
+One Cloudflare Worker, one Durable Object per race, no database.
+
+The Durable Object holds the only real copy of a race: both wax levels, who's
+burning fast and until when, the current question, and each player's streak.
+Both browsers hold a WebSocket to it, so a hit lands on the other candle
+straight away instead of waiting for a poll. It broadcasts wax levels four
+times a second, and each browser smooths between those updates against its own
+clock — no device clock is ever trusted, so a phone set three minutes fast
+can't drift the two candles apart.
+
+The answer to a live question is never sent to the browsers. It only goes out
+once the round is resolved, so there's nothing in the page to read ahead.
+
+Rooms delete themselves a day after the last activity.
 
 ## Running it
 
-**Just the timer, no accountability backend:** open `public/index.html` in a
-browser. No build step, no dependencies.
+```
+npx wrangler dev        # local, with a real Durable Object
+npx wrangler deploy     # push it live
+```
 
-**With the backend**, so a shared candle can show a friend that you stopped
-it early: see [DEPLOY.md](DEPLOY.md). It's a single Cloudflare Worker; free
-tier covers this comfortably.
+There's no build step. `public/index.html` is the whole front end and
+`worker.js` is the whole backend.
 
-## How it works
+## Tuning
 
-The candle starts unlit in a dark room. Click the wick to light it; the flame
-catches, the room warms up, and the countdown starts — two hours by default,
-or whatever length you pick under the candle. The wax
-shrinks as the time runs down, so you can read the timer from across the room
-without reading the numbers. When it reaches zero the flame goes out, a wisp of
-smoke rises, and a soft two-note chime plays.
+The knobs are all constants at the top of `worker.js`:
 
-- **Click the wick** — light it, or blow it out again while it's burning.
-- **Blow out** — pauses the countdown, keeping the time left.
-- **Reset** — back to a full candle at the chosen length.
-- **Change time** — opens a slider under the candle, 5 minutes to 2 hours in
-  5-minute steps. Picking a length starts a fresh full candle; do it while the
-  candle is lit and it keeps burning, just at the new length.
-- **Flame colour** — six swatches: amber, rose, violet, ocean, emerald and
-  moonlight. The choice drives the whole scene, not just the flame — the wick
-  glow, the light thrown on the room and the wax, and the tint of the
-  countdown all follow it.
-- **Send to someone** — appears once the candle is lit. Put in your name and
-  it gives you a message and a link to send: *"Kavi has started a candle for
-  25 min"*. Whoever opens it watches the same candle burn down in real time,
-  in the same colour, read-only.
-
-State is kept in `localStorage`, including the burn length and flame colour
-you chose, so a refresh or a closed tab won't lose your place.
-
-## Sharing a candle
-
-There are two kinds of link, and which one you get depends on whether the
-backend (see DEPLOY.md) is reachable when you hit Copy or Send. You don't
-choose; the app tries the live one first and falls back automatically.
-
-**Live** (needs the Worker deployed). Lighting the candle creates a small
-record — name, length, flame colour, an end time — on the server, identified
-by an id in the link (`#w=...`). Your page checks in with it every 20
-seconds while burning, so a watcher's page can poll the same record and find
-out three things: the countdown, whether you deliberately blew it out, and
-roughly how long it's been since you last checked in ("quiet for a moment" /
-"last seen 4 min ago"). Only a deliberate blow-out — clicking Blow out or
-Reset while it's burning — is ever shown as a failure. Going quiet is shown
-as just that, quiet, since a locked phone or a closed laptop lid looks
-identical to having given up, and punishing the first would punish the
-behaviour the app is meant to encourage. Records expire after 7 days.
-
-**Static, serverless fallback** (`#c=...`). If the Worker can't be reached —
-not deployed yet, or offline — the whole candle is encoded straight into the
-link, and the watcher's page rebuilds it locally. Both ends count down from
-the same absolute timestamp, so they stay in sync without ever talking to
-each other. The tradeoff: nothing can travel back up a link like this, so
-the watcher sees the candle burning and sees it finish, but can't ever learn
-that you blew it out early. Their page says so.
-
-Either way: watching someone else's candle never touches your own saved
-state, the watcher can't light, stop or reset anything, and nobody but you
-holds the token that can stop your own candle — the link you share only
-ever contains an id.
-
-None of this proves you were actually studying. It proves a browser tab
-stayed open and someone chose, or didn't choose, to click Blow out in front
-of a friend. That friction is the actual mechanism; the tab is just what
-makes it visible.
+| Constant | What it does |
+| --- | --- |
+| `START_WAX_MS` | how much candle each player starts with |
+| `QUESTION_MS` | time allowed per question |
+| `BURST_RATE` / `BURST_MS` | how much faster a hit candle burns, and for how long |
+| `BURST_CAP_MS` | stops stacked hits from snowballing |
+| `STREAK_N` / `HEAL_MS` | right answers needed to earn wax, and how much |

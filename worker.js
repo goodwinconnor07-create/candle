@@ -1,26 +1,38 @@
 /**
- * Candle accountability API.
+ * Candle Race — a two-player study race run on a Durable Object.
  *
- * One record per shared candle, held in Workers KV. The owner's browser
- * holds a bearer token from creation and is the only writer; everyone else
- * (the watcher) only ever reads. Records expire on their own after 7 days —
- * nothing here is meant to be a permanent log.
+ * Each game gets its own GameRoom, which holds the only authoritative copy of
+ * the state: how much wax each player has left, who's burning fast right now,
+ * which question is up, and whose streak is running. Both players hold a
+ * WebSocket to that room, so a hit lands on the other candle immediately
+ * rather than waiting for a poll.
+ *
+ * The rules, in one place:
+ *   - Both players see the same question at the same time and have 10s.
+ *   - Answer right and the OTHER candle burns fast for a few seconds.
+ *   - Answer wrong, or run out of time, and YOUR candle burns fast instead.
+ *   - Three right in a row hands you wax back.
+ *   - Both candles burn at the base rate the whole time, so a game always ends.
+ *   - First candle to run out loses.
  *
  * Routes:
- *   POST   /api/candles                create a candle, returns {id, token}
- *   GET    /api/candles/:id             read a candle (public, token stripped)
- *   POST   /api/candles/:id/heartbeat   owner check-in while burning
- *   POST   /api/candles/:id/stop        owner blows it out early
- *
- * Everything else falls through to the static site in /public.
+ *   POST /api/games            create a room, returns {id, token}
+ *   GET  /api/games/:id/ws     WebSocket, ?role=host|guest&token=...
+ * Everything else is the static site in /public.
  */
 
-const TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
-const MIN_MINS = 5;
-const MAX_MINS = 120;
-const NAME_MAX = 24;
-const NOTE_MAX = 80;
-const FLAME_IDS = ['amber', 'rose', 'violet', 'ocean', 'emerald', 'moonlight'];
+const START_WAX_MS = 180000;  // 3 minutes of candle at the base burn rate
+const QUESTION_MS  = 10000;   // how long each question stays up
+const RESOLVE_MS   = 2600;    // pause showing what the round did
+const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
+const TICK_MS      = 250;     // how often the room broadcasts wax levels
+const BURST_RATE   = 3;       // a hit candle burns this many times faster
+const BURST_MS     = 4000;    // and stays that way this long
+const BURST_CAP_MS = 12000;   // stacked hits can't push it past this
+const STREAK_N     = 3;       // right answers in a row that earn wax back
+const HEAL_MS      = 20000;   // how much wax a streak hands back
+const NAME_MAX     = 16;
+const ROOM_TTL_MS  = 24 * 60 * 60 * 1000;
 
 function json(data, init) {
   return new Response(JSON.stringify(data), {
@@ -33,18 +45,10 @@ function err(status, message) {
   return json({ error: message }, { status });
 }
 
-function newId() {
-  // short, URL-safe, and not guessable enough to matter for something this low-stakes
-  const bytes = crypto.getRandomValues(new Uint8Array(9));
+function randomId(bytes) {
+  const raw = crypto.getRandomValues(new Uint8Array(bytes));
   let s = '';
-  bytes.forEach((b) => { s += String.fromCharCode(b); });
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function newToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  let s = '';
-  bytes.forEach((b) => { s += String.fromCharCode(b); });
+  raw.forEach((b) => { s += String.fromCharCode(b); });
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
@@ -52,142 +56,378 @@ function clean(str, max) {
   return String(str == null ? '' : str).trim().slice(0, max);
 }
 
-function publicView(c) {
-  // never hand the owner token to a reader
-  const { token, ...rest } = c;
-  return rest;
+function rnd(n) { return Math.floor(Math.random() * n); }
+
+function rateOf(p, now) { return p.burstUntil > now ? BURST_RATE : 1; }
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = rnd(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-async function readCandle(env, id) {
-  const raw = await env.CANDLES.get(`candle:${id}`);
-  return raw ? JSON.parse(raw) : null;
+// simple mental arithmetic, four choices, distractors that sit near the answer
+// so you can't win by eyeballing which number looks out of place
+function makeQuestion() {
+  const adding = Math.random() < 0.6;
+  let text, value;
+  if (adding) {
+    const a = 2 + rnd(12), b = 3 + rnd(12);
+    text = a + ' + ' + b;
+    value = a + b;
+  } else {
+    const a = 8 + rnd(14), b = 1 + rnd(7);
+    text = a + ' − ' + b;
+    value = a - b;
+  }
+  const pool = new Set([value]);
+  while (pool.size < 4) {
+    const off = (1 + rnd(4)) * (Math.random() < 0.5 ? -1 : 1);
+    if (value + off >= 0) pool.add(value + off);
+  }
+  const choices = shuffle([...pool]);
+  return { text, choices, answer: choices.indexOf(value) };
 }
 
-async function writeCandle(env, id, candle) {
-  await env.CANDLES.put(`candle:${id}`, JSON.stringify(candle), { expirationTtl: TTL_SECONDS });
-}
-
-function bearerToken(request) {
-  const h = request.headers.get('authorization') || '';
-  const m = /^Bearer (.+)$/.exec(h);
-  return m ? m[1] : null;
-}
-
-async function handleCreate(request, env) {
-  let body;
-  try { body = await request.json(); } catch (e) { return err(400, 'bad json'); }
-
-  const name = clean(body.name, NAME_MAX) || 'Someone';
-  const note = clean(body.note, NOTE_MAX);
-  const flameId = FLAME_IDS.includes(body.flameId) ? body.flameId : 'amber';
-
-  let totalMs = Number(body.totalMs);
-  if (!Number.isFinite(totalMs)) return err(400, 'bad totalMs');
-  const mins = Math.min(MAX_MINS, Math.max(MIN_MINS, Math.round(totalMs / 60000)));
-  totalMs = mins * 60000;
-
-  const now = Date.now();
-
-  // Trust the browser's own already-ticking endAt when it's sane, so the
-  // delay between lighting the candle and actually sharing it doesn't hand
-  // the watcher extra time the owner's own page doesn't have.
-  const rawEndAt = Number(body.endAt);
-  const endAt = Number.isFinite(rawEndAt) && Math.abs(rawEndAt - (now + totalMs)) < totalMs
-    ? rawEndAt
-    : now + totalMs;
-  const startedAt = endAt - totalMs;
-
-  const id = newId();
-  const token = newToken();
-
-  const candle = {
-    id,
-    name,
-    note,
-    flameId,
-    totalMs,
-    startedAt,
-    endAt,
-    status: 'burning', // 'burning' | 'blown_out'
-    endedAt: null,
-    lastSeenAt: now,
-    token,
-  };
-
-  await writeCandle(env, id, candle);
-  return json({ id, token, endAt: candle.endAt }, { status: 201 });
-}
-
-async function handleRead(env, id) {
-  const candle = await readCandle(env, id);
-  if (!candle) return err(404, 'not found');
-  return json(publicView(candle));
-}
-
-async function handleHeartbeat(request, env, id) {
-  const candle = await readCandle(env, id);
-  if (!candle) return err(404, 'not found');
-  const token = bearerToken(request);
-  if (token !== candle.token) return err(403, 'wrong token');
-  if (candle.status !== 'burning') return json(publicView(candle)); // nothing to do once stopped
-
-  let body = {};
-  try { body = await request.json(); } catch (e) { /* a plain heartbeat with no body is fine */ }
-
-  const now = Date.now();
-  candle.lastSeenAt = now;
-
-  // the owner may have changed the length mid-burn; adopt it so a watcher stays in step
-  const newEndAt = Number(body.endAt);
-  const newTotalMs = Number(body.totalMs);
-  if (Number.isFinite(newEndAt) && newEndAt > now && Number.isFinite(newTotalMs)) {
-    const mins = Math.min(MAX_MINS, Math.max(MIN_MINS, Math.round(newTotalMs / 60000)));
-    candle.totalMs = mins * 60000;
-    candle.endAt = newEndAt;
+export class GameRoom {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.sockets = new Set();   // { ws, role }
+    this.lobby = null;          // { hostName, hostToken, guestName, guestToken, guestReady }
+    this.game = null;           // in-memory while a race is running
+    this.loop = null;
   }
 
-  // the owner may have changed the flame colour mid-burn; adopt it too
-  if (FLAME_IDS.includes(body.flameId)) candle.flameId = body.flameId;
-
-  await writeCandle(env, id, candle);
-  return json(publicView(candle));
-}
-
-async function handleStop(request, env, id) {
-  const candle = await readCandle(env, id);
-  if (!candle) return err(404, 'not found');
-  const token = bearerToken(request);
-  if (token !== candle.token) return err(403, 'wrong token');
-
-  if (candle.status === 'burning') {
-    candle.status = 'blown_out';
-    candle.endedAt = Date.now();
-    candle.lastSeenAt = candle.endedAt;
-    await writeCandle(env, id, candle);
+  async loadLobby() {
+    if (!this.lobby) this.lobby = (await this.state.storage.get('lobby')) || null;
+    return this.lobby;
   }
-  return json(publicView(candle));
+
+  async saveLobby() {
+    await this.state.storage.put('lobby', this.lobby);
+    await this.state.storage.setAlarm(Date.now() + ROOM_TTL_MS);
+  }
+
+  // a finished room is just clutter; drop it a day later
+  async alarm() {
+    await this.state.storage.deleteAll();
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/create') {
+      const body = await request.json().catch(() => ({}));
+      this.lobby = {
+        hostName: clean(body.name, NAME_MAX) || 'Someone',
+        hostToken: randomId(18),
+        guestName: '',
+        guestToken: '',
+        guestReady: false,
+      };
+      await this.saveLobby();
+      return json({ token: this.lobby.hostToken, hostName: this.lobby.hostName });
+    }
+
+    if (url.pathname === '/ws') {
+      if (request.headers.get('upgrade') !== 'websocket') return err(426, 'expected websocket');
+      const pair = new WebSocketPair();
+      await this.accept(pair[1], url.searchParams);
+      return new Response(null, { status: 101, webSocket: pair[0] });
+    }
+
+    return err(404, 'not found');
+  }
+
+  async accept(ws, params) {
+    ws.accept();
+    const lobby = await this.loadLobby();
+
+    if (!lobby) {
+      ws.send(JSON.stringify({ t: 'nogame' }));
+      ws.close(1000, 'no such game');
+      return;
+    }
+
+    const wanted = params.get('role');
+    const token = params.get('token') || '';
+    let role = null;
+
+    if (wanted === 'host' && token && token === lobby.hostToken) {
+      role = 'host';
+    } else if (wanted === 'guest') {
+      if (lobby.guestToken && token === lobby.guestToken) {
+        role = 'guest';                       // coming back after a refresh
+      } else if (!lobby.guestToken) {
+        lobby.guestToken = randomId(18);      // first arrival claims the seat
+        await this.saveLobby();
+        role = 'guest';
+      }
+    }
+
+    if (!role) {
+      ws.send(JSON.stringify({ t: 'full' }));
+      ws.close(1000, 'seat taken');
+      return;
+    }
+
+    const conn = { ws, role };
+    this.sockets.add(conn);
+
+    ws.addEventListener('message', (ev) => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      this.onMessage(role, msg).catch(() => {});
+    });
+    const drop = () => this.sockets.delete(conn);
+    ws.addEventListener('close', drop);
+    ws.addEventListener('error', drop);
+
+    // the snapshot carries its own t:'state', so it has to be spread first or
+    // it overwrites the welcome tag and the client never stores its token
+    ws.send(JSON.stringify({
+      ...this.snapshot(),
+      t: 'welcome',
+      you: role,
+      token: role === 'host' ? lobby.hostToken : lobby.guestToken,
+      startWax: START_WAX_MS,
+      questionMs: QUESTION_MS,
+      streakN: STREAK_N,
+    }));
+    this.broadcast(this.snapshot());
+  }
+
+  async onMessage(role, msg) {
+    const lobby = await this.loadLobby();
+    if (!lobby) return;
+
+    if (msg.t === 'ready' && role === 'guest' && !this.game) {
+      lobby.guestName = clean(msg.name, NAME_MAX) || 'Challenger';
+      lobby.guestReady = true;
+      await this.saveLobby();
+      this.broadcast(this.snapshot());
+      return;
+    }
+
+    if (msg.t === 'start' && role === 'host' && lobby.guestReady && !this.game) {
+      this.startGame();
+      return;
+    }
+
+    if (msg.t === 'answer') {
+      this.onAnswer(role, msg.round, msg.choice);
+      return;
+    }
+
+    if (msg.t === 'again' && this.game && this.game.phase === 'over') {
+      this.startGame();
+    }
+  }
+
+  newPlayer(name) {
+    return { name, wax: START_WAX_MS, burstUntil: 0, streak: 0, best: 0, right: 0 };
+  }
+
+  startGame() {
+    const now = Date.now();
+    this.game = {
+      phase: 'countdown',
+      host: this.newPlayer(this.lobby.hostName),
+      guest: this.newPlayer(this.lobby.guestName || 'Challenger'),
+      round: 0,
+      q: null,
+      answers: {},
+      deadline: now + COUNTDOWN_MS,
+      lastTick: now,
+      last: null,
+      over: null,
+    };
+    this.broadcast(this.snapshot());
+    this.startLoop();
+  }
+
+  startLoop() {
+    if (this.loop) return;
+    this.loop = setInterval(() => {
+      try { this.tick(); } catch (e) { /* a dropped tick just means a slightly coarser burn */ }
+    }, TICK_MS);
+  }
+
+  stopLoop() {
+    if (this.loop) { clearInterval(this.loop); this.loop = null; }
+  }
+
+  tick() {
+    const g = this.game;
+    if (!g || g.phase === 'over') { this.stopLoop(); return; }
+
+    const now = Date.now();
+    const dt = now - g.lastTick;
+    g.lastTick = now;
+
+    // the base burn never stops, so an evenly matched race still finishes
+    for (const key of ['host', 'guest']) {
+      const p = g[key];
+      p.wax = Math.max(0, p.wax - dt * rateOf(p, now));
+    }
+
+    if (g.host.wax <= 0 || g.guest.wax <= 0) { this.endGame(); return; }
+
+    if (now >= g.deadline) {
+      if (g.phase === 'countdown' || g.phase === 'resolve') this.nextRound();
+      else if (g.phase === 'question') this.resolveRound();
+      return;
+    }
+
+    this.broadcast({ t: 'tick', h: this.waxOf(g.host), g: this.waxOf(g.guest), ms: Math.max(0, g.deadline - now) });
+  }
+
+  // read the rate live rather than off the last tick, so the flare shows up in
+  // the very message that reports the hit instead of a tick later
+  waxOf(p) { return { w: Math.round(p.wax), r: rateOf(p, Date.now()) }; }
+
+  nextRound() {
+    const g = this.game;
+    g.round += 1;
+    g.q = makeQuestion();
+    g.answers = {};
+    g.last = null;
+    g.phase = 'question';
+    g.deadline = Date.now() + QUESTION_MS;
+    this.broadcast(this.snapshot());
+  }
+
+  onAnswer(role, round, choice) {
+    const g = this.game;
+    if (!g || g.phase !== 'question' || round !== g.round) return;
+    if (g.answers[role] != null) return;             // one answer per round
+    g.answers[role] = Number(choice);
+    if (g.answers.host != null && g.answers.guest != null) this.resolveRound();
+    else this.broadcast(this.snapshot());            // so the other sees "they've locked in"
+  }
+
+  burn(p, now) {
+    // stacked hits extend the burst rather than multiplying the rate, so a
+    // bad round hurts without turning into a runaway
+    p.burstUntil = Math.min(Math.max(now, p.burstUntil) + BURST_MS, now + BURST_CAP_MS);
+  }
+
+  resolveRound() {
+    const g = this.game;
+    const now = Date.now();
+    const correct = g.q.answer;
+    const result = { correct, host: null, guest: null };
+
+    for (const key of ['host', 'guest']) {
+      const me = g[key];
+      const them = g[key === 'host' ? 'guest' : 'host'];
+      const given = g.answers[key];
+      const right = given != null && given === correct;
+      const line = { answer: given == null ? null : given, right, timedOut: given == null, healed: false };
+
+      if (right) {
+        me.streak += 1;
+        me.right += 1;
+        me.best = Math.max(me.best, me.streak);
+        this.burn(them, now);
+        if (me.streak % STREAK_N === 0) {
+          me.wax = Math.min(START_WAX_MS, me.wax + HEAL_MS);
+          line.healed = true;
+        }
+      } else {
+        me.streak = 0;
+        this.burn(me, now);
+      }
+      line.streak = me.streak;
+      result[key] = line;
+    }
+
+    g.last = result;
+    g.phase = 'resolve';
+    g.deadline = now + RESOLVE_MS;
+    this.broadcast(this.snapshot());
+  }
+
+  endGame() {
+    const g = this.game;
+    const hostOut = g.host.wax <= 0;
+    const guestOut = g.guest.wax <= 0;
+    g.phase = 'over';
+    g.q = null;
+    g.over = hostOut && guestOut
+      ? { draw: true }
+      : { draw: false, loser: hostOut ? 'host' : 'guest', winner: hostOut ? 'guest' : 'host' };
+    this.stopLoop();
+    this.broadcast(this.snapshot());
+  }
+
+  snapshot() {
+    const lobby = this.lobby;
+    const g = this.game;
+
+    if (!g) {
+      return {
+        t: 'state',
+        phase: 'lobby',
+        host: { name: lobby ? lobby.hostName : '', ready: true },
+        guest: { name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady) },
+      };
+    }
+
+    const now = Date.now();
+    const snap = {
+      t: 'state',
+      phase: g.phase,
+      round: g.round,
+      ms: Math.max(0, g.deadline - now),
+      host: { name: g.host.name, ...this.waxOf(g.host), streak: g.host.streak, best: g.host.best, right: g.host.right, answered: g.answers.host != null },
+      guest: { name: g.guest.name, ...this.waxOf(g.guest), streak: g.guest.streak, best: g.guest.best, right: g.guest.right, answered: g.answers.guest != null },
+      last: g.last,
+      over: g.over,
+    };
+
+    // never ship the answer index while the question is still live
+    if (g.q) {
+      snap.q = g.phase === 'question'
+        ? { text: g.q.text, choices: g.q.choices }
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+    }
+    return snap;
+  }
+
+  broadcast(msg) {
+    const payload = JSON.stringify(msg);
+    for (const conn of [...this.sockets]) {
+      try { conn.ws.send(payload); } catch (e) { this.sockets.delete(conn); }
+    }
+  }
 }
 
 async function api(request, env) {
   const url = new URL(request.url);
-  const parts = url.pathname.split('/').filter(Boolean); // ['api','candles', id?, action?]
+  const parts = url.pathname.split('/').filter(Boolean);   // ['api','games', id?, 'ws'?]
 
-  if (parts[1] !== 'candles') return err(404, 'not found');
+  if (parts[1] !== 'games') return err(404, 'not found');
 
-  if (parts.length === 2) {
-    if (request.method === 'POST') return handleCreate(request, env);
-    return err(405, 'method not allowed');
+  if (parts.length === 2 && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const id = randomId(9);
+    const room = env.GAMES.get(env.GAMES.idFromName(id));
+    const res = await room.fetch('https://room/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: body.name }),
+    });
+    const created = await res.json();
+    return json({ id, token: created.token }, { status: 201 });
   }
 
-  const id = parts[2];
-  if (!id) return err(400, 'missing id');
-
-  if (parts.length === 3 && request.method === 'GET') return handleRead(env, id);
-  if (parts.length === 4 && parts[3] === 'heartbeat' && request.method === 'POST') {
-    return handleHeartbeat(request, env, id);
-  }
-  if (parts.length === 4 && parts[3] === 'stop' && request.method === 'POST') {
-    return handleStop(request, env, id);
+  if (parts.length === 4 && parts[3] === 'ws') {
+    const room = env.GAMES.get(env.GAMES.idFromName(parts[2]));
+    return room.fetch('https://room/ws' + url.search, request);
   }
 
   return err(404, 'not found');
@@ -196,7 +436,6 @@ async function api(request, env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-
     if (url.pathname.startsWith('/api/')) {
       try {
         return await api(request, env);
@@ -204,7 +443,6 @@ export default {
         return err(500, 'internal error');
       }
     }
-
     return env.ASSETS.fetch(request);
   },
 };

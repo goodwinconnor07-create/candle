@@ -3,141 +3,146 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Candle Timer</title>
+<title>Candle Race</title>
 <style>
   :root{
-    --flame-h: 1;          /* flicker multiplier, nudged by JS */
-    --glow: 0;             /* room light level 0..1 */
+    --flame-h: 1;
     --wax: #efe2c8;
     --wax-shade: #c8b795;
-
-    /* flame palette — JS overwrites these inline when you pick a colour */
-    --flame-outer-1: rgba(255,148,40,.95);
-    --flame-outer-2: rgba(255,92,10,.55);
-    --flame-outer-3: rgba(255,60,0,0);
-    --flame-mid-1: #ffb43c;
-    --flame-mid-2: #ffd97a;
-    --flame-mid-3: #fff3c4;
-    --flame-core-1: #5fa8ff;
-    --flame-core-2: #cfe6ff;
-    --wick-lit-1: #ffcf7a;
-    --wick-lit-2: #6b3a16;
-    --wick-glow: rgba(255,170,70,.9);
-    --room-1: rgba(255,168,72,.28);
-    --room-2: rgba(255,130,40,.13);
-    --room-3: rgba(120,60,20,.05);
-    --pool-1: rgba(255,160,60,.16);
-    --accent: #ffd9a0;
-    --accent-soft: rgba(255,205,145,.55);
-    --accent-glow: rgba(255,150,50,.45);
-    --accent-mid: rgba(255,168,72,.85);
-    --thumb-1: #fff1d6;
-    --thumb-2: #ff9e3f;
+    --ink: #e8dcc6;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; }
   body{
-    background:#000;
-    color:#e8dcc6;
+    background:#000; color:var(--ink);
     font-family: ui-serif, Georgia, "Times New Roman", serif;
     display:flex; flex-direction:column; align-items:center;
-    min-height:100dvh; padding:24px 16px;
-    /* auto-centre, but stay scrollable on short screens so the picker
-       panel can't get cut off the way justify-content + overflow:hidden did */
+    min-height:100dvh; padding:20px 14px;
     overflow-x:hidden; overflow-y:auto;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* the dim room: a pool of light that only exists once the wick catches */
   .room{
     position:fixed; inset:0; pointer-events:none; z-index:0;
     background:
-      radial-gradient(60vmin 55vmin at 50% 46%,
-        var(--room-1) 0%,
-        var(--room-2) 35%,
-        var(--room-3) 60%,
-        rgba(0,0,0,0) 78%);
-    opacity: calc(var(--glow) * 1);
-    transition: opacity 1.4s ease;
+      radial-gradient(70vmin 60vmin at 30% 42%, rgba(255,168,72,.20) 0%, rgba(255,130,40,.09) 38%, rgba(0,0,0,0) 72%),
+      radial-gradient(70vmin 60vmin at 70% 42%, rgba(70,180,255,.17) 0%, rgba(20,100,210,.08) 38%, rgba(0,0,0,0) 72%);
+    opacity:0; transition:opacity 1.4s ease;
   }
-  .room.flicker{ animation: roomBreathe 5.5s ease-in-out infinite; }
-  @keyframes roomBreathe{ 0%,100%{ filter:brightness(1) } 43%{ filter:brightness(1.12) } 70%{ filter:brightness(.93) } }
+  .room.on{ opacity:1; }
 
-  .stage{
-    position:relative; z-index:1; margin:auto 0;
-    display:flex; flex-direction:column; align-items:center; gap:34px;
+  .stage{ position:relative; z-index:1; width:100%; max-width:760px; margin:auto 0; }
+  .screen{ display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center; }
+  [hidden]{ display:none !important; }
+
+  .title{
+    font-size: clamp(2rem, 8vw, 3.1rem); font-weight:400; letter-spacing:.04em;
+    color:#ffd9a0; text-shadow:0 0 28px rgba(255,150,50,.4);
+  }
+  .hd{ font-size:1.1rem; font-weight:400; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,205,145,.75); }
+  .blurb{ max-width:36ch; font-size:.95rem; line-height:1.65; color:rgba(232,220,198,.6); }
+  .note{ font-size:.7rem; letter-spacing:.1em; color:rgba(232,220,198,.3); min-height:1.2em; }
+  .status{ font-size:.85rem; letter-spacing:.06em; color:rgba(255,205,145,.6); min-height:1.3em; }
+
+  .field{
+    width:min(300px,84vw); padding:11px 14px; font:inherit; font-size:1rem;
+    color:var(--ink); text-align:center; background:rgba(0,0,0,.4);
+    border:1px solid rgba(232,220,198,.2); border-radius:11px;
+  }
+  .field::placeholder{ color:rgba(232,220,198,.26); }
+  .field:focus{ outline:none; border-color:rgba(255,168,72,.8); }
+
+  .ctl{
+    font:inherit; font-size:.78rem; letter-spacing:.14em; text-transform:uppercase;
+    color:rgba(232,220,198,.7); background:transparent;
+    border:1px solid rgba(232,220,198,.24); border-radius:999px;
+    padding:10px 20px; cursor:pointer;
+    transition:color .2s ease, border-color .2s ease, background .2s ease, opacity .2s ease;
+  }
+  .ctl:hover:not(:disabled){ color:#ffd9a0; border-color:rgba(255,190,120,.55); background:rgba(255,160,60,.08); }
+  .ctl:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:3px; }
+  .ctl:disabled{ opacity:.32; cursor:default; }
+  .ctl.big{ font-size:.86rem; padding:13px 30px; border-color:rgba(255,190,120,.45); color:#ffd9a0; }
+  a.ctl{ display:inline-block; text-decoration:none; }
+  .row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+
+  .linkbox{
+    width:min(420px,88vw); padding:11px 14px; font-size:.76rem; line-height:1.5;
+    word-break:break-all; color:rgba(232,220,198,.55);
+    background:rgba(0,0,0,.4); border:1px solid rgba(232,220,198,.14); border-radius:11px;
   }
 
-  /* ---------- candle ---------- */
+  /* ---------- the two lanes ---------- */
+  .lanes{ display:flex; justify-content:center; align-items:flex-end; gap:clamp(14px,6vw,58px); width:100%; }
+  /* fixed width, so a long verdict line wraps instead of stretching the lane */
+  .lane{ display:flex; flex-direction:column; align-items:center; gap:10px; flex:0 0 auto; width:clamp(104px,30vw,150px); }
+
+  .lane.you{
+    --flame-outer-1:rgba(255,148,40,.95); --flame-outer-2:rgba(255,92,10,.55); --flame-outer-3:rgba(255,60,0,0);
+    --flame-mid-1:#ffb43c; --flame-mid-2:#ffd97a; --flame-mid-3:#fff3c4;
+    --flame-core-1:#5fa8ff; --flame-core-2:#cfe6ff;
+    --wick-lit-1:#ffcf7a; --wick-lit-2:#6b3a16; --wick-glow:rgba(255,170,70,.9);
+    --accent:#ffd9a0; --accent-glow:rgba(255,150,50,.45);
+  }
+  .lane.them{
+    --flame-outer-1:rgba(60,190,255,.9); --flame-outer-2:rgba(10,110,220,.5); --flame-outer-3:rgba(0,60,160,0);
+    --flame-mid-1:#3cc0ff; --flame-mid-2:#8fe0ff; --flame-mid-3:#dff6ff;
+    --flame-core-1:#0a5fd0; --flame-core-2:#cfeeff;
+    --wick-lit-1:#9fe2ff; --wick-lit-2:#10304f; --wick-glow:rgba(70,190,255,.85);
+    --accent:#bfe8ff; --accent-glow:rgba(60,160,255,.4);
+  }
+
+  .lane-name{
+    font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--accent); opacity:.8; max-width:100%;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+
   .candle-area{
-    position:relative; width:220px; height:364px;
+    position:relative; width:100%; height:284px;
     display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
   }
-  /* the candle's height is the burn-down readout, so never let flex shrink it */
   .flame-slot, .candle, .holder{ flex:0 0 auto; }
+  /* tall enough that a flame at full flare still clears the name above it */
+  .flame-slot{ position:relative; width:44px; height:96px; display:flex; align-items:flex-end; justify-content:center; }
 
-  .flame-slot{ position:relative; width:60px; height:96px; }
-
-  .wick-hit{
-    position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
-    width:64px; height:74px; border:0; background:transparent; padding:0;
-    cursor:pointer; border-radius:32px;
-    display:flex; align-items:flex-end; justify-content:center;
-  }
-  .wick-hit:focus-visible{ outline:2px solid rgba(255,190,110,.75); outline-offset:4px; }
   .wick{
-    width:3px; height:15px; border-radius:2px 2px 0 0;
-    background:linear-gradient(#4b4038,#22201e);
-    transition: background .8s ease, box-shadow .8s ease;
-  }
-  .lit .wick{
+    width:3px; height:13px; border-radius:2px 2px 0 0; margin-bottom:-1px;
     background:linear-gradient(var(--wick-lit-1), var(--wick-lit-2));
     box-shadow:0 0 6px var(--wick-glow);
   }
-  /* small hint pulse so it's obvious what to click */
-  .wick-hint{
-    position:absolute; left:50%; bottom:2px; transform:translateX(-50%);
-    width:26px; height:26px; border-radius:50%;
-    border:1px solid rgba(232,220,198,.28);
-    animation: hintPulse 2.6s ease-in-out infinite;
-    pointer-events:none;
-  }
-  .lit .wick-hint, .done .wick-hint{ display:none; }
-  @keyframes hintPulse{
-    0%,100%{ transform:translateX(-50%) scale(.85); opacity:.18 }
-    50%    { transform:translateX(-50%) scale(1.25); opacity:.5 }
-  }
+  .out .wick{ background:linear-gradient(#4b4038,#22201e); box-shadow:none; }
 
-  /* flame: three stacked blurred blobs */
   .flame{
-    position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
-    width:34px; height:74px; opacity:0; pointer-events:none;
-    transition: opacity .35s ease;
+    position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
+    width:30px; height:64px; pointer-events:none;
+    transition:transform .45s cubic-bezier(.3,1.4,.5,1), opacity .35s ease;
   }
-  .lit .flame{ opacity:1; }
+  .out .flame{ opacity:0; }
+  .burst .flame{ transform:translateX(-50%) scale(1.55); }
   .flame span{
     position:absolute; left:50%; bottom:0; display:block;
     border-radius:50% 50% 34% 34% / 66% 66% 34% 34%;
     transform-origin:50% 100%;
   }
   .f-outer{
-    width:34px; height:74px; margin-left:-17px;
+    width:30px; height:64px; margin-left:-15px;
     background:radial-gradient(ellipse at 50% 88%, var(--flame-outer-1), var(--flame-outer-2) 55%, var(--flame-outer-3) 78%);
-    filter:blur(5px);
-    animation: flick 2.1s ease-in-out infinite;
+    filter:blur(5px); animation:flick 2.1s ease-in-out infinite;
   }
   .f-mid{
-    width:20px; height:50px; margin-left:-10px;
+    width:18px; height:44px; margin-left:-9px;
     background:linear-gradient(to top, var(--flame-mid-1) 0%, var(--flame-mid-2) 45%, var(--flame-mid-3) 78%, rgba(255,255,255,.2) 100%);
-    filter:blur(1.6px);
-    animation: flick 1.5s ease-in-out infinite reverse;
+    filter:blur(1.6px); animation:flick 1.5s ease-in-out infinite reverse;
   }
   .f-core{
-    width:8px; height:17px; margin-left:-4px;
+    width:7px; height:15px; margin-left:-3.5px;
     background:linear-gradient(to top, var(--flame-core-1), var(--flame-core-2) 60%, rgba(255,255,255,.85));
-    filter:blur(1.5px); opacity:.85;
-    animation: flick 1.1s ease-in-out infinite;
+    filter:blur(1.5px); opacity:.85; animation:flick 1.1s ease-in-out infinite;
   }
+  .burst .f-outer{ animation-duration:.5s }
+  .burst .f-mid{ animation-duration:.36s }
+  .burst .f-core{ animation-duration:.28s }
   @keyframes flick{
     0%,100%{ transform: scale(1, calc(1 * var(--flame-h))) translateX(0) skewX(0deg) }
     22%    { transform: scale(.94, calc(1.07 * var(--flame-h))) translateX(-1px) skewX(-2.5deg) }
@@ -145,13 +150,12 @@
     74%    { transform: scale(.97, calc(1.04 * var(--flame-h))) translateX(-.5px) skewX(-1deg) }
   }
 
-  /* smoke when it goes out */
-  .smoke{ position:absolute; left:50%; bottom:16px; width:2px; height:2px; pointer-events:none; }
+  .smoke{ position:absolute; left:50%; bottom:14px; width:2px; height:2px; pointer-events:none; }
   .smoke i{
     position:absolute; left:0; bottom:0; width:9px; height:9px; margin-left:-4px;
     border-radius:50%; background:rgba(200,200,205,.34); filter:blur(4px); opacity:0;
   }
-  .smoke.puff i{ animation: rise 2.8s ease-out forwards; }
+  .smoke.puff i{ animation:rise 2.8s ease-out forwards; }
   .smoke.puff i:nth-child(2){ animation-delay:.28s }
   .smoke.puff i:nth-child(3){ animation-delay:.56s }
   @keyframes rise{
@@ -161,1081 +165,514 @@
   }
 
   .candle{
-    position:relative; width:92px;
-    height:230px;                       /* JS shrinks this as time burns down */
-    border-radius:8px 8px 5px 5px;
+    position:relative; width:clamp(52px,14vw,68px);
+    height:168px;
+    border-radius:7px 7px 4px 4px;
     background:
-      linear-gradient(90deg,
-        rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 14%,
+      linear-gradient(90deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 14%,
         rgba(255,255,255,.16) 38%, rgba(255,255,255,.05) 62%,
         rgba(0,0,0,.2) 86%, rgba(0,0,0,.45) 100%),
       linear-gradient(to bottom, var(--wax-shade), var(--wax) 12%, var(--wax) 78%, #d9c9a8 100%);
-    filter: brightness(.34) saturate(.45);
-    transition: filter 1.4s ease, height .9s linear;
+    box-shadow:0 -12px 32px -10px var(--accent-glow);
+    transition:box-shadow .4s ease, filter 1s ease;
   }
-  .lit .candle{
-    filter: brightness(1) saturate(1);
-    /* the flame washes its own colour over the wax below it */
-    box-shadow: 0 -14px 38px -10px var(--accent-glow);
-  }
-  .done .candle{ filter: brightness(.62) saturate(.8); }   /* afterglow, no flame */
-  .candle::before{                       /* molten top */
-    content:""; position:absolute; top:-7px; left:0; right:0; height:14px;
-    border-radius:50%;
+  .burst .candle{ box-shadow:0 -14px 40px -6px rgba(255,90,40,.75); }
+  .out .candle{ filter:brightness(.5) saturate(.6); box-shadow:none; }
+  .candle::before{
+    content:""; position:absolute; top:-6px; left:0; right:0; height:12px; border-radius:50%;
     background:radial-gradient(ellipse at 50% 40%, #fff6e2, #e6d5b4 60%, #cbb894);
   }
-  .candle::after{                        /* wax pooled in the dip */
-    content:""; position:absolute; top:-2px; left:50%; transform:translateX(-50%);
-    width:34px; height:8px; border-radius:50%;
-    background:radial-gradient(ellipse, rgba(180,150,105,.85), rgba(180,150,105,0) 70%);
-  }
   .drip{
-    position:absolute; width:11px; border-radius:6px 6px 8px 8px;
+    position:absolute; width:9px; border-radius:6px 6px 8px 8px;
     background:linear-gradient(to bottom, #f6ebd6, #dbc9a6);
     box-shadow:inset -2px 0 3px rgba(0,0,0,.18);
   }
-  .drip.a{ left:9px; top:6px; height:44px; }
-  .drip.b{ right:13px; top:2px; height:26px; width:9px; }
-
+  .drip.a{ left:7px; top:5px; height:34px; }
+  .drip.b{ right:10px; top:2px; height:20px; width:7px; }
   .holder{
-    width:150px; height:22px; margin-top:-3px; border-radius:50%;
+    width:clamp(84px,22vw,112px); height:18px; margin-top:-3px; border-radius:50%;
     background:radial-gradient(ellipse at 50% 34%, #6b5a45, #3a3027 62%, #14110e);
-    filter: brightness(.4);
-    transition: filter 1.4s ease;
-  }
-  .lit .holder{ filter: brightness(1); }
-  .done .holder{ filter: brightness(.62); }
-  .pool{
-    position:absolute; bottom:-26px; left:50%; transform:translateX(-50%);
-    width:250px; height:40px; border-radius:50%;
-    background:radial-gradient(ellipse, var(--pool-1), transparent 70%);
-    opacity:var(--glow); transition:opacity 1.4s ease; pointer-events:none;
   }
 
-  /* ---------- readout ---------- */
-  .readout{ text-align:center; }
-  .time{
-    font-variant-numeric: tabular-nums;
-    font-size: clamp(2.6rem, 11vw, 4.2rem);
-    letter-spacing:.06em; line-height:1;
-    color:rgba(232,220,198,.3);
-    transition:color 1.4s ease, text-shadow 1.4s ease;
-  }
-  .lit .time{ color:var(--accent); text-shadow:0 0 22px var(--accent-glow); }
-  .done .time{ color:rgba(232,220,198,.55); }
-  .label{
-    margin-top:12px; font-size:.82rem; letter-spacing:.22em; text-transform:uppercase;
-    color:rgba(232,220,198,.32); transition:color 1.2s ease;
-  }
-  .lit .label{ color:var(--accent-soft); }
+  .lane-foot{ min-height:52px; width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .pips{ display:flex; gap:5px; }
+  .pip{ width:7px; height:7px; border-radius:50%; border:1px solid rgba(232,220,198,.3); }
+  .pip.on{ background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px var(--accent-glow); }
+  .verdict{ font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; line-height:1.4; max-width:100%; min-height:1.1em; }
+  .verdict.good{ color:#8ef0b4; }
+  .verdict.bad{ color:#ff9a86; }
+  .verdict.heal{ color:#ffe08a; }
 
-  .controls{ margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-  .ctl{
-    font: inherit; font-size:.78rem; letter-spacing:.14em; text-transform:uppercase;
-    color:rgba(232,220,198,.6); background:transparent;
-    border:1px solid rgba(232,220,198,.22); border-radius:999px;
-    padding:9px 18px; cursor:pointer;
-    transition: color .25s ease, border-color .25s ease, background .25s ease;
+  /* ---------- the quiz ---------- */
+  .quiz{ width:100%; margin-top:26px; display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .qtimer{ width:min(380px,86vw); height:3px; border-radius:2px; background:rgba(232,220,198,.14); overflow:hidden; }
+  .qtimer i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#ffb43c,#ff7a2f); transition:background .3s ease; }
+  .qtimer.low i{ background:linear-gradient(90deg,#ff7a5c,#ff3d2e); }
+  .qtext{ font-size:clamp(1.9rem,8vw,2.8rem); letter-spacing:.06em; font-variant-numeric:tabular-nums; color:#ffeccd; }
+  .choices{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; width:min(380px,86vw); }
+  .choice{
+    font:inherit; font-size:1.25rem; font-variant-numeric:tabular-nums;
+    padding:15px 8px; cursor:pointer; color:var(--ink);
+    background:rgba(255,255,255,.04); border:1px solid rgba(232,220,198,.2); border-radius:13px;
+    transition:background .15s ease, border-color .15s ease, transform .12s ease, opacity .2s ease;
   }
-  .ctl:hover{ color:#ffd9a0; border-color:rgba(255,190,120,.5); background:rgba(255,160,60,.07); }
-  .ctl:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:3px; }
-  .ctl[hidden]{ display:none; }
-  a.ctl{ display:inline-block; text-decoration:none; }
+  .choice:hover:not(:disabled){ background:rgba(255,160,60,.12); border-color:rgba(255,190,120,.5); }
+  .choice:active:not(:disabled){ transform:scale(.97); }
+  .choice:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:2px; }
+  .choice:disabled{ cursor:default; }
+  .choice.picked{ border-color:rgba(255,190,120,.8); background:rgba(255,160,60,.16); }
+  .choice.right{ border-color:#5fd39a; background:rgba(60,200,140,.18); color:#c9ffe4; }
+  .choice.wrong{ border-color:#e0705c; background:rgba(220,80,60,.16); color:#ffd2c8; }
+  .choice.dim{ opacity:.4; }
+  .qnote{ font-size:.74rem; letter-spacing:.1em; color:rgba(232,220,198,.4); min-height:1.2em; }
+  .count{ font-size:clamp(3rem,16vw,5rem); color:#ffd9a0; text-shadow:0 0 30px rgba(255,150,50,.5); }
 
-  /* ---------- burn-time picker ---------- */
-  .picker{ margin-top:18px; }
-  .picker-tabs{ display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; }
-  .picker-sep{ color:rgba(232,220,198,.2); font-size:.7rem; }
-  .picker-toggle{
-    font: inherit; font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
-    color:rgba(232,220,198,.34); background:transparent; border:0; padding:6px 4px;
-    cursor:pointer; white-space:nowrap; border-bottom:1px dotted rgba(232,220,198,.28);
-    transition: color .25s ease, border-color .25s ease;
-  }
-  .picker-toggle:hover{ color:rgba(255,205,145,.8); border-bottom-color:rgba(255,190,120,.5); }
-  .picker-toggle:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:4px; }
-  .lit .picker-toggle{ color:rgba(255,205,145,.4); }
+  .scoreline{ font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; color:rgba(232,220,198,.32); }
 
-  .picker-panel{
-    overflow:hidden; max-height:0; opacity:0; visibility:hidden;
-    transition: max-height .3s ease, opacity .3s ease, visibility .3s;
-  }
-  .picker-panel.open{ max-height:210px; opacity:1; visibility:visible; }
-  .picker-inner{
-    margin:12px auto 0; width:min(280px, 82vw); padding:16px 18px 13px;
-    border:1px solid rgba(232,220,198,.16); border-radius:14px;
-    background:rgba(18,13,7,.72);
-    box-shadow:0 10px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,220,170,.05);
-  }
-  .picker-value{
-    font-size:1.25rem; letter-spacing:.05em; color:var(--accent); text-align:center;
-    font-variant-numeric: tabular-nums;
-  }
-  .picker-range{
-    -webkit-appearance:none; appearance:none;
-    display:block; width:100%; margin:14px 0 2px; height:18px;
-    background:transparent; cursor:pointer;
-  }
-  .picker-range:focus{ outline:none; }
-  .picker-range:focus-visible::-webkit-slider-thumb{ box-shadow:0 0 0 4px rgba(255,190,110,.35), 0 0 12px rgba(255,150,50,.7); }
-  .picker-range:focus-visible::-moz-range-thumb{ box-shadow:0 0 0 4px rgba(255,190,110,.35), 0 0 12px rgba(255,150,50,.7); }
-  .picker-range::-webkit-slider-runnable-track{
-    height:3px; border-radius:2px;
-    background:linear-gradient(90deg,
-      var(--accent-mid) var(--fill,100%), rgba(232,220,198,.16) var(--fill,100%));
-  }
-  .picker-range::-webkit-slider-thumb{
-    -webkit-appearance:none; width:15px; height:15px; margin-top:-6px; border:0; border-radius:50%;
-    background:radial-gradient(circle at 34% 30%, var(--thumb-1), var(--thumb-2) 70%);
-    box-shadow:0 0 10px rgba(255,150,50,.6);
-  }
-  .picker-range::-moz-range-track{ height:3px; border-radius:2px; background:rgba(232,220,198,.16); }
-  .picker-range::-moz-range-progress{ height:3px; border-radius:2px; background:var(--accent-mid); }
-  .picker-range::-moz-range-thumb{
-    width:15px; height:15px; border:0; border-radius:50%;
-    background:radial-gradient(circle at 34% 30%, var(--thumb-1), var(--thumb-2) 70%);
-    box-shadow:0 0 10px rgba(255,150,50,.6);
-  }
-  .picker-ends{
-    display:flex; justify-content:space-between;
-    font-size:.64rem; letter-spacing:.16em; text-transform:uppercase;
-    color:rgba(232,220,198,.28);
-  }
-  .picker-note{
-    margin-top:11px; font-size:.64rem; letter-spacing:.1em;
-    color:rgba(232,220,198,.24); text-align:center;
-  }
-
-  /* ---------- share panel ---------- */
-  #sharePanel.open{ max-height:320px; }
-  .share-field{
-    display:block; width:100%; margin-top:13px; padding:9px 12px;
-    font: inherit; font-size:.92rem; color:#e8dcc6; text-align:center;
-    background:rgba(0,0,0,.34); border:1px solid rgba(232,220,198,.18); border-radius:10px;
-  }
-  .share-field::placeholder{ color:rgba(232,220,198,.24); }
-  .share-field:focus{ outline:none; border-color:var(--accent-mid); }
-  .share-preview{
-    margin-top:13px; font-size:.76rem; line-height:1.5;
-    color:var(--accent-soft); min-height:2.2em;
-  }
-  .share-actions{ margin-top:13px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
-  .share-actions .ctl{ padding:8px 16px; font-size:.72rem; }
-
-  /* ---------- watcher's view ---------- */
-  .watch-head{ text-align:center; }
-  .watch-name{
-    font-size:.82rem; letter-spacing:.22em; text-transform:uppercase;
-    color:var(--accent-soft); transition:color 1.2s ease;
-  }
-  .watch-sub{
-    margin-top:7px; font-size:.68rem; letter-spacing:.14em;
-    color:rgba(232,220,198,.3);
-  }
-  .watch-stale{
-    margin-top:7px; font-size:.62rem; letter-spacing:.1em;
-    color:rgba(232,220,198,.22);
-  }
-  .watch-foot{ margin-top:20px; }
-  .watch .wick-hit{ pointer-events:none; cursor:default; }
-  .watch .controls, .watch .picker{ display:none; }
-  [hidden]{ display:none !important; }
-
-  .swatches{
-    display:flex; justify-content:center; align-items:center;
-    gap:10px; flex-wrap:wrap; margin-top:15px;
-  }
-  .swatch{
-    width:32px; height:32px; padding:0; cursor:pointer; border-radius:50%;
-    border:1px solid rgba(232,220,198,.18);
-    background:radial-gradient(circle at 38% 30%, var(--sw-1), var(--sw-2) 78%);
-    box-shadow:0 0 10px var(--sw-glow);
-    transition: transform .18s ease, box-shadow .25s ease, border-color .25s ease;
-  }
-  .swatch:hover{ transform:translateY(-2px) scale(1.07); }
-  .swatch:focus-visible{ outline:2px solid rgba(255,255,255,.7); outline-offset:3px; }
-  .swatch[aria-pressed="true"]{
-    border-color:rgba(255,255,255,.72);
-    box-shadow:0 0 0 2px rgba(255,255,255,.16), 0 0 16px var(--sw-glow);
-  }
-  @media (prefers-reduced-motion: reduce){ .swatch:hover{ transform:none; } }
-
-  @media (max-width:440px){
-    /* the row wraps at this width, and a trailing dot on the first row looks
-       like a mistake, so space the tabs instead of separating them */
-    .picker-sep{ display:none; }
-    .picker-tabs{ gap:8px 16px; }
-  }
-  @media (max-width:380px){
-    .picker-toggle{ font-size:.66rem; letter-spacing:.13em; padding:6px 2px; }
-    /* keep all six on one row rather than wrapping 5 + 1 */
-    .picker-inner{ padding:14px 14px 12px; }
-    .swatches{ gap:8px; }
-    .swatch{ width:28px; height:28px; }
-  }
   @media (max-width:420px){
-    .candle-area{ width:180px; }
-    .candle{ width:78px; }
-    .holder{ width:126px; }
+    .choice{ font-size:1.1rem; padding:13px 6px; }
   }
   @media (prefers-reduced-motion: reduce){
-    .f-outer,.f-mid,.f-core,.wick-hint,.room.flicker{ animation:none !important; }
+    .f-outer,.f-mid,.f-core{ animation:none !important; }
+    .flame{ transition:none; }
   }
 </style>
 </head>
 <body>
   <div class="room" id="room"></div>
 
-  <main class="stage" id="stage">
-    <div class="watch-head" id="watchHead" hidden>
-      <div class="watch-name" id="watchName"></div>
-      <div class="watch-sub" id="watchSub"></div>
-      <div class="watch-stale" id="watchStale" hidden></div>
-    </div>
+  <main class="stage">
 
-    <div class="candle-area">
-      <div class="pool"></div>
+    <section class="screen" id="scIntro">
+      <h1 class="title">Candle Race</h1>
+      <p class="blurb">Two candles, the same questions. Get one right and your opponent's candle flares up and burns faster. Get one wrong and yours does. Three in a row wins your wax back. Last flame burning takes it.</p>
+      <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
+      <button class="ctl big" id="introGo">Start a race</button>
+      <p class="note" id="introNote"></p>
+    </section>
 
-      <div class="flame-slot">
-        <div class="flame" aria-hidden="true">
-          <span class="f-outer"></span>
-          <span class="f-mid"></span>
-          <span class="f-core"></span>
-        </div>
-        <div class="smoke" id="smoke" aria-hidden="true"><i></i><i></i><i></i></div>
-        <button class="wick-hit" id="wick" aria-label="Light the candle">
-          <span class="wick-hint" aria-hidden="true"></span>
-          <span class="wick"></span>
-        </button>
+    <section class="screen" id="scHost" hidden>
+      <h2 class="hd">Send this to your opponent</h2>
+      <p class="linkbox" id="hostLink"></p>
+      <div class="row">
+        <button class="ctl" id="hostCopy">Copy link</button>
+        <button class="ctl" id="hostSend" hidden>Send</button>
       </div>
+      <p class="status" id="hostStatus">Waiting for them to open it&hellip;</p>
+      <button class="ctl big" id="hostStart" disabled>Start the race</button>
+    </section>
 
-      <div class="candle" id="candle">
-        <span class="drip a"></span>
-        <span class="drip b"></span>
-      </div>
-      <div class="holder"></div>
-    </div>
+    <section class="screen" id="scGuest" hidden>
+      <h2 class="hd" id="guestHd">You've been challenged</h2>
+      <p class="blurb">Same questions, same clock. Every answer you get right sets their candle burning faster &mdash; and every one you miss sets yours off instead.</p>
+      <input class="field" id="guestName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
+      <button class="ctl big" id="guestReady">I'm ready</button>
+      <p class="status" id="guestStatus"></p>
+    </section>
 
-    <div class="readout">
-      <div class="time" id="time" role="timer" aria-live="off">2:00:00</div>
-      <div class="label" id="label">click the wick to light</div>
-      <div class="controls">
-        <button class="ctl" id="snuff" hidden>Blow out</button>
-        <button class="ctl" id="reset" hidden>Reset</button>
-      </div>
-
-      <div class="picker" id="picker">
-        <div class="picker-tabs">
-          <button class="picker-toggle" id="pickerToggle" aria-expanded="false" aria-controls="pickerPanel">change time</button>
-          <span class="picker-sep" aria-hidden="true">&middot;</span>
-          <button class="picker-toggle" id="colourToggle" aria-expanded="false" aria-controls="colourPanel">flame colour</button>
-          <span class="picker-sep" id="shareSep" aria-hidden="true" hidden>&middot;</span>
-          <button class="picker-toggle" id="shareToggle" aria-expanded="false" aria-controls="sharePanel" hidden>send to someone</button>
-        </div>
-
-        <div class="picker-panel" id="pickerPanel">
-          <div class="picker-inner">
-            <div class="picker-value" id="pickerValue">2 hr</div>
-            <input class="picker-range" id="pickerRange" type="range"
-                   min="5" max="120" step="5" value="120"
-                   aria-label="Burn time in minutes">
-            <div class="picker-ends"><span>5 min</span><span>2 hr</span></div>
-            <p class="picker-note">Picks a fresh candle at that length.</p>
-          </div>
-        </div>
-
-        <div class="picker-panel" id="sharePanel">
-          <div class="picker-inner">
-            <div class="picker-value">Nominate a witness</div>
-            <input class="share-field" id="shareName" type="text" maxlength="24"
-                   placeholder="your name" autocomplete="name" aria-label="Your name">
-            <p class="share-preview" id="sharePreview"></p>
-            <div class="share-actions">
-              <button class="ctl" id="shareSend" hidden>Send</button>
-              <button class="ctl" id="shareCopy">Copy link</button>
+    <section class="screen" id="scArena" hidden>
+      <div class="lanes">
+        <div class="lane you" id="laneMine">
+          <div class="lane-name" id="nameMine">You</div>
+          <div class="candle-area">
+            <div class="flame-slot">
+              <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
+              <div class="smoke" id="smokeMine" aria-hidden="true"><i></i><i></i><i></i></div>
+              <span class="wick"></span>
             </div>
-            <p class="picker-note" id="shareNote">If the server's reachable, they'll see if you stop early too.</p>
+            <div class="candle" id="waxMine"><span class="drip a"></span><span class="drip b"></span></div>
+            <div class="holder"></div>
+          </div>
+          <div class="lane-foot">
+            <div class="pips" id="pipsMine"></div>
+            <div class="verdict" id="verdictMine"></div>
           </div>
         </div>
 
-        <div class="picker-panel" id="colourPanel">
-          <div class="picker-inner">
-            <div class="picker-value" id="colourValue">Amber</div>
-            <div class="swatches" id="swatches" role="group" aria-label="Flame colour"></div>
-            <p class="picker-note">Sets the flame and the light it throws.</p>
+        <div class="lane them" id="laneTheirs">
+          <div class="lane-name" id="nameTheirs">Them</div>
+          <div class="candle-area">
+            <div class="flame-slot">
+              <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
+              <div class="smoke" id="smokeTheirs" aria-hidden="true"><i></i><i></i><i></i></div>
+              <span class="wick"></span>
+            </div>
+            <div class="candle" id="waxTheirs"><span class="drip a"></span><span class="drip b"></span></div>
+            <div class="holder"></div>
+          </div>
+          <div class="lane-foot">
+            <div class="pips" id="pipsTheirs"></div>
+            <div class="verdict" id="verdictTheirs"></div>
           </div>
         </div>
       </div>
-      <div class="watch-foot" id="watchFoot" hidden>
-        <p class="picker-note" id="watchFootNote">You'll see this candle finish, but not if it's blown out early.</p>
-        <a class="ctl" id="watchStart" href="./">Light your own</a>
+
+      <div class="quiz">
+        <div class="qtimer" id="qTimer"><i id="qBar"></i></div>
+        <div class="qtext" id="qText">&mdash;</div>
+        <div class="choices" id="choices"></div>
+        <p class="qnote" id="qNote"></p>
       </div>
-    </div>
+    </section>
+
+    <section class="screen" id="scOver" hidden>
+      <h2 class="hd" id="overHd"></h2>
+      <p class="status" id="overSub"></p>
+      <p class="scoreline" id="overScore"></p>
+      <div class="row">
+        <button class="ctl big" id="overAgain" hidden>Race again</button>
+        <a class="ctl" href="./">New opponent</a>
+      </div>
+    </section>
+
+    <section class="screen" id="scDead" hidden>
+      <h2 class="hd" id="deadHd">Race not found</h2>
+      <p class="blurb" id="deadSub">That link's expired, or someone's already taken the second spot.</p>
+      <a class="ctl big" href="./">Start your own</a>
+    </section>
+
   </main>
 
 <script>
 (function(){
-  const MIN_MINS   = 5;                    // shortest candle the slider offers
-  const MAX_MINS   = 120;                  // longest — two hours
-  const STEP_MINS  = 5;
-  const DEFAULT_MS = MAX_MINS * 60 * 1000;
-  const WAX_TALL   = 230;                  // px, full candle
-  const WAX_STUB   = 46;                   // px, burnt down to a stub
-  const STORE_KEY  = 'candle-timer-v1';
+  const $ = id => document.getElementById(id);
+  const room = $('room');
 
-  // six flames. each one sets the wick, the three flame layers, the light it
-  // throws on the room, and the warm text that reads against it.
-  const FLAMES = [
-    { id:'amber', name:'Amber', vars:{
-      '--flame-outer-1':'rgba(255,148,40,.95)', '--flame-outer-2':'rgba(255,92,10,.55)', '--flame-outer-3':'rgba(255,60,0,0)',
-      '--flame-mid-1':'#ffb43c', '--flame-mid-2':'#ffd97a', '--flame-mid-3':'#fff3c4',
-      '--flame-core-1':'#5fa8ff', '--flame-core-2':'#cfe6ff',
-      '--wick-lit-1':'#ffcf7a', '--wick-lit-2':'#6b3a16', '--wick-glow':'rgba(255,170,70,.9)',
-      '--room-1':'rgba(255,168,72,.28)', '--room-2':'rgba(255,130,40,.13)', '--room-3':'rgba(120,60,20,.05)',
-      '--pool-1':'rgba(255,160,60,.16)',
-      '--accent':'#ffd9a0', '--accent-soft':'rgba(255,205,145,.55)', '--accent-glow':'rgba(255,150,50,.45)',
-      '--accent-mid':'rgba(255,168,72,.85)', '--thumb-1':'#fff1d6', '--thumb-2':'#ff9e3f' } },
+  const WAX_TALL = 168, WAX_STUB = 26;
 
-    { id:'rose', name:'Rose', vars:{
-      '--flame-outer-1':'rgba(255,74,110,.92)', '--flame-outer-2':'rgba(214,18,64,.5)', '--flame-outer-3':'rgba(160,0,40,0)',
-      '--flame-mid-1':'#ff5d7e', '--flame-mid-2':'#ff9ab0', '--flame-mid-3':'#ffdde5',
-      '--flame-core-1':'#c23a8f', '--flame-core-2':'#ffd9f0',
-      '--wick-lit-1':'#ffa8be', '--wick-lit-2':'#5e1626', '--wick-glow':'rgba(255,90,130,.85)',
-      '--room-1':'rgba(255,80,120,.24)', '--room-2':'rgba(200,30,70,.12)', '--room-3':'rgba(90,15,35,.05)',
-      '--pool-1':'rgba(255,90,130,.15)',
-      '--accent':'#ffc2d2', '--accent-soft':'rgba(255,170,195,.55)', '--accent-glow':'rgba(255,60,110,.4)',
-      '--accent-mid':'rgba(255,105,140,.85)', '--thumb-1':'#ffe1ea', '--thumb-2':'#ff5d84' } },
+  let ws = null, gameId = null, myRole = null;
+  let startWax = 180000, questionMs = 10000, streakN = 3;
+  let phase = 'intro', round = 0, myAnswer = null;
+  let deadlineAt = 0;                 // local clock, derived from the server's "ms left"
+  let choicesRendered = -1;
 
-    { id:'violet', name:'Violet', vars:{
-      '--flame-outer-1':'rgba(170,110,255,.9)', '--flame-outer-2':'rgba(110,50,210,.5)', '--flame-outer-3':'rgba(70,20,150,0)',
-      '--flame-mid-1':'#a86bff', '--flame-mid-2':'#c9a4ff', '--flame-mid-3':'#eee0ff',
-      '--flame-core-1':'#6f3bd6', '--flame-core-2':'#e2d0ff',
-      '--wick-lit-1':'#c9a4ff', '--wick-lit-2':'#32194f', '--wick-glow':'rgba(170,110,255,.85)',
-      '--room-1':'rgba(150,95,255,.22)', '--room-2':'rgba(95,40,190,.12)', '--room-3':'rgba(50,20,100,.05)',
-      '--pool-1':'rgba(150,95,255,.15)',
-      '--accent':'#d9c2ff', '--accent-soft':'rgba(200,175,255,.55)', '--accent-glow':'rgba(140,80,255,.4)',
-      '--accent-mid':'rgba(160,105,255,.85)', '--thumb-1':'#efe3ff', '--thumb-2':'#9a5cff' } },
+  // each side extrapolates between server ticks off its own clock, so a
+  // skewed device clock can't drift the candles apart
+  const lane = {
+    mine:   { wax:startWax, rate:1, at:0, el:$('laneMine'),   candle:$('waxMine'),   smoke:$('smokeMine'),   name:$('nameMine'),   pips:$('pipsMine'),   verdict:$('verdictMine') },
+    theirs: { wax:startWax, rate:1, at:0, el:$('laneTheirs'), candle:$('waxTheirs'), smoke:$('smokeTheirs'), name:$('nameTheirs'), pips:$('pipsTheirs'), verdict:$('verdictTheirs') },
+  };
 
-    { id:'ocean', name:'Ocean', vars:{
-      '--flame-outer-1':'rgba(60,190,255,.9)', '--flame-outer-2':'rgba(10,110,220,.5)', '--flame-outer-3':'rgba(0,60,160,0)',
-      '--flame-mid-1':'#3cc0ff', '--flame-mid-2':'#8fe0ff', '--flame-mid-3':'#dff6ff',
-      '--flame-core-1':'#0a5fd0', '--flame-core-2':'#cfeeff',
-      '--wick-lit-1':'#9fe2ff', '--wick-lit-2':'#10304f', '--wick-glow':'rgba(70,190,255,.85)',
-      '--room-1':'rgba(70,180,255,.22)', '--room-2':'rgba(20,100,210,.12)', '--room-3':'rgba(10,45,95,.05)',
-      '--pool-1':'rgba(70,180,255,.15)',
-      '--accent':'#bfe8ff', '--accent-soft':'rgba(160,215,255,.55)', '--accent-glow':'rgba(60,160,255,.4)',
-      '--accent-mid':'rgba(70,185,255,.85)', '--thumb-1':'#e2f6ff', '--thumb-2':'#3cb4ff' } },
-
-    { id:'emerald', name:'Emerald', vars:{
-      '--flame-outer-1':'rgba(90,240,160,.88)', '--flame-outer-2':'rgba(20,170,100,.5)', '--flame-outer-3':'rgba(0,110,60,0)',
-      '--flame-mid-1':'#4fe39c', '--flame-mid-2':'#a4f5c8', '--flame-mid-3':'#e2fff0',
-      '--flame-core-1':'#12a05f', '--flame-core-2':'#d5ffe8',
-      '--wick-lit-1':'#a4f5c8', '--wick-lit-2':'#123a26', '--wick-glow':'rgba(90,235,160,.85)',
-      '--room-1':'rgba(90,230,160,.2)', '--room-2':'rgba(25,160,100,.11)', '--room-3':'rgba(12,80,50,.05)',
-      '--pool-1':'rgba(90,230,160,.14)',
-      '--accent':'#c4f7db', '--accent-soft':'rgba(170,240,205,.55)', '--accent-glow':'rgba(60,215,140,.38)',
-      '--accent-mid':'rgba(80,225,155,.85)', '--thumb-1':'#e4fff0', '--thumb-2':'#3fd991' } },
-
-    { id:'moonlight', name:'Moonlight', vars:{
-      '--flame-outer-1':'rgba(200,225,255,.85)', '--flame-outer-2':'rgba(140,175,230,.45)', '--flame-outer-3':'rgba(90,120,180,0)',
-      '--flame-mid-1':'#cfe0ff', '--flame-mid-2':'#e8f1ff', '--flame-mid-3':'#ffffff',
-      '--flame-core-1':'#8fb4e8', '--flame-core-2':'#ffffff',
-      '--wick-lit-1':'#e8f1ff', '--wick-lit-2':'#30384a', '--wick-glow':'rgba(200,225,255,.8)',
-      '--room-1':'rgba(190,215,255,.2)', '--room-2':'rgba(120,150,210,.1)', '--room-3':'rgba(60,75,110,.05)',
-      '--pool-1':'rgba(190,215,255,.14)',
-      '--accent':'#e6eeff', '--accent-soft':'rgba(210,225,255,.55)', '--accent-glow':'rgba(160,195,255,.35)',
-      '--accent-mid':'rgba(190,215,255,.8)', '--thumb-1':'#f4f8ff', '--thumb-2':'#b9d0f5' } }
-  ];
-
-  const NAME_KEY = 'candle-name';
-
-  // a shared candle travels entirely in the link — no server, nothing stored
-  function b64url(str){
-    const bytes = new TextEncoder().encode(str);
-    let bin = '';
-    bytes.forEach(b => { bin += String.fromCharCode(b); });
-    return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  }
-  function unb64url(str){
-    const pad = str.length % 4 ? '='.repeat(4 - (str.length % 4)) : '';
-    const bin = atob(str.replace(/-/g,'+').replace(/_/g,'/') + pad);
-    return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+  function show(which){
+    ['scIntro','scHost','scGuest','scArena','scOver','scDead'].forEach(id => { $(id).hidden = true; });
+    which.forEach(id => { $(id).hidden = false; });
   }
 
-  // set when this page is watching someone else's candle, null when it's yours.
-  // #w=<id> points at a live server record (can show an early blow-out);
-  // #c=<payload> is the older, serverless link (a synced countdown only).
-  const WATCH = (function(){
-    let m = /[#&]w=([A-Za-z0-9\-_]+)/.exec(location.hash);
-    if(m) return { kind:'live', id: m[1] };
-
-    m = /[#&]c=([A-Za-z0-9\-_]+)/.exec(location.hash);
-    if(!m) return null;
-    try{
-      const d = JSON.parse(unb64url(m[1]));
-      if(typeof d.e !== 'number' || typeof d.t !== 'number') return null;
-      return {
-        kind:'static',
-        name: String(d.n || 'Someone').trim().slice(0,24) || 'Someone',
-        endAt: d.e,
-        startedAt: typeof d.s === 'number' ? d.s : 0,
-        totalMs: Math.min(MAX_MINS * 60000, Math.max(MIN_MINS * 60000, d.t)),
-        flameId: FLAMES.some(f => f.id === d.f) ? d.f : FLAMES[0].id
-      };
-    }catch(e){ return null; }
-  })();
-
-  const stage  = document.getElementById('stage');
-  const room   = document.getElementById('room');
-  const wick   = document.getElementById('wick');
-  const candle = document.getElementById('candle');
-  const smoke  = document.getElementById('smoke');
-  const timeEl = document.getElementById('time');
-  const label  = document.getElementById('label');
-  const snuff  = document.getElementById('snuff');
-  const reset  = document.getElementById('reset');
-  const picker = document.getElementById('picker');
-  const pickToggle = document.getElementById('pickerToggle');
-  const pickPanel  = document.getElementById('pickerPanel');
-  const pickValue  = document.getElementById('pickerValue');
-  const pickRange  = document.getElementById('pickerRange');
-  const colToggle  = document.getElementById('colourToggle');
-  const colPanel   = document.getElementById('colourPanel');
-  const colValue   = document.getElementById('colourValue');
-  const swatches   = document.getElementById('swatches');
-  const shareToggle= document.getElementById('shareToggle');
-  const shareSep   = document.getElementById('shareSep');
-  const sharePanel = document.getElementById('sharePanel');
-  const shareName  = document.getElementById('shareName');
-  const sharePrev  = document.getElementById('sharePreview');
-  const shareSend  = document.getElementById('shareSend');
-  const shareCopy  = document.getElementById('shareCopy');
-  const watchHead  = document.getElementById('watchHead');
-  const watchName  = document.getElementById('watchName');
-  const watchSub   = document.getElementById('watchSub');
-  const watchFoot  = document.getElementById('watchFoot');
-  const watchFootNote = document.getElementById('watchFootNote');
-  const watchStale = document.getElementById('watchStale');
-  const shareNote  = document.getElementById('shareNote');
-  const watchStart = document.getElementById('watchStart');
-
-  // state: 'unlit' | 'burning' | 'paused' | 'done'
-  let state = 'unlit';
-  let totalMs = DEFAULT_MS;   // how long a full candle lasts
-  let flameId = FLAMES[0].id; // which flame colour is burning
-  let remaining = totalMs;    // ms left, authoritative while not burning
-  let endAt = 0;              // timestamp the candle runs out, while burning
-  let startedAt = 0;          // when the flame caught, for the share message
-  let liveId = null;          // server record id, once this burn has been shared
-  let liveToken = null;       // owner-only write credential for that record
-  let liveCreatePromise = null;
-  let livePollTimer = null;
-  let liveWatchActive = false;
-  let liveLastSeenAt = 0;     // watcher only: when the owner's page last checked in
-  let raf = null;
-  let flickerTimer = null;
-  let audioCtx = null;
-
-  function msLeft(){
-    return state === 'burning' ? Math.max(0, endAt - Date.now()) : remaining;
-  }
-
-  function fmt(ms){
-    const t = Math.ceil(ms / 1000);
-    const h = Math.floor(t / 3600);
-    const m = Math.floor((t % 3600) / 60);
-    const s = t % 60;
-    return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  function estWax(L){
+    return Math.max(0, L.wax - (performance.now() - L.at) * L.rate);
   }
 
   function paint(){
-    const left = msLeft();
-    timeEl.textContent = fmt(left);
-    const frac = totalMs > 0 ? left / totalMs : 0;
-    candle.style.height = (WAX_STUB + (WAX_TALL - WAX_STUB) * frac).toFixed(1) + 'px';
-    if(WATCH && WATCH.kind === 'live') syncWatchStale();
-  }
-
-  function setLabel(text){ label.textContent = text; }
-
-  function save(){
-    if(WATCH) return;          // watching someone else must not touch your own candle
-    try{
-      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs, flameId, startedAt, liveId, liveToken }));
-    }catch(e){ /* private mode, storage off — the timer still runs */ }
-  }
-
-  function load(){
-    let d = null;
-    try{ d = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); }catch(e){ d = null; }
-    if(!d || typeof d.state !== 'string') return;
-    if(typeof d.flameId === 'string' && FLAMES.some(f => f.id === d.flameId)){
-      setFlame(d.flameId, false);
+    for(const key of ['mine','theirs']){
+      const L = lane[key];
+      const frac = startWax > 0 ? Math.min(1, estWax(L) / startWax) : 0;
+      L.candle.style.height = (WAX_STUB + (WAX_TALL - WAX_STUB) * frac).toFixed(1) + 'px';
     }
-    if(typeof d.totalMs === 'number' && isFinite(d.totalMs)){
-      totalMs = clampMs(d.totalMs);
-      remaining = totalMs;
-      syncPicker();
-      paint();
+    if(phase === 'question'){
+      const left = Math.max(0, deadlineAt - performance.now());
+      $('qBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
+      $('qTimer').classList.toggle('low', left < 3000);
+    }else if(phase === 'countdown'){
+      $('qText').textContent = String(Math.max(1, Math.ceil((deadlineAt - performance.now()) / 1000) - 0.2 | 0) || 1);
     }
-    if(typeof d.startedAt === 'number') startedAt = d.startedAt;
-    if(typeof d.liveId === 'string' && typeof d.liveToken === 'string'){
-      liveId = d.liveId; liveToken = d.liveToken;
+    requestAnimationFrame(paint);
+  }
+  requestAnimationFrame(paint);
+
+  function setPips(L, streak){
+    const want = streakN;
+    if(L.pips.children.length !== want){
+      L.pips.innerHTML = '';
+      for(let i=0;i<want;i++){ const d=document.createElement('span'); d.className='pip'; L.pips.appendChild(d); }
     }
-    if(d.state === 'burning' && typeof d.endAt === 'number'){
-      if(d.endAt - Date.now() > 0){ endAt = d.endAt; light(true); return; }
-      remaining = 0; finish(true); return;
-    }
-    if(d.state === 'paused' && typeof d.remaining === 'number'){
-      remaining = d.remaining; state = 'paused';
-      stage.classList.add('done');
-      snuff.hidden = true; reset.hidden = false;
-      setLabel('paused — click the wick to relight');
-      paint();
-      return;
-    }
-    if(d.state === 'done'){ remaining = 0; finish(true); }
+    const lit = streak % want === 0 && streak > 0 ? want : streak % want;
+    [...L.pips.children].forEach((d,i) => d.classList.toggle('on', i < lit));
   }
 
-  function tick(){
-    paint();
-    if(state === 'burning' && msLeft() <= 0){ finish(false); return; }
-    raf = requestAnimationFrame(tick);
-  }
-
-  function startFlicker(){
-    stopFlicker();
-    const step = () => {
-      // small random height wobble on top of the CSS keyframes
-      document.documentElement.style.setProperty('--flame-h', (0.9 + Math.random()*0.22).toFixed(3));
-      document.documentElement.style.setProperty('--glow', (0.86 + Math.random()*0.14).toFixed(3));
-      flickerTimer = setTimeout(step, 110 + Math.random()*180);
-    };
-    step();
-  }
-  function stopFlicker(){
-    if(flickerTimer){ clearTimeout(flickerTimer); flickerTimer = null; }
-  }
-
-  function light(resuming){
-    if(state === 'burning') return;
-    if(state === 'done' && remaining <= 0) return;   // nothing left to burn
-    if(!resuming){ endAt = Date.now() + remaining; startedAt = Date.now(); }
-    state = 'burning';
-
-    stage.classList.remove('done');
-    stage.classList.add('lit');
-    room.classList.add('flicker');
-    smoke.classList.remove('puff');
-    document.documentElement.style.setProperty('--glow', '0.92');
-    wick.setAttribute('aria-label','Blow out the candle');
-
-    snuff.hidden = false; reset.hidden = false;
-    syncShareTab();
-    setLabel('burning');
-    startFlicker();
-
-    if(raf) cancelAnimationFrame(raf);
-    tick();
-    save();
-  }
-
-  function blowOut(){
-    if(state !== 'burning') return;
-    stopLiveCandle();          // report it, then let a future share start a fresh record
-    liveId = null; liveToken = null;
-    remaining = msLeft();
-    state = 'paused';
-    stage.classList.remove('lit');
-    stage.classList.add('done');       // keeps the wax visible, light gone
-    room.classList.remove('flicker');
-    document.documentElement.style.setProperty('--glow', '0');
-    stopFlicker();
-    if(raf){ cancelAnimationFrame(raf); raf = null; }
-
-    smoke.classList.remove('puff');
-    void smoke.offsetWidth;            // restart the animation
-    smoke.classList.add('puff');
-
-    wick.setAttribute('aria-label','Light the candle');
-    snuff.hidden = true; reset.hidden = false;
-    syncShareTab();
-    setLabel('paused — click the wick to relight');
-    paint();
-    save();
-  }
-
-  function finish(silent){
-    state = 'done';
-    remaining = 0;
-    stage.classList.remove('lit');
-    stage.classList.add('done');
-    room.classList.remove('flicker');
-    document.documentElement.style.setProperty('--glow', '0');
-    stopFlicker();
-    if(raf){ cancelAnimationFrame(raf); raf = null; }
-
-    if(!silent){
-      smoke.classList.remove('puff');
-      void smoke.offsetWidth;
-      smoke.classList.add('puff');
-      chime();
-    }
-    wick.setAttribute('aria-label','Candle burnt out — reset to start again');
-    snuff.hidden = true; reset.hidden = false;
-    syncShareTab();
-    setLabel(WATCH ? 'finished · ' + fmtDur(Math.round(totalMs / 60000)) : 'burnt out');
-    paint();
-    save();
-  }
-
-  function doReset(){
-    if(state === 'burning') stopLiveCandle();   // abandoning it counts the same as blowing it out
-    liveId = null; liveToken = null;
-    state = 'unlit';
-    remaining = totalMs;
-    endAt = 0;
-    stage.classList.remove('lit','done');
-    room.classList.remove('flicker');
-    smoke.classList.remove('puff');
-    document.documentElement.style.setProperty('--glow','0');
-    stopFlicker();
-    if(raf){ cancelAnimationFrame(raf); raf = null; }
-    wick.setAttribute('aria-label','Light the candle');
-    snuff.hidden = true; reset.hidden = true;
-    syncShareTab();
-    setLabel('click the wick to light');
-    paint();
-    save();
-  }
-
-  // a quiet two-note bell when the wax runs out
-  function chime(){
-    try{
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if(!AC) return;
-      audioCtx = audioCtx || new AC();
-      const now = audioCtx.currentTime;
-      [[528, 0], [792, 0.55]].forEach(([freq, at]) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, now + at);
-        gain.gain.exponentialRampToValueAtTime(0.16, now + at + 0.04);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + at + 2.4);
-        osc.connect(gain).connect(audioCtx.destination);
-        osc.start(now + at);
-        osc.stop(now + at + 2.5);
+  function renderChoices(q, locked, result){
+    if(!q){ $('choices').innerHTML=''; choicesRendered = -1; return; }
+    if(choicesRendered !== round){
+      $('choices').innerHTML = '';
+      q.choices.forEach((n,i) => {
+        const b = document.createElement('button');
+        b.className = 'choice';
+        b.type = 'button';
+        b.textContent = n;
+        b.addEventListener('click', () => answer(i));
+        $('choices').appendChild(b);
       });
-    }catch(e){ /* audio blocked — the visual is the point */ }
-  }
-
-  // ---------- burn-time picker ----------
-  function clampMs(ms){
-    const mins = Math.round(ms / 60000 / STEP_MINS) * STEP_MINS;
-    return Math.min(MAX_MINS, Math.max(MIN_MINS, mins)) * 60000;
-  }
-
-  function fmtDur(mins){
-    if(mins < 60) return mins + ' min';
-    const h = Math.floor(mins / 60), m = mins % 60;
-    return h + ' hr' + (m ? ' ' + m + ' min' : '');
-  }
-
-  // paint the filled part of the track ourselves (webkit has no ::-moz-range-progress)
-  function syncPicker(){
-    const mins = Math.round(totalMs / 60000);
-    pickRange.value = String(mins);
-    pickValue.textContent = fmtDur(mins);
-    const pct = (mins - MIN_MINS) / (MAX_MINS - MIN_MINS) * 100;
-    pickRange.style.setProperty('--fill', pct.toFixed(1) + '%');
-  }
-
-  function previewPicker(){
-    const mins = Number(pickRange.value);
-    pickValue.textContent = fmtDur(mins);
-    const pct = (mins - MIN_MINS) / (MAX_MINS - MIN_MINS) * 100;
-    pickRange.style.setProperty('--fill', pct.toFixed(1) + '%');
-  }
-
-  function applyDuration(){
-    const next = clampMs(Number(pickRange.value) * 60000);
-    if(next === totalMs && state === 'unlit'){ syncPicker(); return; }
-    totalMs = next;
-    if(state === 'burning'){
-      // keep the flame, but start a fresh candle of the new length
-      remaining = totalMs;
-      endAt = Date.now() + totalMs;
-      paint();
-      save();
-      sendHeartbeat();          // push the new length now, rather than wait for the next poll
-    }else{
-      doReset();              // fresh unlit candle, full height
+      choicesRendered = round;
     }
-    syncPicker();
-    syncShare();
-  }
-
-  // ---------- flame colour ----------
-  function setFlame(id, persist){
-    const f = FLAMES.find(x => x.id === id) || FLAMES[0];
-    flameId = f.id;
-    const root = document.documentElement;
-    for(const key in f.vars) root.style.setProperty(key, f.vars[key]);
-    colValue.textContent = f.name;
-    swatches.querySelectorAll('.swatch').forEach(b => {
-      b.setAttribute('aria-pressed', b.dataset.id === f.id ? 'true' : 'false');
-    });
-    if(persist){
-      save();
-      if(state === 'burning' && liveId) sendHeartbeat(); // push the new colour now, rather than wait for the next poll
-    }
-  }
-
-  FLAMES.forEach(f => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'swatch';
-    b.dataset.id = f.id;
-    b.title = f.name;
-    b.setAttribute('aria-label', f.name + ' flame');
-    b.setAttribute('aria-pressed', 'false');
-    b.style.setProperty('--sw-1', f.vars['--flame-mid-2']);
-    b.style.setProperty('--sw-2', f.vars['--flame-outer-1']);
-    b.style.setProperty('--sw-glow', f.vars['--accent-glow']);
-    b.addEventListener('click', () => setFlame(f.id, true));
-    swatches.appendChild(b);
-  });
-
-  // ---------- sending the candle to someone ----------
-  function clock(ts){
-    try{ return new Date(ts).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }); }
-    catch(e){ return ''; }
-  }
-
-  function shareMessage(){
-    const who = shareName.value.trim() || 'Someone';
-    return who + ' has started a candle for ' + fmtDur(Math.round(totalMs / 60000));
-  }
-
-  // the serverless fallback link: everything travels in the URL, so it can
-  // show a synced countdown but never a stop reported after the fact
-  function staticShareUrl(){
-    const payload = { n: shareName.value.trim().slice(0,24), e: endAt, s: startedAt, t: totalMs, f: flameId };
-    return location.href.split('#')[0] + '#c=' + b64url(JSON.stringify(payload));
-  }
-
-  // talks to the Worker; POST once per burn, then reuse the id. Returns
-  // false (never throws) so callers can fall back to the static link.
-  function ensureLiveCandle(){
-    if(liveId) return Promise.resolve(true);
-    if(liveCreatePromise) return liveCreatePromise;
-    liveCreatePromise = fetch('/api/candles', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name: shareName.value.trim() || 'Someone',
-        totalMs, endAt, flameId
-      })
-    })
-      .then(res => { if(!res.ok) throw new Error('create failed'); return res.json(); })
-      .then(d => { liveId = d.id; liveToken = d.token; save(); return true; })
-      .catch(() => false)
-      .finally(() => { liveCreatePromise = null; });
-    return liveCreatePromise;
-  }
-
-  function sendHeartbeat(){
-    if(!liveId || !liveToken) return;
-    fetch('/api/candles/' + liveId + '/heartbeat', {
-      method: 'POST',
-      headers: { authorization: 'Bearer ' + liveToken, 'content-type': 'application/json' },
-      body: JSON.stringify({ endAt, totalMs, flameId })
-    }).catch(() => { /* best effort — a missed beat just reads as "quiet" */ });
-  }
-
-  function stopLiveCandle(){
-    if(!liveId || !liveToken) return;
-    fetch('/api/candles/' + liveId + '/stop', {
-      method: 'POST',
-      headers: { authorization: 'Bearer ' + liveToken }
-    }).catch(() => { /* best effort; the watcher falls back to time math */ });
-  }
-
-  // resolves to a link: live (#w=id) if the server's reachable, else static (#c=payload)
-  function resolveShareUrl(){
-    return ensureLiveCandle().then(ok => {
-      shareNote.textContent = ok
-        ? "They'll see if you stop it early, too."
-        : "Couldn't reach the server — they'll see it burning, not if you stop.";
-      return ok ? (location.href.split('#')[0] + '#w=' + liveId) : staticShareUrl();
-    });
-  }
-
-  function syncShare(){
-    sharePrev.textContent = '\u201c' + shareMessage() + '\u201d';
-  }
-
-  // check in every 20s while a shared candle burns, so a watcher's "last
-  // seen" stays current without hammering the API
-  setInterval(() => {
-    if(!WATCH && state === 'burning' && liveId) sendHeartbeat();
-  }, 20000);
-
-  // the tab only makes sense while a candle is actually burning
-  function syncShareTab(){
-    const on = !WATCH && state === 'burning';
-    shareToggle.hidden = !on;
-    shareSep.hidden = !on;
-    if(!on && sharePanel.classList.contains('open')) openMenu(null, false);
-  }
-
-  function flash(btn, text){
-    const was = btn.textContent;
-    btn.textContent = text;
-    setTimeout(() => { btn.textContent = was; }, 1600);
-  }
-
-  // clipboard API needs a secure context; fall back for file:// and plain http
-  function legacyCopy(text){
-    try{
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.setAttribute('readonly','');
-      ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      return ok;
-    }catch(e){ return false; }
-  }
-
-  try{ shareName.value = localStorage.getItem(NAME_KEY) || ''; }catch(e){ /* storage off */ }
-
-  shareName.addEventListener('input', () => {
-    syncShare();
-    try{ localStorage.setItem(NAME_KEY, shareName.value.trim().slice(0,24)); }catch(e){ /* storage off */ }
-  });
-
-  shareSend.hidden = !navigator.share;
-  shareSend.addEventListener('click', () => {
-    resolveShareUrl().then(url => {
-      navigator.share({ text: shareMessage(), url })
-        .then(() => flash(shareSend, 'Sent'))
-        .catch(() => { /* dismissed the share sheet */ });
-    });
-  });
-
-  shareCopy.addEventListener('click', () => {
-    const was = shareCopy.textContent;
-    shareCopy.textContent = '…';
-    resolveShareUrl().then(url => {
-      const text = shareMessage() + ' — ' + url;
-      const done = ok => { shareCopy.textContent = was; flash(shareCopy, ok ? 'Copied' : 'Press ⌘/Ctrl+C'); };
-      if(navigator.clipboard && window.isSecureContext){
-        navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
-      }else{
-        done(legacyCopy(text));
+    [...$('choices').children].forEach((b,i) => {
+      b.disabled = locked;
+      b.classList.toggle('picked', myAnswer === i && !result);
+      b.classList.remove('right','wrong','dim');
+      if(result){
+        if(i === result.correct) b.classList.add('right');
+        else if(i === myAnswer) b.classList.add('wrong');
+        else b.classList.add('dim');
       }
     });
+  }
+
+  function answer(i){
+    if(phase !== 'question' || myAnswer !== null || !ws) return;
+    myAnswer = i;
+    ws.send(JSON.stringify({ t:'answer', round, choice:i }));
+    renderChoices(lastQ, true, null);
+    $('qNote').textContent = 'Locked in — waiting for ' + (lane.theirs.name.textContent || 'them');
+  }
+
+  document.addEventListener('keydown', e => {
+    if(phase !== 'question') return;
+    const n = Number(e.key);
+    if(n >= 1 && n <= 4) answer(n - 1);
   });
 
-  // ---------- one menu open at a time ----------
-  const MENUS = [
-    { panel: pickPanel, toggle: pickToggle, onOpen: () => { syncPicker(); pickRange.focus({ preventScroll:true }); } },
-    { panel: colPanel,  toggle: colToggle,  onOpen: () => { const on = swatches.querySelector('[aria-pressed="true"]') || swatches.firstElementChild; if(on) on.focus({ preventScroll:true }); } },
-    { panel: sharePanel, toggle: shareToggle, onOpen: () => { syncShare(); shareName.focus({ preventScroll:true }); } }
-  ];
+  let lastQ = null;
 
-  function openMenu(menu, open){
-    MENUS.forEach(m => {
-      const want = (m === menu) && open;
-      m.panel.classList.toggle('open', want);
-      m.toggle.setAttribute('aria-expanded', want ? 'true' : 'false');
-    });
-    if(open){
-      menu.onOpen();
-      // on a short screen the panel opens below the fold — bring it into view
-      setTimeout(() => menu.panel.scrollIntoView({ block:'nearest', behavior:'smooth' }), 320);
+  function verdictFor(line, isMine){
+    if(!line) return ['',''];
+    if(line.right){
+      let txt = isMine ? 'correct — you hit them' : 'correct — they hit you';
+      if(line.healed) return [txt + ' · +wax', 'heal'];
+      return [txt, 'good'];
     }
+    const why = line.timedOut ? 'too slow' : 'wrong';
+    return [why + ' — ' + (isMine ? 'your candle flares' : 'their candle flares'), 'bad'];
   }
 
-  function openMenuCount(){ return MENUS.filter(m => m.panel.classList.contains('open')).length; }
+  function applyState(s){
+    phase = s.phase;
 
-  MENUS.forEach(m => {
-    m.toggle.addEventListener('click', () => openMenu(m, !m.panel.classList.contains('open')));
-  });
-
-  pickRange.addEventListener('input', previewPicker);
-  pickRange.addEventListener('change', applyDuration);
-
-  document.addEventListener('keydown', (e) => {
-    if(e.key !== 'Escape') return;
-    const open = MENUS.find(m => m.panel.classList.contains('open'));
-    if(open){ openMenu(open, false); open.toggle.focus(); }
-  });
-  document.addEventListener('pointerdown', (e) => {
-    if(openMenuCount() && !picker.contains(e.target)) openMenu(null, false);
-  });
-
-  wick.addEventListener('click', () => {
-    if(state === 'burning') blowOut();
-    else if(state === 'done') doReset();
-    else light(false);
-  });
-  snuff.addEventListener('click', blowOut);
-  reset.addEventListener('click', doReset);
-
-  // a backgrounded tab throttles rAF; recompute on the way back
-  document.addEventListener('visibilitychange', () => {
-    if(document.visibilityState === 'visible' && state === 'burning'){
-      if(msLeft() <= 0) finish(false); else paint();
-    }
-  });
-  window.addEventListener('beforeunload', save);
-
-  // opening a different candle link on an open page only changes the hash,
-  // which wouldn't otherwise re-read it
-  window.addEventListener('hashchange', () => location.reload());
-
-  function possessiveOf(name){ return name + (/s$/i.test(name) ? '\u2019' : '\u2019s'); }
-
-  function syncWatchStale(){
-    if(WATCH.kind !== 'live' || state !== 'burning' || !liveLastSeenAt){
-      watchStale.hidden = true;
-      return;
-    }
-    const secs = Math.max(0, Math.round((Date.now() - liveLastSeenAt) / 1000));
-    if(secs < 50){ watchStale.hidden = true; return; }
-    watchStale.hidden = false;
-    watchStale.textContent = secs < 120
-      ? 'quiet for a moment'
-      : 'last seen ' + Math.round(secs / 60) + ' min ago';
-  }
-
-  function stopLivePoll(){
-    liveWatchActive = false;
-    if(livePollTimer){ clearTimeout(livePollTimer); livePollTimer = null; }
-  }
-
-  // a friend's tab reports its own blow-out; nothing else can end this early
-  function watcherSawBlowOut(endedAt){
-    stopLivePoll();
-    if(state !== 'done') finish(true);
-    watchStale.hidden = true;
-    setLabel('blown out early' + (endedAt ? ' · ' + clock(endedAt) : ''));
-  }
-
-  function applyLiveUpdate(d){
-    liveLastSeenAt = d.lastSeenAt || liveLastSeenAt;
-
-    if(d.status === 'blown_out'){ watcherSawBlowOut(d.endedAt); return; }
-
-    // the owner may have changed the length or colour mid-burn; stay in step with it
-    if(typeof d.endAt === 'number' && d.endAt !== endAt){
-      endAt = d.endAt;
-      totalMs = d.totalMs || totalMs;
-    }
-    if(typeof d.flameId === 'string' && d.flameId !== flameId) setFlame(d.flameId, false);
-
-    if(Date.now() >= endAt){
-      stopLivePoll();
-      if(state !== 'done') finish(false);
-      return;
-    }
-    syncWatchStale();
-  }
-
-  function pollLive(id){
-    fetch('/api/candles/' + id)
-      .then(res => { if(!res.ok) throw new Error('gone'); return res.json(); })
-      .then(applyLiveUpdate)
-      .catch(() => { /* a missed poll just tries again next tick */ })
-      .finally(() => {
-        if(liveWatchActive) livePollTimer = setTimeout(() => pollLive(id), 5000);
-      });
-  }
-
-  function renderWatch(data){
-    totalMs = data.totalMs;
-    flameId = data.flameId;
-    setFlame(flameId, false);
-
-    const possessive = possessiveOf(data.name);
-    document.title = possessive + ' candle';
-    watchName.textContent = possessive + ' candle';
-    watchSub.textContent = fmtDur(Math.round(totalMs / 60000)) + ' candle'
-      + (data.startedAt ? ' · lit ' + clock(data.startedAt) : '');
-    watchHead.hidden = false;
-    watchFoot.hidden = false;
-    watchFootNote.textContent = WATCH.kind === 'live'
-      ? "You'll see if this candle gets blown out early."
-      : "You'll see this candle finish, but not if it's blown out early.";
-    watchStart.href = location.pathname;
-
-    wick.setAttribute('aria-label', possessive + ' candle');
-    wick.tabIndex = -1;
-
-    if(data.status === 'blown_out'){
-      endAt = data.endAt;
-      remaining = 0;
-      finish(true);
-      setLabel('blown out early' + (data.endedAt ? ' · ' + clock(data.endedAt) : ''));
-      return;
-    }
-
-    if(data.endAt - Date.now() > 0){
-      endAt = data.endAt;
-      remaining = Math.max(0, endAt - Date.now());
-      liveLastSeenAt = data.lastSeenAt || 0;
-      light(true);
-    }else{
-      remaining = 0;
-      finish(true);
-    }
-  }
-
-  function watchNotFound(){
-    watchHead.hidden = false;
-    watchName.textContent = 'Candle not found';
-    watchSub.textContent = "It's gone, or the link's broken.";
-    watchFoot.hidden = false;
-    timeEl.hidden = true;
-    setLabel('nothing burning here');
-  }
-
-  function startWatching(){
-    document.body.classList.add('watch');
-
-    if(WATCH.kind === 'static'){
-      renderWatch(WATCH);
-      return;
-    }
-
-    // live: ask the server what's actually happening, then keep polling
-    fetch('/api/candles/' + WATCH.id)
-      .then(res => { if(!res.ok) throw new Error('not found'); return res.json(); })
-      .then(data => {
-        renderWatch(data);
-        if(data.status === 'burning' && data.endAt - Date.now() > 0){
-          liveWatchActive = true;
-          livePollTimer = setTimeout(() => pollLive(WATCH.id), 5000);
+    if(phase === 'lobby'){
+      const hostName = s.host.name || 'Someone';
+      if(myRole === 'host'){
+        show(['scHost']);
+        $('hostLink').textContent = shareUrl();
+        $('hostStatus').textContent = s.guest.ready
+          ? (s.guest.name || 'They') + ' is ready.'
+          : 'Waiting for them to open it…';
+        $('hostStart').disabled = !s.guest.ready;
+      }else{
+        show(['scGuest']);
+        $('guestHd').textContent = hostName + ' has challenged you';
+        if(s.guest.ready){
+          $('guestName').hidden = true;
+          $('guestReady').hidden = true;
+          $('guestStatus').textContent = 'Waiting for ' + hostName + ' to start…';
         }
-      })
-      .catch(watchNotFound);
+      }
+      return;
+    }
+
+    const mine = myRole === 'host' ? s.host : s.guest;
+    const theirs = myRole === 'host' ? s.guest : s.host;
+
+    lane.mine.name.textContent = mine.name || 'You';
+    lane.theirs.name.textContent = theirs.name || 'Them';
+    updateLane('mine', mine);
+    updateLane('theirs', theirs);
+    setPips(lane.mine, mine.streak || 0);
+    setPips(lane.theirs, theirs.streak || 0);
+
+    if(s.ms != null) deadlineAt = performance.now() + s.ms;
+    if(s.round != null && s.round !== round){ round = s.round; myAnswer = null; }
+
+    room.classList.add('on');
+
+    if(phase === 'countdown'){
+      show(['scArena']);
+      $('qText').textContent = '3';
+      $('choices').innerHTML = ''; choicesRendered = -1;
+      $('qNote').textContent = 'First question coming up';
+      $('qBar').style.width = '100%';
+      lane.mine.verdict.textContent = ''; lane.theirs.verdict.textContent = '';
+      return;
+    }
+
+    if(phase === 'question'){
+      show(['scArena']);
+      lastQ = s.q;
+      $('qText').textContent = s.q.text;
+      renderChoices(s.q, myAnswer !== null, null);
+      lane.mine.verdict.textContent = ''; lane.mine.verdict.className = 'verdict';
+      lane.theirs.verdict.textContent = ''; lane.theirs.verdict.className = 'verdict';
+      $('qNote').textContent = myAnswer !== null
+        ? 'Locked in — waiting for ' + (theirs.name || 'them')
+        : (theirs.answered ? (theirs.name || 'They') + ' has answered' : 'Pick one, fast');
+      return;
+    }
+
+    if(phase === 'resolve'){
+      show(['scArena']);
+      const lastMine = myRole === 'host' ? s.last.host : s.last.guest;
+      const lastTheirs = myRole === 'host' ? s.last.guest : s.last.host;
+      renderChoices(s.q, true, { correct: s.q.answer });
+      $('qNote').textContent = s.q.text + ' = ' + s.q.choices[s.q.answer];
+      const [mt, mc] = verdictFor(lastMine, true);
+      const [tt, tc] = verdictFor(lastTheirs, false);
+      lane.mine.verdict.textContent = mt; lane.mine.verdict.className = 'verdict ' + mc;
+      lane.theirs.verdict.textContent = tt; lane.theirs.verdict.className = 'verdict ' + tc;
+      return;
+    }
+
+    if(phase === 'over'){
+      show(['scArena','scOver']);
+      $('choices').innerHTML = ''; choicesRendered = -1;
+      $('qText').textContent = '—';
+      $('qNote').textContent = '';
+      $('qBar').style.width = '0%';
+      const draw = s.over && s.over.draw;
+      const iLost = s.over && s.over.loser === myRole;
+      $('overHd').textContent = draw ? 'Both candles out' : (iLost ? 'Your candle went out' : 'You won');
+      $('overSub').textContent = draw
+        ? 'Dead heat — nobody outlasted anybody.'
+        : (iLost ? (theirs.name || 'They') + ' outlasted you.' : (theirs.name || 'They') + ' burned out first.');
+      $('overScore').textContent = 'you ' + (mine.right||0) + ' right · best streak ' + (mine.best||0)
+        + '   —   ' + (theirs.name || 'them') + ' ' + (theirs.right||0) + ' right · best streak ' + (theirs.best||0);
+      $('overAgain').hidden = myRole !== 'host';
+    }
   }
 
-  if(WATCH){
-    startWatching();
-  }else{
-    setFlame(flameId, false);
-    syncPicker();
-    syncShare();
-    paint();
-    load();
+  function updateLane(key, p){
+    const L = lane[key];
+    if(p.w != null){ L.wax = p.w; L.rate = p.r || 1; L.at = performance.now(); }
+    const burning = (p.r || 1) > 1;
+    L.el.classList.toggle('burst', burning);
+    const dead = (p.w != null && p.w <= 0);
+    if(dead && !L.el.classList.contains('out')){
+      L.el.classList.add('out');
+      L.smoke.classList.add('puff');
+    }else if(!dead){
+      L.el.classList.remove('out');
+      L.smoke.classList.remove('puff');
+    }
   }
+
+  function onTick(m){
+    const mine = myRole === 'host' ? m.h : m.g;
+    const theirs = myRole === 'host' ? m.g : m.h;
+    updateLane('mine', mine);
+    updateLane('theirs', theirs);
+    if(m.ms != null) deadlineAt = performance.now() + m.ms;
+  }
+
+  function shareUrl(){
+    return location.href.split('#')[0] + '#g=' + gameId;
+  }
+
+  // ---------- connection ----------
+  function connect(role, token){
+    myRole = role;
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host + '/api/games/' + gameId + '/ws'
+      + '?role=' + role + '&token=' + encodeURIComponent(token || ''));
+
+    ws.addEventListener('message', ev => {
+      let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+      if(m.t === 'nogame' || m.t === 'full'){
+        $('deadHd').textContent = m.t === 'full' ? 'That race is full' : 'Race not found';
+        $('deadSub').textContent = m.t === 'full'
+          ? 'Someone else already took the second candle.'
+          : "That link's expired, or it was mistyped.";
+        show(['scDead']);
+        return;
+      }
+      if(m.t === 'welcome'){
+        startWax = m.startWax; questionMs = m.questionMs; streakN = m.streakN;
+        try{ localStorage.setItem('cr-' + role + '-' + gameId, m.token); }catch(e){}
+        applyState(m);
+        return;
+      }
+      if(m.t === 'state') applyState(m);
+      else if(m.t === 'tick') onTick(m);
+    });
+
+    ws.addEventListener('close', () => {
+      if(phase !== 'over' && phase !== 'intro'){
+        $('qNote').textContent = 'Connection dropped — refresh to rejoin';
+      }
+    });
+  }
+
+  // ---------- entry points ----------
+  $('introGo').addEventListener('click', () => {
+    const name = $('introName').value.trim();
+    $('introGo').disabled = true;
+    $('introNote').textContent = 'Setting up…';
+    fetch('/api/games', {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({ name })
+    })
+      .then(r => { if(!r.ok) throw new Error('create failed'); return r.json(); })
+      .then(d => {
+        gameId = d.id;
+        try{ localStorage.setItem('cr-host-' + gameId, d.token); }catch(e){}
+        history.replaceState(null, '', shareUrl());
+        connect('host', d.token);
+      })
+      .catch(() => {
+        $('introGo').disabled = false;
+        $('introNote').textContent = "Couldn't reach the server — try again";
+      });
+  });
+
+  $('introName').addEventListener('keydown', e => { if(e.key === 'Enter') $('introGo').click(); });
+
+  $('hostCopy').addEventListener('click', () => {
+    const url = shareUrl();
+    const done = () => { $('hostCopy').textContent = 'Copied'; setTimeout(() => { $('hostCopy').textContent = 'Copy link'; }, 1600); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(done).catch(() => {});
+    }
+  });
+
+  if(navigator.share){
+    $('hostSend').hidden = false;
+    $('hostSend').addEventListener('click', () => {
+      navigator.share({ text: 'Race me — candles, maths, last flame wins.', url: shareUrl() }).catch(() => {});
+    });
+  }
+
+  $('hostStart').addEventListener('click', () => {
+    $('hostStart').disabled = true;
+    ws.send(JSON.stringify({ t:'start' }));
+  });
+
+  $('guestReady').addEventListener('click', () => {
+    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim() }));
+    $('guestReady').disabled = true;
+  });
+  $('guestName').addEventListener('keydown', e => { if(e.key === 'Enter') $('guestReady').click(); });
+
+  $('overAgain').addEventListener('click', () => {
+    $('overAgain').disabled = true;
+    ws.send(JSON.stringify({ t:'again' }));
+    setTimeout(() => { $('overAgain').disabled = false; }, 1200);
+  });
+
+  const m = /[#&]g=([A-Za-z0-9\-_]+)/.exec(location.hash);
+  if(m){
+    gameId = m[1];
+    let tok = null;
+    try{ tok = localStorage.getItem('cr-host-' + gameId); }catch(e){}
+    if(tok){
+      connect('host', tok);                       // the host came back after a refresh
+    }else{
+      let g = null;
+      try{ g = localStorage.getItem('cr-guest-' + gameId); }catch(e){}
+      connect('guest', g || '');
+    }
+  }else{
+    show(['scIntro']);
+    try{ $('introName').value = localStorage.getItem('cr-name') || ''; }catch(e){}
+  }
+
+  $('introName').addEventListener('change', () => {
+    try{ localStorage.setItem('cr-name', $('introName').value.trim()); }catch(e){}
+  });
 })();
 </script>
 </body>
