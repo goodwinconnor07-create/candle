@@ -17,8 +17,11 @@
     background:#000;
     color:#e8dcc6;
     font-family: ui-serif, Georgia, "Times New Roman", serif;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    min-height:100dvh; padding:24px 16px; overflow:hidden;
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100dvh; padding:24px 16px;
+    /* auto-centre, but stay scrollable on short screens so the picker
+       panel can't get cut off the way justify-content + overflow:hidden did */
+    overflow-x:hidden; overflow-y:auto;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -38,7 +41,7 @@
   @keyframes roomBreathe{ 0%,100%{ filter:brightness(1) } 43%{ filter:brightness(1.12) } 70%{ filter:brightness(.93) } }
 
   .stage{
-    position:relative; z-index:1;
+    position:relative; z-index:1; margin:auto 0;
     display:flex; flex-direction:column; align-items:center; gap:34px;
   }
 
@@ -211,6 +214,68 @@
   button.ctl:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:3px; }
   button.ctl[hidden]{ display:none; }
 
+  /* ---------- burn-time picker ---------- */
+  .picker{ margin-top:18px; }
+  .picker-toggle{
+    font: inherit; font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
+    color:rgba(232,220,198,.34); background:transparent; border:0; padding:6px 4px;
+    cursor:pointer; border-bottom:1px dotted rgba(232,220,198,.28);
+    transition: color .25s ease, border-color .25s ease;
+  }
+  .picker-toggle:hover{ color:rgba(255,205,145,.8); border-bottom-color:rgba(255,190,120,.5); }
+  .picker-toggle:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:4px; }
+  .lit .picker-toggle{ color:rgba(255,205,145,.4); }
+
+  .picker-panel{
+    overflow:hidden; max-height:0; opacity:0; visibility:hidden;
+    transition: max-height .3s ease, opacity .3s ease, visibility .3s;
+  }
+  .picker.open .picker-panel{ max-height:190px; opacity:1; visibility:visible; }
+  .picker-inner{
+    margin:12px auto 0; width:min(280px, 82vw); padding:16px 18px 13px;
+    border:1px solid rgba(232,220,198,.16); border-radius:14px;
+    background:rgba(18,13,7,.72);
+    box-shadow:0 10px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,220,170,.05);
+  }
+  .picker-value{
+    font-size:1.25rem; letter-spacing:.05em; color:#ffd9a0; text-align:center;
+    font-variant-numeric: tabular-nums;
+  }
+  .picker-range{
+    -webkit-appearance:none; appearance:none;
+    display:block; width:100%; margin:14px 0 2px; height:18px;
+    background:transparent; cursor:pointer;
+  }
+  .picker-range:focus{ outline:none; }
+  .picker-range:focus-visible::-webkit-slider-thumb{ box-shadow:0 0 0 4px rgba(255,190,110,.35), 0 0 12px rgba(255,150,50,.7); }
+  .picker-range:focus-visible::-moz-range-thumb{ box-shadow:0 0 0 4px rgba(255,190,110,.35), 0 0 12px rgba(255,150,50,.7); }
+  .picker-range::-webkit-slider-runnable-track{
+    height:3px; border-radius:2px;
+    background:linear-gradient(90deg,
+      rgba(255,168,72,.85) var(--fill,100%), rgba(232,220,198,.16) var(--fill,100%));
+  }
+  .picker-range::-webkit-slider-thumb{
+    -webkit-appearance:none; width:15px; height:15px; margin-top:-6px; border:0; border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #fff1d6, #ff9e3f 70%);
+    box-shadow:0 0 10px rgba(255,150,50,.6);
+  }
+  .picker-range::-moz-range-track{ height:3px; border-radius:2px; background:rgba(232,220,198,.16); }
+  .picker-range::-moz-range-progress{ height:3px; border-radius:2px; background:rgba(255,168,72,.85); }
+  .picker-range::-moz-range-thumb{
+    width:15px; height:15px; border:0; border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #fff1d6, #ff9e3f 70%);
+    box-shadow:0 0 10px rgba(255,150,50,.6);
+  }
+  .picker-ends{
+    display:flex; justify-content:space-between;
+    font-size:.64rem; letter-spacing:.16em; text-transform:uppercase;
+    color:rgba(232,220,198,.28);
+  }
+  .picker-note{
+    margin-top:11px; font-size:.64rem; letter-spacing:.1em;
+    color:rgba(232,220,198,.24); text-align:center;
+  }
+
   @media (max-width:420px){
     .candle-area{ width:180px; }
     .candle{ width:78px; }
@@ -255,12 +320,29 @@
         <button class="ctl" id="snuff" hidden>Blow out</button>
         <button class="ctl" id="reset" hidden>Reset</button>
       </div>
+
+      <div class="picker" id="picker">
+        <button class="picker-toggle" id="pickerToggle" aria-expanded="false" aria-controls="pickerPanel">change time</button>
+        <div class="picker-panel" id="pickerPanel">
+          <div class="picker-inner">
+            <div class="picker-value" id="pickerValue">2 hr</div>
+            <input class="picker-range" id="pickerRange" type="range"
+                   min="5" max="120" step="5" value="120"
+                   aria-label="Burn time in minutes">
+            <div class="picker-ends"><span>5 min</span><span>2 hr</span></div>
+            <p class="picker-note">Picks a fresh candle at that length.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </main>
 
 <script>
 (function(){
-  const TOTAL_MS   = 2 * 60 * 60 * 1000;   // two hours
+  const MIN_MINS   = 5;                    // shortest candle the slider offers
+  const MAX_MINS   = 120;                  // longest — two hours
+  const STEP_MINS  = 5;
+  const DEFAULT_MS = MAX_MINS * 60 * 1000;
   const WAX_TALL   = 230;                  // px, full candle
   const WAX_STUB   = 46;                   // px, burnt down to a stub
   const STORE_KEY  = 'candle-timer-v1';
@@ -274,10 +356,16 @@
   const label  = document.getElementById('label');
   const snuff  = document.getElementById('snuff');
   const reset  = document.getElementById('reset');
+  const picker = document.getElementById('picker');
+  const pickToggle = document.getElementById('pickerToggle');
+  const pickPanel  = document.getElementById('pickerPanel');
+  const pickValue  = document.getElementById('pickerValue');
+  const pickRange  = document.getElementById('pickerRange');
 
   // state: 'unlit' | 'burning' | 'paused' | 'done'
   let state = 'unlit';
-  let remaining = TOTAL_MS;   // ms left, authoritative while not burning
+  let totalMs = DEFAULT_MS;   // how long a full candle lasts
+  let remaining = totalMs;    // ms left, authoritative while not burning
   let endAt = 0;              // timestamp the candle runs out, while burning
   let raf = null;
   let flickerTimer = null;
@@ -298,7 +386,7 @@
   function paint(){
     const left = msLeft();
     timeEl.textContent = fmt(left);
-    const frac = left / TOTAL_MS;
+    const frac = totalMs > 0 ? left / totalMs : 0;
     candle.style.height = (WAX_STUB + (WAX_TALL - WAX_STUB) * frac).toFixed(1) + 'px';
   }
 
@@ -306,7 +394,7 @@
 
   function save(){
     try{
-      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs }));
     }catch(e){ /* private mode, storage off — the timer still runs */ }
   }
 
@@ -314,6 +402,12 @@
     let d = null;
     try{ d = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); }catch(e){ d = null; }
     if(!d || typeof d.state !== 'string') return;
+    if(typeof d.totalMs === 'number' && isFinite(d.totalMs)){
+      totalMs = clampMs(d.totalMs);
+      remaining = totalMs;
+      syncPicker();
+      paint();
+    }
     if(d.state === 'burning' && typeof d.endAt === 'number'){
       if(d.endAt - Date.now() > 0){ endAt = d.endAt; light(true); return; }
       remaining = 0; finish(true); return;
@@ -418,7 +512,7 @@
 
   function doReset(){
     state = 'unlit';
-    remaining = TOTAL_MS;
+    remaining = totalMs;
     endAt = 0;
     stage.classList.remove('lit','done');
     room.classList.remove('flicker');
@@ -455,6 +549,75 @@
     }catch(e){ /* audio blocked — the visual is the point */ }
   }
 
+  // ---------- burn-time picker ----------
+  function clampMs(ms){
+    const mins = Math.round(ms / 60000 / STEP_MINS) * STEP_MINS;
+    return Math.min(MAX_MINS, Math.max(MIN_MINS, mins)) * 60000;
+  }
+
+  function fmtDur(mins){
+    if(mins < 60) return mins + ' min';
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return h + ' hr' + (m ? ' ' + m + ' min' : '');
+  }
+
+  // paint the filled part of the track ourselves (webkit has no ::-moz-range-progress)
+  function syncPicker(){
+    const mins = Math.round(totalMs / 60000);
+    pickRange.value = String(mins);
+    pickValue.textContent = fmtDur(mins);
+    const pct = (mins - MIN_MINS) / (MAX_MINS - MIN_MINS) * 100;
+    pickRange.style.setProperty('--fill', pct.toFixed(1) + '%');
+  }
+
+  function previewPicker(){
+    const mins = Number(pickRange.value);
+    pickValue.textContent = fmtDur(mins);
+    const pct = (mins - MIN_MINS) / (MAX_MINS - MIN_MINS) * 100;
+    pickRange.style.setProperty('--fill', pct.toFixed(1) + '%');
+  }
+
+  function applyDuration(){
+    const next = clampMs(Number(pickRange.value) * 60000);
+    if(next === totalMs && state === 'unlit'){ syncPicker(); return; }
+    totalMs = next;
+    if(state === 'burning'){
+      // keep the flame, but start a fresh candle of the new length
+      remaining = totalMs;
+      endAt = Date.now() + totalMs;
+      paint();
+      save();
+    }else{
+      doReset();              // fresh unlit candle, full height
+    }
+    syncPicker();
+  }
+
+  function openPicker(open){
+    picker.classList.toggle('open', open);
+    pickToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if(open){
+      syncPicker();
+      pickRange.focus({ preventScroll:true });
+      // on a short screen the panel opens below the fold — bring it into view
+      setTimeout(() => pickPanel.scrollIntoView({ block:'nearest', behavior:'smooth' }), 320);
+    }
+  }
+
+  pickToggle.addEventListener('click', () => openPicker(!picker.classList.contains('open')));
+  pickRange.addEventListener('input', previewPicker);
+  pickRange.addEventListener('change', applyDuration);
+
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape' && picker.classList.contains('open')){
+      openPicker(false);
+      pickToggle.focus();
+    }
+  });
+  document.addEventListener('pointerdown', (e) => {
+    if(picker.classList.contains('open') && !picker.contains(e.target)) openPicker(false);
+  });
+
   wick.addEventListener('click', () => {
     if(state === 'burning') blowOut();
     else if(state === 'done') doReset();
@@ -471,6 +634,7 @@
   });
   window.addEventListener('beforeunload', save);
 
+  syncPicker();
   paint();
   load();
 })();
