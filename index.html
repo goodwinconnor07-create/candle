@@ -10,6 +10,29 @@
     --glow: 0;             /* room light level 0..1 */
     --wax: #efe2c8;
     --wax-shade: #c8b795;
+
+    /* flame palette — JS overwrites these inline when you pick a colour */
+    --flame-outer-1: rgba(255,148,40,.95);
+    --flame-outer-2: rgba(255,92,10,.55);
+    --flame-outer-3: rgba(255,60,0,0);
+    --flame-mid-1: #ffb43c;
+    --flame-mid-2: #ffd97a;
+    --flame-mid-3: #fff3c4;
+    --flame-core-1: #5fa8ff;
+    --flame-core-2: #cfe6ff;
+    --wick-lit-1: #ffcf7a;
+    --wick-lit-2: #6b3a16;
+    --wick-glow: rgba(255,170,70,.9);
+    --room-1: rgba(255,168,72,.28);
+    --room-2: rgba(255,130,40,.13);
+    --room-3: rgba(120,60,20,.05);
+    --pool-1: rgba(255,160,60,.16);
+    --accent: #ffd9a0;
+    --accent-soft: rgba(255,205,145,.55);
+    --accent-glow: rgba(255,150,50,.45);
+    --accent-mid: rgba(255,168,72,.85);
+    --thumb-1: #fff1d6;
+    --thumb-2: #ff9e3f;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; }
@@ -30,9 +53,9 @@
     position:fixed; inset:0; pointer-events:none; z-index:0;
     background:
       radial-gradient(60vmin 55vmin at 50% 46%,
-        rgba(255,168,72,.28) 0%,
-        rgba(255,130,40,.13) 35%,
-        rgba(120,60,20,.05) 60%,
+        var(--room-1) 0%,
+        var(--room-2) 35%,
+        var(--room-3) 60%,
         rgba(0,0,0,0) 78%);
     opacity: calc(var(--glow) * 1);
     transition: opacity 1.4s ease;
@@ -68,8 +91,8 @@
     transition: background .8s ease, box-shadow .8s ease;
   }
   .lit .wick{
-    background:linear-gradient(#ffcf7a,#6b3a16);
-    box-shadow:0 0 6px rgba(255,170,70,.9);
+    background:linear-gradient(var(--wick-lit-1), var(--wick-lit-2));
+    box-shadow:0 0 6px var(--wick-glow);
   }
   /* small hint pulse so it's obvious what to click */
   .wick-hint{
@@ -99,19 +122,19 @@
   }
   .f-outer{
     width:34px; height:74px; margin-left:-17px;
-    background:radial-gradient(ellipse at 50% 88%, rgba(255,148,40,.95), rgba(255,92,10,.55) 55%, rgba(255,60,0,0) 78%);
+    background:radial-gradient(ellipse at 50% 88%, var(--flame-outer-1), var(--flame-outer-2) 55%, var(--flame-outer-3) 78%);
     filter:blur(5px);
     animation: flick 2.1s ease-in-out infinite;
   }
   .f-mid{
     width:20px; height:50px; margin-left:-10px;
-    background:linear-gradient(to top, #ffb43c 0%, #ffd97a 45%, #fff3c4 78%, rgba(255,255,255,.2) 100%);
+    background:linear-gradient(to top, var(--flame-mid-1) 0%, var(--flame-mid-2) 45%, var(--flame-mid-3) 78%, rgba(255,255,255,.2) 100%);
     filter:blur(1.6px);
     animation: flick 1.5s ease-in-out infinite reverse;
   }
   .f-core{
     width:8px; height:17px; margin-left:-4px;
-    background:linear-gradient(to top, #5fa8ff, #cfe6ff 60%, rgba(255,255,255,.85));
+    background:linear-gradient(to top, var(--flame-core-1), var(--flame-core-2) 60%, rgba(255,255,255,.85));
     filter:blur(1.5px); opacity:.85;
     animation: flick 1.1s ease-in-out infinite;
   }
@@ -150,7 +173,11 @@
     filter: brightness(.34) saturate(.45);
     transition: filter 1.4s ease, height .9s linear;
   }
-  .lit .candle{ filter: brightness(1) saturate(1); }
+  .lit .candle{
+    filter: brightness(1) saturate(1);
+    /* the flame washes its own colour over the wax below it */
+    box-shadow: 0 -14px 38px -10px var(--accent-glow);
+  }
   .done .candle{ filter: brightness(.62) saturate(.8); }   /* afterglow, no flame */
   .candle::before{                       /* molten top */
     content:""; position:absolute; top:-7px; left:0; right:0; height:14px;
@@ -181,7 +208,7 @@
   .pool{
     position:absolute; bottom:-26px; left:50%; transform:translateX(-50%);
     width:250px; height:40px; border-radius:50%;
-    background:radial-gradient(ellipse, rgba(255,160,60,.16), rgba(255,140,40,0) 70%);
+    background:radial-gradient(ellipse, var(--pool-1), transparent 70%);
     opacity:var(--glow); transition:opacity 1.4s ease; pointer-events:none;
   }
 
@@ -194,13 +221,13 @@
     color:rgba(232,220,198,.3);
     transition:color 1.4s ease, text-shadow 1.4s ease;
   }
-  .lit .time{ color:#ffd9a0; text-shadow:0 0 22px rgba(255,150,50,.45); }
+  .lit .time{ color:var(--accent); text-shadow:0 0 22px var(--accent-glow); }
   .done .time{ color:rgba(232,220,198,.55); }
   .label{
     margin-top:12px; font-size:.82rem; letter-spacing:.22em; text-transform:uppercase;
     color:rgba(232,220,198,.32); transition:color 1.2s ease;
   }
-  .lit .label{ color:rgba(255,205,145,.55); }
+  .lit .label{ color:var(--accent-soft); }
 
   .controls{ margin-top:22px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
   button.ctl{
@@ -216,6 +243,8 @@
 
   /* ---------- burn-time picker ---------- */
   .picker{ margin-top:18px; }
+  .picker-tabs{ display:flex; align-items:center; justify-content:center; gap:10px; }
+  .picker-sep{ color:rgba(232,220,198,.2); font-size:.7rem; }
   .picker-toggle{
     font: inherit; font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
     color:rgba(232,220,198,.34); background:transparent; border:0; padding:6px 4px;
@@ -230,7 +259,7 @@
     overflow:hidden; max-height:0; opacity:0; visibility:hidden;
     transition: max-height .3s ease, opacity .3s ease, visibility .3s;
   }
-  .picker.open .picker-panel{ max-height:190px; opacity:1; visibility:visible; }
+  .picker-panel.open{ max-height:210px; opacity:1; visibility:visible; }
   .picker-inner{
     margin:12px auto 0; width:min(280px, 82vw); padding:16px 18px 13px;
     border:1px solid rgba(232,220,198,.16); border-radius:14px;
@@ -238,7 +267,7 @@
     box-shadow:0 10px 30px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,220,170,.05);
   }
   .picker-value{
-    font-size:1.25rem; letter-spacing:.05em; color:#ffd9a0; text-align:center;
+    font-size:1.25rem; letter-spacing:.05em; color:var(--accent); text-align:center;
     font-variant-numeric: tabular-nums;
   }
   .picker-range{
@@ -252,18 +281,18 @@
   .picker-range::-webkit-slider-runnable-track{
     height:3px; border-radius:2px;
     background:linear-gradient(90deg,
-      rgba(255,168,72,.85) var(--fill,100%), rgba(232,220,198,.16) var(--fill,100%));
+      var(--accent-mid) var(--fill,100%), rgba(232,220,198,.16) var(--fill,100%));
   }
   .picker-range::-webkit-slider-thumb{
     -webkit-appearance:none; width:15px; height:15px; margin-top:-6px; border:0; border-radius:50%;
-    background:radial-gradient(circle at 34% 30%, #fff1d6, #ff9e3f 70%);
+    background:radial-gradient(circle at 34% 30%, var(--thumb-1), var(--thumb-2) 70%);
     box-shadow:0 0 10px rgba(255,150,50,.6);
   }
   .picker-range::-moz-range-track{ height:3px; border-radius:2px; background:rgba(232,220,198,.16); }
-  .picker-range::-moz-range-progress{ height:3px; border-radius:2px; background:rgba(255,168,72,.85); }
+  .picker-range::-moz-range-progress{ height:3px; border-radius:2px; background:var(--accent-mid); }
   .picker-range::-moz-range-thumb{
     width:15px; height:15px; border:0; border-radius:50%;
-    background:radial-gradient(circle at 34% 30%, #fff1d6, #ff9e3f 70%);
+    background:radial-gradient(circle at 34% 30%, var(--thumb-1), var(--thumb-2) 70%);
     box-shadow:0 0 10px rgba(255,150,50,.6);
   }
   .picker-ends{
@@ -276,6 +305,31 @@
     color:rgba(232,220,198,.24); text-align:center;
   }
 
+  .swatches{
+    display:flex; justify-content:center; align-items:center;
+    gap:10px; flex-wrap:wrap; margin-top:15px;
+  }
+  .swatch{
+    width:32px; height:32px; padding:0; cursor:pointer; border-radius:50%;
+    border:1px solid rgba(232,220,198,.18);
+    background:radial-gradient(circle at 38% 30%, var(--sw-1), var(--sw-2) 78%);
+    box-shadow:0 0 10px var(--sw-glow);
+    transition: transform .18s ease, box-shadow .25s ease, border-color .25s ease;
+  }
+  .swatch:hover{ transform:translateY(-2px) scale(1.07); }
+  .swatch:focus-visible{ outline:2px solid rgba(255,255,255,.7); outline-offset:3px; }
+  .swatch[aria-pressed="true"]{
+    border-color:rgba(255,255,255,.72);
+    box-shadow:0 0 0 2px rgba(255,255,255,.16), 0 0 16px var(--sw-glow);
+  }
+  @media (prefers-reduced-motion: reduce){ .swatch:hover{ transform:none; } }
+
+  @media (max-width:380px){
+    /* keep all six on one row rather than wrapping 5 + 1 */
+    .picker-inner{ padding:14px 14px 12px; }
+    .swatches{ gap:8px; }
+    .swatch{ width:28px; height:28px; }
+  }
   @media (max-width:420px){
     .candle-area{ width:180px; }
     .candle{ width:78px; }
@@ -322,7 +376,12 @@
       </div>
 
       <div class="picker" id="picker">
-        <button class="picker-toggle" id="pickerToggle" aria-expanded="false" aria-controls="pickerPanel">change time</button>
+        <div class="picker-tabs">
+          <button class="picker-toggle" id="pickerToggle" aria-expanded="false" aria-controls="pickerPanel">change time</button>
+          <span class="picker-sep" aria-hidden="true">&middot;</span>
+          <button class="picker-toggle" id="colourToggle" aria-expanded="false" aria-controls="colourPanel">flame colour</button>
+        </div>
+
         <div class="picker-panel" id="pickerPanel">
           <div class="picker-inner">
             <div class="picker-value" id="pickerValue">2 hr</div>
@@ -331,6 +390,14 @@
                    aria-label="Burn time in minutes">
             <div class="picker-ends"><span>5 min</span><span>2 hr</span></div>
             <p class="picker-note">Picks a fresh candle at that length.</p>
+          </div>
+        </div>
+
+        <div class="picker-panel" id="colourPanel">
+          <div class="picker-inner">
+            <div class="picker-value" id="colourValue">Amber</div>
+            <div class="swatches" id="swatches" role="group" aria-label="Flame colour"></div>
+            <p class="picker-note">Sets the flame and the light it throws.</p>
           </div>
         </div>
       </div>
@@ -347,6 +414,70 @@
   const WAX_STUB   = 46;                   // px, burnt down to a stub
   const STORE_KEY  = 'candle-timer-v1';
 
+  // six flames. each one sets the wick, the three flame layers, the light it
+  // throws on the room, and the warm text that reads against it.
+  const FLAMES = [
+    { id:'amber', name:'Amber', vars:{
+      '--flame-outer-1':'rgba(255,148,40,.95)', '--flame-outer-2':'rgba(255,92,10,.55)', '--flame-outer-3':'rgba(255,60,0,0)',
+      '--flame-mid-1':'#ffb43c', '--flame-mid-2':'#ffd97a', '--flame-mid-3':'#fff3c4',
+      '--flame-core-1':'#5fa8ff', '--flame-core-2':'#cfe6ff',
+      '--wick-lit-1':'#ffcf7a', '--wick-lit-2':'#6b3a16', '--wick-glow':'rgba(255,170,70,.9)',
+      '--room-1':'rgba(255,168,72,.28)', '--room-2':'rgba(255,130,40,.13)', '--room-3':'rgba(120,60,20,.05)',
+      '--pool-1':'rgba(255,160,60,.16)',
+      '--accent':'#ffd9a0', '--accent-soft':'rgba(255,205,145,.55)', '--accent-glow':'rgba(255,150,50,.45)',
+      '--accent-mid':'rgba(255,168,72,.85)', '--thumb-1':'#fff1d6', '--thumb-2':'#ff9e3f' } },
+
+    { id:'rose', name:'Rose', vars:{
+      '--flame-outer-1':'rgba(255,74,110,.92)', '--flame-outer-2':'rgba(214,18,64,.5)', '--flame-outer-3':'rgba(160,0,40,0)',
+      '--flame-mid-1':'#ff5d7e', '--flame-mid-2':'#ff9ab0', '--flame-mid-3':'#ffdde5',
+      '--flame-core-1':'#c23a8f', '--flame-core-2':'#ffd9f0',
+      '--wick-lit-1':'#ffa8be', '--wick-lit-2':'#5e1626', '--wick-glow':'rgba(255,90,130,.85)',
+      '--room-1':'rgba(255,80,120,.24)', '--room-2':'rgba(200,30,70,.12)', '--room-3':'rgba(90,15,35,.05)',
+      '--pool-1':'rgba(255,90,130,.15)',
+      '--accent':'#ffc2d2', '--accent-soft':'rgba(255,170,195,.55)', '--accent-glow':'rgba(255,60,110,.4)',
+      '--accent-mid':'rgba(255,105,140,.85)', '--thumb-1':'#ffe1ea', '--thumb-2':'#ff5d84' } },
+
+    { id:'violet', name:'Violet', vars:{
+      '--flame-outer-1':'rgba(170,110,255,.9)', '--flame-outer-2':'rgba(110,50,210,.5)', '--flame-outer-3':'rgba(70,20,150,0)',
+      '--flame-mid-1':'#a86bff', '--flame-mid-2':'#c9a4ff', '--flame-mid-3':'#eee0ff',
+      '--flame-core-1':'#6f3bd6', '--flame-core-2':'#e2d0ff',
+      '--wick-lit-1':'#c9a4ff', '--wick-lit-2':'#32194f', '--wick-glow':'rgba(170,110,255,.85)',
+      '--room-1':'rgba(150,95,255,.22)', '--room-2':'rgba(95,40,190,.12)', '--room-3':'rgba(50,20,100,.05)',
+      '--pool-1':'rgba(150,95,255,.15)',
+      '--accent':'#d9c2ff', '--accent-soft':'rgba(200,175,255,.55)', '--accent-glow':'rgba(140,80,255,.4)',
+      '--accent-mid':'rgba(160,105,255,.85)', '--thumb-1':'#efe3ff', '--thumb-2':'#9a5cff' } },
+
+    { id:'ocean', name:'Ocean', vars:{
+      '--flame-outer-1':'rgba(60,190,255,.9)', '--flame-outer-2':'rgba(10,110,220,.5)', '--flame-outer-3':'rgba(0,60,160,0)',
+      '--flame-mid-1':'#3cc0ff', '--flame-mid-2':'#8fe0ff', '--flame-mid-3':'#dff6ff',
+      '--flame-core-1':'#0a5fd0', '--flame-core-2':'#cfeeff',
+      '--wick-lit-1':'#9fe2ff', '--wick-lit-2':'#10304f', '--wick-glow':'rgba(70,190,255,.85)',
+      '--room-1':'rgba(70,180,255,.22)', '--room-2':'rgba(20,100,210,.12)', '--room-3':'rgba(10,45,95,.05)',
+      '--pool-1':'rgba(70,180,255,.15)',
+      '--accent':'#bfe8ff', '--accent-soft':'rgba(160,215,255,.55)', '--accent-glow':'rgba(60,160,255,.4)',
+      '--accent-mid':'rgba(70,185,255,.85)', '--thumb-1':'#e2f6ff', '--thumb-2':'#3cb4ff' } },
+
+    { id:'emerald', name:'Emerald', vars:{
+      '--flame-outer-1':'rgba(90,240,160,.88)', '--flame-outer-2':'rgba(20,170,100,.5)', '--flame-outer-3':'rgba(0,110,60,0)',
+      '--flame-mid-1':'#4fe39c', '--flame-mid-2':'#a4f5c8', '--flame-mid-3':'#e2fff0',
+      '--flame-core-1':'#12a05f', '--flame-core-2':'#d5ffe8',
+      '--wick-lit-1':'#a4f5c8', '--wick-lit-2':'#123a26', '--wick-glow':'rgba(90,235,160,.85)',
+      '--room-1':'rgba(90,230,160,.2)', '--room-2':'rgba(25,160,100,.11)', '--room-3':'rgba(12,80,50,.05)',
+      '--pool-1':'rgba(90,230,160,.14)',
+      '--accent':'#c4f7db', '--accent-soft':'rgba(170,240,205,.55)', '--accent-glow':'rgba(60,215,140,.38)',
+      '--accent-mid':'rgba(80,225,155,.85)', '--thumb-1':'#e4fff0', '--thumb-2':'#3fd991' } },
+
+    { id:'moonlight', name:'Moonlight', vars:{
+      '--flame-outer-1':'rgba(200,225,255,.85)', '--flame-outer-2':'rgba(140,175,230,.45)', '--flame-outer-3':'rgba(90,120,180,0)',
+      '--flame-mid-1':'#cfe0ff', '--flame-mid-2':'#e8f1ff', '--flame-mid-3':'#ffffff',
+      '--flame-core-1':'#8fb4e8', '--flame-core-2':'#ffffff',
+      '--wick-lit-1':'#e8f1ff', '--wick-lit-2':'#30384a', '--wick-glow':'rgba(200,225,255,.8)',
+      '--room-1':'rgba(190,215,255,.2)', '--room-2':'rgba(120,150,210,.1)', '--room-3':'rgba(60,75,110,.05)',
+      '--pool-1':'rgba(190,215,255,.14)',
+      '--accent':'#e6eeff', '--accent-soft':'rgba(210,225,255,.55)', '--accent-glow':'rgba(160,195,255,.35)',
+      '--accent-mid':'rgba(190,215,255,.8)', '--thumb-1':'#f4f8ff', '--thumb-2':'#b9d0f5' } }
+  ];
+
   const stage  = document.getElementById('stage');
   const room   = document.getElementById('room');
   const wick   = document.getElementById('wick');
@@ -361,10 +492,15 @@
   const pickPanel  = document.getElementById('pickerPanel');
   const pickValue  = document.getElementById('pickerValue');
   const pickRange  = document.getElementById('pickerRange');
+  const colToggle  = document.getElementById('colourToggle');
+  const colPanel   = document.getElementById('colourPanel');
+  const colValue   = document.getElementById('colourValue');
+  const swatches   = document.getElementById('swatches');
 
   // state: 'unlit' | 'burning' | 'paused' | 'done'
   let state = 'unlit';
   let totalMs = DEFAULT_MS;   // how long a full candle lasts
+  let flameId = FLAMES[0].id; // which flame colour is burning
   let remaining = totalMs;    // ms left, authoritative while not burning
   let endAt = 0;              // timestamp the candle runs out, while burning
   let raf = null;
@@ -394,7 +530,7 @@
 
   function save(){
     try{
-      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs, flameId }));
     }catch(e){ /* private mode, storage off — the timer still runs */ }
   }
 
@@ -402,6 +538,9 @@
     let d = null;
     try{ d = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); }catch(e){ d = null; }
     if(!d || typeof d.state !== 'string') return;
+    if(typeof d.flameId === 'string' && FLAMES.some(f => f.id === d.flameId)){
+      setFlame(d.flameId, false);
+    }
     if(typeof d.totalMs === 'number' && isFinite(d.totalMs)){
       totalMs = clampMs(d.totalMs);
       remaining = totalMs;
@@ -593,29 +732,69 @@
     syncPicker();
   }
 
-  function openPicker(open){
-    picker.classList.toggle('open', open);
-    pickToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  // ---------- flame colour ----------
+  function setFlame(id, persist){
+    const f = FLAMES.find(x => x.id === id) || FLAMES[0];
+    flameId = f.id;
+    const root = document.documentElement;
+    for(const key in f.vars) root.style.setProperty(key, f.vars[key]);
+    colValue.textContent = f.name;
+    swatches.querySelectorAll('.swatch').forEach(b => {
+      b.setAttribute('aria-pressed', b.dataset.id === f.id ? 'true' : 'false');
+    });
+    if(persist) save();
+  }
+
+  FLAMES.forEach(f => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.dataset.id = f.id;
+    b.title = f.name;
+    b.setAttribute('aria-label', f.name + ' flame');
+    b.setAttribute('aria-pressed', 'false');
+    b.style.setProperty('--sw-1', f.vars['--flame-mid-2']);
+    b.style.setProperty('--sw-2', f.vars['--flame-outer-1']);
+    b.style.setProperty('--sw-glow', f.vars['--accent-glow']);
+    b.addEventListener('click', () => setFlame(f.id, true));
+    swatches.appendChild(b);
+  });
+
+  // ---------- one menu open at a time ----------
+  const MENUS = [
+    { panel: pickPanel, toggle: pickToggle, onOpen: () => { syncPicker(); pickRange.focus({ preventScroll:true }); } },
+    { panel: colPanel,  toggle: colToggle,  onOpen: () => { const on = swatches.querySelector('[aria-pressed="true"]') || swatches.firstElementChild; if(on) on.focus({ preventScroll:true }); } }
+  ];
+
+  function openMenu(menu, open){
+    MENUS.forEach(m => {
+      const want = (m === menu) && open;
+      m.panel.classList.toggle('open', want);
+      m.toggle.setAttribute('aria-expanded', want ? 'true' : 'false');
+    });
     if(open){
-      syncPicker();
-      pickRange.focus({ preventScroll:true });
+      menu.onOpen();
       // on a short screen the panel opens below the fold — bring it into view
-      setTimeout(() => pickPanel.scrollIntoView({ block:'nearest', behavior:'smooth' }), 320);
+      setTimeout(() => menu.panel.scrollIntoView({ block:'nearest', behavior:'smooth' }), 320);
     }
   }
 
-  pickToggle.addEventListener('click', () => openPicker(!picker.classList.contains('open')));
+  function openMenuCount(){ return MENUS.filter(m => m.panel.classList.contains('open')).length; }
+
+  MENUS.forEach(m => {
+    m.toggle.addEventListener('click', () => openMenu(m, !m.panel.classList.contains('open')));
+  });
+
   pickRange.addEventListener('input', previewPicker);
   pickRange.addEventListener('change', applyDuration);
 
   document.addEventListener('keydown', (e) => {
-    if(e.key === 'Escape' && picker.classList.contains('open')){
-      openPicker(false);
-      pickToggle.focus();
-    }
+    if(e.key !== 'Escape') return;
+    const open = MENUS.find(m => m.panel.classList.contains('open'));
+    if(open){ openMenu(open, false); open.toggle.focus(); }
   });
   document.addEventListener('pointerdown', (e) => {
-    if(picker.classList.contains('open') && !picker.contains(e.target)) openPicker(false);
+    if(openMenuCount() && !picker.contains(e.target)) openMenu(null, false);
   });
 
   wick.addEventListener('click', () => {
@@ -634,6 +813,7 @@
   });
   window.addEventListener('beforeunload', save);
 
+  setFlame(flameId, false);
   syncPicker();
   paint();
   load();

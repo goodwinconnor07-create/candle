@@ -19,6 +19,10 @@ smoke rises, and a soft two-note chime plays.
 - **Change time** — opens a slider under the candle, 5 minutes to 2 hours in
   5-minute steps. Picking a length starts a fresh full candle; do it while the
   candle is lit and it keeps burning, just at the new length.
+- **Flame colour** — six swatches: amber, rose, violet, ocean, emerald and
+  moonlight. The choice drives the whole scene, not just the flame — the wick
+  glow, the light thrown on the room and the wax, and the tint of the
+  countdown all follow it.
 
-State is kept in `localStorage`, including the burn length you chose, so a
-refresh or a closed tab won't lose your place. A candle left burning keeps burning in real time while the page is shut.
+State is kept in `localStorage`, including the burn length and flame colour
+you chose, so a refresh or a closed tab won't lose your place. A candle left burning keeps burning in real time while the page is shut.
