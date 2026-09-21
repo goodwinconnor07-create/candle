@@ -1,0 +1,13 @@
+name = "candle-timer"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Created once with `npx wrangler kv namespace create CANDLES`, then the id
+# that command prints replaces the placeholder below. See DEPLOY.md.
+[[kv_namespaces]]
+binding = "CANDLES"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"

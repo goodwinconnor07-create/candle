@@ -332,6 +332,10 @@
     margin-top:7px; font-size:.68rem; letter-spacing:.14em;
     color:rgba(232,220,198,.3);
   }
+  .watch-stale{
+    margin-top:7px; font-size:.62rem; letter-spacing:.1em;
+    color:rgba(232,220,198,.22);
+  }
   .watch-foot{ margin-top:20px; }
   .watch .wick-hit{ pointer-events:none; cursor:default; }
   .watch .controls, .watch .picker{ display:none; }
@@ -386,6 +390,7 @@
     <div class="watch-head" id="watchHead" hidden>
       <div class="watch-name" id="watchName"></div>
       <div class="watch-sub" id="watchSub"></div>
+      <div class="watch-stale" id="watchStale" hidden></div>
     </div>
 
     <div class="candle-area">
@@ -449,7 +454,7 @@
               <button class="ctl" id="shareSend" hidden>Send</button>
               <button class="ctl" id="shareCopy">Copy link</button>
             </div>
-            <p class="picker-note">They'll see it burning, not if you stop.</p>
+            <p class="picker-note" id="shareNote">If the server's reachable, they'll see if you stop early too.</p>
           </div>
         </div>
 
@@ -462,7 +467,7 @@
         </div>
       </div>
       <div class="watch-foot" id="watchFoot" hidden>
-        <p class="picker-note">You'll see this candle finish, but not if it's blown out early.</p>
+        <p class="picker-note" id="watchFootNote">You'll see this candle finish, but not if it's blown out early.</p>
         <a class="ctl" id="watchStart" href="./">Light your own</a>
       </div>
     </div>
@@ -557,14 +562,20 @@
     return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
   }
 
-  // set when this page is watching someone else's candle, null when it's yours
+  // set when this page is watching someone else's candle, null when it's yours.
+  // #w=<id> points at a live server record (can show an early blow-out);
+  // #c=<payload> is the older, serverless link (a synced countdown only).
   const WATCH = (function(){
-    const m = /[#&]c=([A-Za-z0-9\-_]+)/.exec(location.hash);
+    let m = /[#&]w=([A-Za-z0-9\-_]+)/.exec(location.hash);
+    if(m) return { kind:'live', id: m[1] };
+
+    m = /[#&]c=([A-Za-z0-9\-_]+)/.exec(location.hash);
     if(!m) return null;
     try{
       const d = JSON.parse(unb64url(m[1]));
       if(typeof d.e !== 'number' || typeof d.t !== 'number') return null;
       return {
+        kind:'static',
         name: String(d.n || 'Someone').trim().slice(0,24) || 'Someone',
         endAt: d.e,
         startedAt: typeof d.s === 'number' ? d.s : 0,
@@ -603,6 +614,9 @@
   const watchName  = document.getElementById('watchName');
   const watchSub   = document.getElementById('watchSub');
   const watchFoot  = document.getElementById('watchFoot');
+  const watchFootNote = document.getElementById('watchFootNote');
+  const watchStale = document.getElementById('watchStale');
+  const shareNote  = document.getElementById('shareNote');
   const watchStart = document.getElementById('watchStart');
 
   // state: 'unlit' | 'burning' | 'paused' | 'done'
@@ -612,6 +626,12 @@
   let remaining = totalMs;    // ms left, authoritative while not burning
   let endAt = 0;              // timestamp the candle runs out, while burning
   let startedAt = 0;          // when the flame caught, for the share message
+  let liveId = null;          // server record id, once this burn has been shared
+  let liveToken = null;       // owner-only write credential for that record
+  let liveCreatePromise = null;
+  let livePollTimer = null;
+  let liveWatchActive = false;
+  let liveLastSeenAt = 0;     // watcher only: when the owner's page last checked in
   let raf = null;
   let flickerTimer = null;
   let audioCtx = null;
@@ -633,6 +653,7 @@
     timeEl.textContent = fmt(left);
     const frac = totalMs > 0 ? left / totalMs : 0;
     candle.style.height = (WAX_STUB + (WAX_TALL - WAX_STUB) * frac).toFixed(1) + 'px';
+    if(WATCH && WATCH.kind === 'live') syncWatchStale();
   }
 
   function setLabel(text){ label.textContent = text; }
@@ -640,7 +661,7 @@
   function save(){
     if(WATCH) return;          // watching someone else must not touch your own candle
     try{
-      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs, flameId, startedAt }));
+      localStorage.setItem(STORE_KEY, JSON.stringify({ state, remaining, endAt, totalMs, flameId, startedAt, liveId, liveToken }));
     }catch(e){ /* private mode, storage off — the timer still runs */ }
   }
 
@@ -658,6 +679,9 @@
       paint();
     }
     if(typeof d.startedAt === 'number') startedAt = d.startedAt;
+    if(typeof d.liveId === 'string' && typeof d.liveToken === 'string'){
+      liveId = d.liveId; liveToken = d.liveToken;
+    }
     if(d.state === 'burning' && typeof d.endAt === 'number'){
       if(d.endAt - Date.now() > 0){ endAt = d.endAt; light(true); return; }
       remaining = 0; finish(true); return;
@@ -718,6 +742,8 @@
 
   function blowOut(){
     if(state !== 'burning') return;
+    stopLiveCandle();          // report it, then let a future share start a fresh record
+    liveId = null; liveToken = null;
     remaining = msLeft();
     state = 'paused';
     stage.classList.remove('lit');
@@ -764,6 +790,8 @@
   }
 
   function doReset(){
+    if(state === 'burning') stopLiveCandle();   // abandoning it counts the same as blowing it out
+    liveId = null; liveToken = null;
     state = 'unlit';
     remaining = totalMs;
     endAt = 0;
@@ -841,6 +869,7 @@
       endAt = Date.now() + totalMs;
       paint();
       save();
+      sendHeartbeat();          // push the new length now, rather than wait for the next poll
     }else{
       doReset();              // fresh unlit candle, full height
     }
@@ -887,14 +916,69 @@
     return who + ' has started a candle for ' + fmtDur(Math.round(totalMs / 60000));
   }
 
-  function shareUrl(){
+  // the serverless fallback link: everything travels in the URL, so it can
+  // show a synced countdown but never a stop reported after the fact
+  function staticShareUrl(){
     const payload = { n: shareName.value.trim().slice(0,24), e: endAt, s: startedAt, t: totalMs, f: flameId };
     return location.href.split('#')[0] + '#c=' + b64url(JSON.stringify(payload));
+  }
+
+  // talks to the Worker; POST once per burn, then reuse the id. Returns
+  // false (never throws) so callers can fall back to the static link.
+  function ensureLiveCandle(){
+    if(liveId) return Promise.resolve(true);
+    if(liveCreatePromise) return liveCreatePromise;
+    liveCreatePromise = fetch('/api/candles', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: shareName.value.trim() || 'Someone',
+        totalMs, flameId
+      })
+    })
+      .then(res => { if(!res.ok) throw new Error('create failed'); return res.json(); })
+      .then(d => { liveId = d.id; liveToken = d.token; save(); return true; })
+      .catch(() => false)
+      .finally(() => { liveCreatePromise = null; });
+    return liveCreatePromise;
+  }
+
+  function sendHeartbeat(){
+    if(!liveId || !liveToken) return;
+    fetch('/api/candles/' + liveId + '/heartbeat', {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + liveToken, 'content-type': 'application/json' },
+      body: JSON.stringify({ endAt, totalMs })
+    }).catch(() => { /* best effort — a missed beat just reads as "quiet" */ });
+  }
+
+  function stopLiveCandle(){
+    if(!liveId || !liveToken) return;
+    fetch('/api/candles/' + liveId + '/stop', {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + liveToken }
+    }).catch(() => { /* best effort; the watcher falls back to time math */ });
+  }
+
+  // resolves to a link: live (#w=id) if the server's reachable, else static (#c=payload)
+  function resolveShareUrl(){
+    return ensureLiveCandle().then(ok => {
+      shareNote.textContent = ok
+        ? "They'll see if you stop it early, too."
+        : "Couldn't reach the server — they'll see it burning, not if you stop.";
+      return ok ? (location.href.split('#')[0] + '#w=' + liveId) : staticShareUrl();
+    });
   }
 
   function syncShare(){
     sharePrev.textContent = '\u201c' + shareMessage() + '\u201d';
   }
+
+  // check in every 20s while a shared candle burns, so a watcher's "last
+  // seen" stays current without hammering the API
+  setInterval(() => {
+    if(!WATCH && state === 'burning' && liveId) sendHeartbeat();
+  }, 20000);
 
   // the tab only makes sense while a candle is actually burning
   function syncShareTab(){
@@ -934,19 +1018,25 @@
 
   shareSend.hidden = !navigator.share;
   shareSend.addEventListener('click', () => {
-    navigator.share({ text: shareMessage(), url: shareUrl() })
-      .then(() => flash(shareSend, 'Sent'))
-      .catch(() => { /* dismissed the share sheet */ });
+    resolveShareUrl().then(url => {
+      navigator.share({ text: shareMessage(), url })
+        .then(() => flash(shareSend, 'Sent'))
+        .catch(() => { /* dismissed the share sheet */ });
+    });
   });
 
   shareCopy.addEventListener('click', () => {
-    const text = shareMessage() + ' — ' + shareUrl();
-    const done = ok => flash(shareCopy, ok ? 'Copied' : 'Press ⌘/Ctrl+C');
-    if(navigator.clipboard && window.isSecureContext){
-      navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
-    }else{
-      done(legacyCopy(text));
-    }
+    const was = shareCopy.textContent;
+    shareCopy.textContent = '…';
+    resolveShareUrl().then(url => {
+      const text = shareMessage() + ' — ' + url;
+      const done = ok => { shareCopy.textContent = was; flash(shareCopy, ok ? 'Copied' : 'Press ⌘/Ctrl+C'); };
+      if(navigator.clipboard && window.isSecureContext){
+        navigator.clipboard.writeText(text).then(() => done(true), () => done(legacyCopy(text)));
+      }else{
+        done(legacyCopy(text));
+      }
+    });
   });
 
   // ---------- one menu open at a time ----------
@@ -1007,32 +1097,130 @@
   // which wouldn't otherwise re-read it
   window.addEventListener('hashchange', () => location.reload());
 
-  function startWatching(){
-    document.body.classList.add('watch');
-    totalMs = WATCH.totalMs;
-    flameId = WATCH.flameId;
+  function possessiveOf(name){ return name + (/s$/i.test(name) ? '\u2019' : '\u2019s'); }
+
+  function syncWatchStale(){
+    if(WATCH.kind !== 'live' || state !== 'burning' || !liveLastSeenAt){
+      watchStale.hidden = true;
+      return;
+    }
+    const secs = Math.max(0, Math.round((Date.now() - liveLastSeenAt) / 1000));
+    if(secs < 50){ watchStale.hidden = true; return; }
+    watchStale.hidden = false;
+    watchStale.textContent = secs < 120
+      ? 'quiet for a moment'
+      : 'last seen ' + Math.round(secs / 60) + ' min ago';
+  }
+
+  function stopLivePoll(){
+    liveWatchActive = false;
+    if(livePollTimer){ clearTimeout(livePollTimer); livePollTimer = null; }
+  }
+
+  // a friend's tab reports its own blow-out; nothing else can end this early
+  function watcherSawBlowOut(endedAt){
+    stopLivePoll();
+    if(state !== 'done') finish(true);
+    watchStale.hidden = true;
+    setLabel('blown out early' + (endedAt ? ' · ' + clock(endedAt) : ''));
+  }
+
+  function applyLiveUpdate(d){
+    liveLastSeenAt = d.lastSeenAt || liveLastSeenAt;
+
+    if(d.status === 'blown_out'){ watcherSawBlowOut(d.endedAt); return; }
+
+    // the owner may have changed the length mid-burn; stay in step with it
+    if(typeof d.endAt === 'number' && d.endAt !== endAt){
+      endAt = d.endAt;
+      totalMs = d.totalMs || totalMs;
+    }
+
+    if(Date.now() >= endAt){
+      stopLivePoll();
+      if(state !== 'done') finish(false);
+      return;
+    }
+    syncWatchStale();
+  }
+
+  function pollLive(id){
+    fetch('/api/candles/' + id)
+      .then(res => { if(!res.ok) throw new Error('gone'); return res.json(); })
+      .then(applyLiveUpdate)
+      .catch(() => { /* a missed poll just tries again next tick */ })
+      .finally(() => {
+        if(liveWatchActive) livePollTimer = setTimeout(() => pollLive(id), 5000);
+      });
+  }
+
+  function renderWatch(data){
+    totalMs = data.totalMs;
+    flameId = data.flameId;
     setFlame(flameId, false);
 
-    const possessive = WATCH.name + (/s$/i.test(WATCH.name) ? '\u2019' : '\u2019s');
+    const possessive = possessiveOf(data.name);
     document.title = possessive + ' candle';
     watchName.textContent = possessive + ' candle';
     watchSub.textContent = fmtDur(Math.round(totalMs / 60000)) + ' candle'
-      + (WATCH.startedAt ? ' · lit ' + clock(WATCH.startedAt) : '');
+      + (data.startedAt ? ' · lit ' + clock(data.startedAt) : '');
     watchHead.hidden = false;
     watchFoot.hidden = false;
+    watchFootNote.textContent = WATCH.kind === 'live'
+      ? "You'll see if this candle gets blown out early."
+      : "You'll see this candle finish, but not if it's blown out early.";
     watchStart.href = location.pathname;
 
     wick.setAttribute('aria-label', possessive + ' candle');
     wick.tabIndex = -1;
 
-    if(WATCH.endAt - Date.now() > 0){
-      endAt = WATCH.endAt;
+    if(data.status === 'blown_out'){
+      endAt = data.endAt;
+      remaining = 0;
+      finish(true);
+      setLabel('blown out early' + (data.endedAt ? ' · ' + clock(data.endedAt) : ''));
+      return;
+    }
+
+    if(data.endAt - Date.now() > 0){
+      endAt = data.endAt;
       remaining = Math.max(0, endAt - Date.now());
+      liveLastSeenAt = data.lastSeenAt || 0;
       light(true);
     }else{
       remaining = 0;
       finish(true);
     }
+  }
+
+  function watchNotFound(){
+    watchHead.hidden = false;
+    watchName.textContent = 'Candle not found';
+    watchSub.textContent = "It's gone, or the link's broken.";
+    watchFoot.hidden = false;
+    timeEl.hidden = true;
+    setLabel('nothing burning here');
+  }
+
+  function startWatching(){
+    document.body.classList.add('watch');
+
+    if(WATCH.kind === 'static'){
+      renderWatch(WATCH);
+      return;
+    }
+
+    // live: ask the server what's actually happening, then keep polling
+    fetch('/api/candles/' + WATCH.id)
+      .then(res => { if(!res.ok) throw new Error('not found'); return res.json(); })
+      .then(data => {
+        renderWatch(data);
+        if(data.status === 'burning' && data.endAt - Date.now() > 0){
+          liveWatchActive = true;
+          livePollTimer = setTimeout(() => pollLive(WATCH.id), 5000);
+        }
+      })
+      .catch(watchNotFound);
   }
 
   if(WATCH){
