@@ -146,6 +146,9 @@ async function handleHeartbeat(request, env, id) {
     candle.endAt = newEndAt;
   }
 
+  // the owner may have changed the flame colour mid-burn; adopt it too
+  if (FLAME_IDS.includes(body.flameId)) candle.flameId = body.flameId;
+
   await writeCandle(env, id, candle);
   return json(publicView(candle));
 }

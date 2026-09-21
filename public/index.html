@@ -887,7 +887,10 @@
     swatches.querySelectorAll('.swatch').forEach(b => {
       b.setAttribute('aria-pressed', b.dataset.id === f.id ? 'true' : 'false');
     });
-    if(persist) save();
+    if(persist){
+      save();
+      if(state === 'burning' && liveId) sendHeartbeat(); // push the new colour now, rather than wait for the next poll
+    }
   }
 
   FLAMES.forEach(f => {
@@ -948,7 +951,7 @@
     fetch('/api/candles/' + liveId + '/heartbeat', {
       method: 'POST',
       headers: { authorization: 'Bearer ' + liveToken, 'content-type': 'application/json' },
-      body: JSON.stringify({ endAt, totalMs })
+      body: JSON.stringify({ endAt, totalMs, flameId })
     }).catch(() => { /* best effort — a missed beat just reads as "quiet" */ });
   }
 
@@ -1130,11 +1133,12 @@
 
     if(d.status === 'blown_out'){ watcherSawBlowOut(d.endedAt); return; }
 
-    // the owner may have changed the length mid-burn; stay in step with it
+    // the owner may have changed the length or colour mid-burn; stay in step with it
     if(typeof d.endAt === 'number' && d.endAt !== endAt){
       endAt = d.endAt;
       totalMs = d.totalMs || totalMs;
     }
+    if(typeof d.flameId === 'string' && d.flameId !== flameId) setFlame(d.flameId, false);
 
     if(Date.now() >= endAt){
       stopLivePoll();
