@@ -107,6 +107,14 @@
   .answer.on{ opacity:1; transform:none; border-color:var(--hair); color:var(--tallow); }
   .answer.right{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
   .answer.wrong{ border-color:var(--ember); color:var(--ember); background:rgba(255,106,42,.08); }
+  /* the debate preview reuses these pills for a side, then for a grade */
+  .answer.word{ font:600 .66rem/1 var(--sans); letter-spacing:.06em; }
+  .answer.for{ color:#7fd6a2; border-color:#7fd6a2; background:rgba(127,214,162,.08); }
+  .answer.against{ color:#ff9d7a; border-color:#ff9d7a; background:rgba(255,157,122,.08); }
+  .answer.grade{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
+  .answer.for::after{ background:#14201a; border-right-color:#7fd6a2; border-bottom-color:#7fd6a2; }
+  .answer.against::after{ background:#20140f; border-right-color:#ff9d7a; border-bottom-color:#ff9d7a; }
+  .answer.grade::after{ background:var(--tallow); border-right-color:var(--tallow); border-bottom-color:var(--tallow); }
   /* a tail pointing at whoever said it, same as the judge's bubble */
   .answer::after{
     content:""; position:absolute; bottom:-5px; left:50%; margin-left:-4.5px;
@@ -321,6 +329,12 @@
   .mode:hover:not(:disabled){ border-color:rgba(239,227,204,.5); background:rgba(239,227,204,.04) }
   .mode:focus-visible{ outline:2px solid var(--amber); outline-offset:2px }
   .mode:disabled{ cursor:default; opacity:.38 }
+  .mode.on{
+    border-color:var(--amber); background:rgba(255,179,71,.1);
+    box-shadow:0 0 0 1px var(--amber), 0 0 22px -8px var(--amber);
+  }
+  .mode.on svg{ fill:var(--amber); }
+  .mode.on b{ color:var(--tallow); }
   .mode .soon{ display:inline-flex; align-items:center; gap:4px; font-size:.68rem; color:var(--ash) }
   .mode .soon svg{ width:10px; height:10px; fill:var(--ash) }
 
@@ -506,44 +520,28 @@
           </div>
         </div>
       </div>
-      <p class="lead">Ten questions, one judge. Every answer is graded from 3 to 7 and your GPA is the running average. Highest grade wins.</p>
-      <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
-      <button class="btn primary" id="introGo">Create a match</button>
-      <p class="note" id="introNote"></p>
-    </section>
-
-    <section class="panel" id="scMode" hidden>
-      <h2 class="hd">Pick a mode</h2>
+      <p class="lead">Two players, one judge, every answer graded from 3 to 7.</p>
       <div class="modes" id="modeGrid">
-        <button class="mode" type="button" data-mode="judge">
+        <button class="mode on" type="button" data-mode="judge">
           <svg><use href="#i-gavel"/></svg>
           <b>Judge Mode</b>
-          <span>A judge marks every answer and calls each round.</span>
+          <span>Ten questions. The judge marks every answer.</span>
         </button>
         <button class="mode" type="button" data-mode="debate">
           <svg><use href="#i-debate"/></svg>
           <b>Debate Mode</b>
-          <span>Take a side and argue it. The judge scores your case.</span>
-        </button>
-        <button class="mode" type="button" disabled>
-          <svg><use href="#i-bolt"/></svg>
-          <b>Rapid Fire</b>
-          <span class="soon"><svg><use href="#i-lock"/></svg>Soon</span>
-        </button>
-        <button class="mode" type="button" disabled>
-          <svg><use href="#i-hourglass"/></svg>
-          <b>Sudden Death</b>
-          <span class="soon"><svg><use href="#i-lock"/></svg>Soon</span>
+          <span>Three topics. Take a side and argue it.</span>
         </button>
       </div>
-      <p class="note" id="modeNote"></p>
+      <button class="btn primary" id="introGo">Go</button>
     </section>
 
-    <section class="panel" id="scChar" hidden>
-      <h2 class="hd">Pick your character</h2>
+    <section class="panel" id="scSetup" hidden>
+      <h2 class="hd">Who are you?</h2>
+      <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
       <div class="chars" id="charGridHost"></div>
-      <button class="btn primary" id="charGo" disabled>Continue</button>
-      <p class="note" id="charNote"></p>
+      <button class="btn primary" id="setupGo" disabled>Create a match</button>
+      <p class="note" id="setupNote"></p>
     </section>
 
     <section class="panel" id="scHost" hidden>
@@ -655,7 +653,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scMode','scChar','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scOver','scDead'];
+  const PANELS = ['scIntro','scSetup','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scOver','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail']];
 
   // the grade scale everything hangs off: 3 fail, 7 high distinction
@@ -706,7 +704,7 @@
     ['charGridHost','charGridGuest'].forEach(g => {
       [...$(g).children].forEach(c => c.classList.toggle('on', c.dataset.char === id));
     });
-    $('charGo').disabled = false;
+    $('setupGo').disabled = false;
     $('guestReady').disabled = false;
   }
 
@@ -784,6 +782,16 @@
     { q:'What is 13 - 6?', right:'7',  wrong:'9'  },
     { q:'What is 9 + 8?',  right:'17', wrong:'15' },
   ];
+  // the debate preview tells the same story the real mode does: a topic, a side
+  // each, then a grade each
+  const DEBATE_DEMO = [
+    { topic:'Should super pay for a house deposit?',
+      mid:'Fifty words each. Make them count.',
+      call:'You led with real figures. That wins rounds.', l:'6.4', r:'5.1' },
+    { topic:'Should the preservation age stay at 60?',
+      mid:'Three minutes on the clock. Take a side.',
+      call:'Both of you met the other case head on. Close one.', l:'6.1', r:'5.8' },
+  ];
   const demoJudge = speaker({ bubble:'demoBubble', ghost:'demoGhost', typed:'demoTyped', pod:'demoPod' });
   let demoTimers = [], demoRound = 0, demoOn = false;
 
@@ -795,7 +803,24 @@
     el.className = 'answer' + (cls ? ' ' + cls : '');
   }
 
+  function debateCycle(){
+    const d = DEBATE_DEMO[demoRound++ % DEBATE_DEMO.length];
+    answerPill('demoAnsL', '', '');
+    answerPill('demoAnsR', '', '');
+    demoJudge.say(d.topic, true);
+    demoAt(2400,  () => answerPill('demoAnsL', 'FOR', 'on word for'));
+    demoAt(2900,  () => answerPill('demoAnsR', 'AGAINST', 'on word against'));
+    demoAt(4300,  () => demoJudge.say(d.mid, true));
+    demoAt(7200,  () => demoJudge.say(d.call, true));
+    demoAt(10600, () => {
+      answerPill('demoAnsL', d.l, 'on grade');
+      answerPill('demoAnsR', d.r, 'on grade');
+    });
+    demoAt(12800, debateCycle);
+  }
+
   function demoCycle(){
+    if(pickedMode === 'debate') return debateCycle();
     const d = DEMO[demoRound++ % DEMO.length];
     answerPill('demoAnsL', d.right, '');
     answerPill('demoAnsR', d.wrong, '');
@@ -1177,7 +1202,7 @@
       // a socket that closed without ever saying anything never connected. say
       // so, rather than leaving the host sat on "Setting up…" indefinitely
       if(!heard){
-        if(!$('scChar').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
+        if(!$('scSetup').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
         else{
           $('conn').textContent = "Couldn't connect to the match. Refresh to try again.";
           $('conn').hidden = false;
@@ -1192,20 +1217,27 @@
   }
 
   // ---------- entry points ----------
-  $('introGo').addEventListener('click', () => {
-    try{ localStorage.setItem('sd-name', $('introName').value.trim()); }catch(e){}
-    show(['scMode']);
-  });
-  $('introName').addEventListener('keydown', e => { if(e.key === 'Enter') $('introGo').click(); });
-
   $('modeGrid').addEventListener('click', e => {
     const card = e.target.closest('.mode');
-    if(!card || card.disabled) return;
+    if(!card || card.disabled || card.dataset.mode === pickedMode) return;
     pickedMode = card.dataset.mode;
-    show(['scChar']);
+    try{ localStorage.setItem('sd-mode', pickedMode); }catch(e){}
+    [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
+    // restart the preview on the mode they just picked
+    demoStop();
+    demoStart();
   });
 
-  buildPicker('charGridHost', () => { $('charNote').textContent = ''; });
+  $('introGo').addEventListener('click', () => { show(['scSetup']); });
+
+  $('setupGo').addEventListener('click', () => {
+    if(!pickedChar) return;
+    try{ localStorage.setItem('sd-name', $('introName').value.trim()); }catch(e){}
+    createMatch();
+  });
+  $('introName').addEventListener('keydown', e => { if(e.key === 'Enter' && !$('setupGo').disabled) $('setupGo').click(); });
+
+  buildPicker('charGridHost', () => { $('setupNote').textContent = ''; });
   buildPicker('charGridGuest', () => {});
   (function restoreChar(){
     let saved = '';
@@ -1213,15 +1245,10 @@
     if(CHAR_LIST.some(c => c[0] === saved)) choose(saved);
   })();
 
-  $('charGo').addEventListener('click', () => {
-    if(!pickedChar) return;
-    createMatch();
-  });
-
   function createFailed(why){
-    $('charGo').disabled = !pickedChar;
-    $('charNote').className = 'note warm';
-    $('charNote').textContent = why;
+    $('setupGo').disabled = !pickedChar;
+    $('setupNote').className = 'note warm';
+    $('setupNote').textContent = why;
   }
 
   function reason(e){
@@ -1230,9 +1257,9 @@
   }
 
   async function createMatch(){
-    $('charNote').className = 'note';
-    $('charNote').textContent = 'Setting up…';
-    $('charGo').disabled = true;
+    $('setupNote').className = 'note';
+    $('setupNote').textContent = 'Setting up…';
+    $('setupGo').disabled = true;
 
     let made;
     try{
@@ -1328,8 +1355,14 @@
     }else{
       if(ws){ ws.close(); ws = null; }
       gameId = null;
+      let savedMode = '';
+      try{
+        $('introName').value = localStorage.getItem('sd-name') || '';
+        savedMode = localStorage.getItem('sd-mode') || '';
+      }catch(e){}
+      if(savedMode === 'judge' || savedMode === 'debate') pickedMode = savedMode;
+      [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
       show(['scIntro']);
-      try{ $('introName').value = localStorage.getItem('sd-name') || ''; }catch(e){}
     }
   }
   window.addEventListener('hashchange', route);
