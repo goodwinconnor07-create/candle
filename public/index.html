@@ -698,11 +698,14 @@
 
   function connect(role, token){
     myRole = role;
+    let heard = false;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(proto + '//' + location.host + '/api/games/' + gameId + '/ws'
       + '?role=' + role + '&token=' + encodeURIComponent(token || ''));
+    const sock = ws;
 
     ws.addEventListener('message', ev => {
+      heard = true;
       let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
       if(m.t === 'nogame' || m.t === 'full'){
         if(m.t === 'full') goCold('That match is full', 'Both seats are already taken in this one.');
@@ -719,7 +722,19 @@
     });
 
     ws.addEventListener('close', () => {
-      if(phase !== 'over' && phase !== 'intro' && $('scDead').hidden){
+      if(ws !== sock) return;                 // we replaced this socket ourselves
+      if(!$('scDead').hidden) return;         // they've already been told why
+      // a socket that closed without ever saying anything never connected. say
+      // so, rather than leaving the host sat on "Setting up…" indefinitely
+      if(!heard){
+        if(!$('scMode').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
+        else{
+          $('conn').textContent = "Couldn't connect to the match. Refresh to try again.";
+          $('conn').hidden = false;
+        }
+        return;
+      }
+      if(phase !== 'over'){
         $('conn').textContent = 'Connection dropped. Refresh to rejoin.';
         $('conn').hidden = false;
       }
@@ -740,27 +755,48 @@
     createMatch();
   });
 
-  function createMatch(){
+  function createFailed(why){
+    [...$('modeGrid').children].forEach(b => { b.disabled = !b.dataset.mode; });
+    $('modeNote').className = 'note warm';
+    $('modeNote').textContent = why;
+  }
+
+  function reason(e){
+    if(!e) return 'unknown error';
+    return e.message || String(e);
+  }
+
+  async function createMatch(){
     $('modeNote').className = 'note';
     $('modeNote').textContent = 'Setting up…';
     [...$('modeGrid').children].forEach(b => { b.disabled = true; });
-    fetch('/api/games', {
-      method:'POST',
-      headers:{ 'content-type':'application/json' },
-      body: JSON.stringify({ name: $('introName').value.trim(), mode: pickedMode })
-    })
-      .then(r => { if(!r.ok) throw new Error('create failed'); return r.json(); })
-      .then(d => {
-        gameId = d.id;
-        try{ localStorage.setItem('sd-host-' + gameId, d.token); }catch(e){}
-        history.replaceState(null, '', shareUrl());
-        connect('host', d.token);
-      })
-      .catch(() => {
-        $('modeGrid').querySelector('[data-mode]').disabled = false;
-        $('modeNote').className = 'note warm';
-        $('modeNote').textContent = "Couldn't reach the server. Try again.";
+
+    let made;
+    try{
+      const r = await fetch('/api/games', {
+        method:'POST',
+        headers:{ 'content-type':'application/json' },
+        body: JSON.stringify({ name: $('introName').value.trim(), mode: pickedMode })
       });
+      if(!r.ok) throw new Error('the server answered ' + r.status);
+      made = await r.json();
+    }catch(e){
+      createFailed("Couldn't set the match up — " + reason(e) + '. Try again.');
+      return;
+    }
+
+    // the match exists on the server from here on, so nothing below may report
+    // itself as the server being unreachable
+    gameId = made.id;
+    try{ localStorage.setItem('sd-host-' + gameId, made.token); }catch(e){}
+    // putting the link in the address bar is a nicety, and it throws outright
+    // in a sandboxed frame or an in-app browser — never let it sink the match
+    try{ history.replaceState(null, '', shareUrl()); }catch(e){}
+    try{
+      connect('host', made.token);
+    }catch(e){
+      createFailed('Could not open a connection — ' + reason(e) + '.');
+    }
   }
 
   $('hostCopy').addEventListener('click', () => {
