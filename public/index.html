@@ -194,6 +194,40 @@
     background:radial-gradient(ellipse at 50% 34%, #6b5a45, #3a3027 62%, #14110e);
   }
 
+  .intro-candle{
+    --flame-outer-1:rgba(255,148,40,.95); --flame-outer-2:rgba(255,92,10,.55); --flame-outer-3:rgba(255,60,0,0);
+    --flame-mid-1:#ffb43c; --flame-mid-2:#ffd97a; --flame-mid-3:#fff3c4;
+    --flame-core-1:#5fa8ff; --flame-core-2:#cfe6ff;
+    --wick-lit-1:#ffcf7a; --wick-lit-2:#6b3a16; --wick-glow:rgba(255,170,70,.9);
+    --accent:#ffd9a0; --accent-glow:rgba(255,150,50,.45);
+    display:flex; flex-direction:column; align-items:center; gap:0; margin-bottom:12px;
+  }
+  .intro-candle .flame-slot{
+    position:relative; width:24px; height:60px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:2px;
+  }
+  .intro-candle .candle{
+    width:36px; height:70px;
+    box-shadow:0 -8px 20px -8px var(--accent-glow);
+  }
+  .intro-candle .holder{
+    width:60px; height:14px; margin-top:-2px;
+  }
+  .intro-candle .wick{
+    width:2px; height:9px;
+  }
+  .intro-candle .flame{
+    width:20px; height:42px; bottom:6px;
+  }
+  .intro-candle .f-outer{
+    width:20px; height:42px; margin-left:-10px;
+  }
+  .intro-candle .f-mid{
+    width:12px; height:28px; margin-left:-6px;
+  }
+  .intro-candle .f-core{
+    width:5px; height:10px; margin-left:-2.5px;
+  }
+
   .lane-foot{ min-height:52px; width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; }
   .pips{ display:flex; gap:5px; }
   .pip{ width:7px; height:7px; border-radius:50%; border:1px solid rgba(232,220,198,.3); }
@@ -244,6 +278,14 @@
   <main class="stage">
 
     <section class="screen" id="scIntro">
+      <div class="intro-candle">
+        <div class="flame-slot">
+          <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
+          <span class="wick"></span>
+        </div>
+        <div class="candle"><span class="drip a"></span><span class="drip b"></span></div>
+        <div class="holder"></div>
+      </div>
       <h1 class="title">Candle Race</h1>
       <p class="blurb">Two candles, the same questions. Get one right and your opponent's candle flares up and burns faster. Get one wrong and yours does. Three in a row wins your wax back. Last flame burning takes it.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
