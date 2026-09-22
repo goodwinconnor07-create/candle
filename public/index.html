@@ -4,21 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d0a08">
-<title>Candle Race</title>
+<title>Study Duel</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap" rel="stylesheet">
 <style>
   :root{
     --soot:#0d0a08; --ash:#8d8171; --tallow:#efe3cc; --amber:#ffb347; --ember:#ff6a2a; --cold:#6cd4ff;
-    --wax:#efe3cc; --wax-shade:#cdbb97;
     --hair:rgba(239,227,204,.16);
     --serif:Fraunces, Georgia, "Times New Roman", serif;
     --sans:system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --wax-tall:clamp(112px, 18dvh, 156px);
-    --wax-stub:22px;
-    --flame-slot:84px;
-    --fill:1;
+    --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-robe:#2a221b;
+    --tube-h:clamp(108px, 18dvh, 158px);
+    --lvl:0;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; }
@@ -28,482 +26,468 @@
     font:400 1rem/1.5 var(--sans);
     display:flex; flex-direction:column; align-items:center;
     min-height:100dvh;
-    padding:max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+    padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
     overflow-x:hidden; overflow-y:auto;
     -webkit-tap-highlight-color:transparent;
     -webkit-font-smoothing:antialiased;
   }
   .vignette{
     position:fixed; inset:0; z-index:0; pointer-events:none;
-    background:radial-gradient(130% 90% at 50% 38%, transparent 40%, rgba(0,0,0,.6) 100%);
+    background:radial-gradient(120% 90% at 50% 30%, transparent 40%, rgba(0,0,0,.65) 100%);
   }
   .app{
-    position:relative; z-index:1; width:100%; max-width:520px; margin:auto 0;
-    display:flex; flex-direction:column; align-items:center; gap:22px;
+    position:relative; z-index:1; width:100%; max-width:540px; margin:auto 0;
+    display:flex; flex-direction:column; align-items:center; gap:18px;
   }
   [hidden]{ display:none !important; }
+  .sprite{ position:absolute; width:0; height:0; overflow:hidden; }
 
-  .wordmark{
-    font:500 1.25rem/1.2 var(--serif); color:var(--tallow); letter-spacing:.01em;
-    transition:font-size .3s ease;
-  }
-  .app[data-screen="scIntro"] .wordmark{ font-size:clamp(2.1rem, 9vw, 2.9rem); text-shadow:0 0 34px rgba(255,179,71,.28); }
-  .app[data-screen="scDead"] .wordmark{ font-size:1.6rem; }
+  .wordmark{ font:500 1.2rem/1.2 var(--serif); letter-spacing:.01em; }
+  .app[data-screen="scIntro"] .wordmark{ font-size:clamp(2rem, 8.5vw, 2.8rem); }
 
-  /* ---------- the stage: two candles on one tray ---------- */
-  .stage{
-    position:relative; z-index:0; width:min(100%, 440px);
-    display:grid; grid-template-columns:1fr 1fr;
-    grid-template-rows:auto calc(var(--flame-slot) + var(--wax-tall)) 18px auto;
-    column-gap:clamp(12px, 6vw, 44px); row-gap:0;
-    justify-items:center; align-items:end;
+  /* ---------- characters ---------- */
+  /* an svg with no height attribute falls back to 150px, which leaves a dead
+     gap under every character — pin the height to the artwork's own ratio */
+  .head{ display:block; width:100%; height:auto; aspect-ratio:64/72; }
+  .cast{ display:flex; align-items:flex-end; justify-content:center; gap:clamp(10px,4vw,26px); }
+  .cast .pod{ width:clamp(56px,17vw,82px); }
+  .cast .pod.mid{ width:clamp(70px,21vw,100px); }
+  .pod{ position:relative; }
+  .pod::after{
+    content:""; position:absolute; left:50%; bottom:-9px; transform:translateX(-50%);
+    width:64%; height:7px; border-radius:50%;
+    background:radial-gradient(ellipse, rgba(239,227,204,.16), transparent 70%);
   }
-  .lane{ display:contents; }
-  .lane > *{ grid-column:var(--col); }
-  .lane.you{
-    --col:1;
-    --f1:#ffb347; --f2:#ff7a1f; --f3:#fff1c9; --core:#5fa8ff;
-    --lane-glow:rgba(255,160,60,.55); --accent:var(--amber);
-  }
-  .lane.them{
-    --col:2;
-    --f1:#6cd4ff; --f2:#1f8fe0; --f3:#e6f8ff; --core:#0b57c8;
-    --lane-glow:rgba(80,190,255,.5); --accent:var(--cold);
-  }
+  .float{ animation:bob 4.4s ease-in-out infinite; }
+  .float:nth-child(2){ animation-delay:-1.5s; }
+  .float:nth-child(3){ animation-delay:-2.9s; }
+  @keyframes bob{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-6px) } }
 
-  .lane-name{
-    grid-row:1; align-self:end; margin-bottom:2px;
-    font:500 .84rem/1.3 var(--sans); color:var(--tallow); opacity:.75;
+  /* ---------- the judge's bench ---------- */
+  .bench{ width:100%; display:flex; align-items:center; justify-content:center; gap:12px; }
+  .bench .pod{ width:clamp(52px,14vw,68px); flex:0 0 auto; }
+  .bubble{
+    position:relative; flex:1 1 auto; max-width:330px; min-height:52px;
+    display:flex; align-items:center;
+    padding:11px 15px; border:1px solid var(--hair); border-radius:12px;
+    background:rgba(239,227,204,.04);
+    font:400 .9rem/1.4 var(--sans); color:var(--tallow);
+  }
+  .bubble::before{
+    content:""; position:absolute; left:-7px; top:50%; margin-top:-6px;
+    width:12px; height:12px; transform:rotate(45deg);
+    background:rgba(239,227,204,.04);
+    border-left:1px solid var(--hair); border-bottom:1px solid var(--hair);
+  }
+  .bubble.say{ animation:pop .45s cubic-bezier(.2,1.3,.4,1) both; }
+  @keyframes pop{ from{ opacity:0; transform:translateX(-6px) scale(.97) } to{ opacity:1; transform:none } }
+
+  /* ---------- the two players ---------- */
+  .players{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:clamp(14px,6vw,40px); }
+  .side{ display:flex; flex-direction:column; align-items:center; gap:7px; min-width:0; }
+  .side.you{ --accent:var(--amber); }
+  .side.them{ --accent:var(--cold); }
+  .side .pod{ width:clamp(46px,13vw,62px); }
+  .side .pod::after{ bottom:-7px; height:6px; }
+  .name{
+    font:500 .84rem/1.3 var(--sans); color:var(--tallow); opacity:.8;
     max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    transition:opacity .4s ease;
   }
-  .lane:not(.lit) .lane-name{ opacity:.35; }
-
-  .candle-area{
-    grid-row:2; height:100%;
-    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  .gpa{
+    font:500 clamp(1.6rem,7vw,2.1rem)/1 var(--serif);
+    font-variant-numeric:lining-nums tabular-nums; color:var(--accent);
+    transition:color .3s ease;
   }
-  .flame-slot{
-    position:relative; width:44px; height:var(--flame-slot);
-    display:flex; align-items:flex-end; justify-content:center;
-  }
-  .glow{
-    position:absolute; left:50%; bottom:-50px; z-index:-1;
-    width:min(220px, 46vw); height:min(220px, 46vw);
-    transform:translateX(-50%); border-radius:50%; pointer-events:none;
-    background:radial-gradient(circle, var(--lane-glow) 0%, transparent 62%);
-    filter:blur(6px); opacity:0; transition:opacity .6s ease, transform .6s ease;
-  }
-  .lit .glow{ opacity:.55; }
-  .burst .glow{ opacity:1; transform:translateX(-50%) scale(1.25); }
-  .won .glow{ opacity:.85; transform:translateX(-50%) scale(1.15); }
-
-  .wick{
-    width:3px; height:12px; border-radius:2px 2px 0 0; margin-bottom:-1px;
-    background:linear-gradient(#3a302a, #1c1714); transition:background .4s ease, box-shadow .4s ease;
-  }
-  .lit .wick{ background:linear-gradient(#ffd79a, #6b3a16); box-shadow:0 0 6px var(--lane-glow); }
-  .waiting .wick{ animation:breathe 2.4s ease-in-out infinite; }
-  @keyframes breathe{
-    0%,100%{ box-shadow:0 0 0 0 transparent; }
-    50%    { box-shadow:0 0 9px 2px var(--lane-glow); }
-  }
-
-  .flame{
-    position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
-    width:30px; height:62px; pointer-events:none; opacity:0;
-    transition:transform .45s cubic-bezier(.3,1.4,.5,1), opacity .35s ease;
-  }
-  .lit .flame{ opacity:1; }
-  .burst .flame{ transform:translateX(-50%) scale(1.5); }
-  .won .flame{ transform:translateX(-50%) scale(1.2); }
-  .hit .flame{ animation:surge .85s cubic-bezier(.2,.9,.3,1) both; }
-  @keyframes surge{
-    0%  { transform:translateX(-50%) scale(1.05); }
-    35% { transform:translateX(-50%) scale(1.95); }
-    100%{ transform:translateX(-50%) scale(1.5); }
-  }
-  .hit .glow{ animation:bloom .85s ease-out both; }
-  @keyframes bloom{
-    0%  { opacity:.6; transform:translateX(-50%) scale(.95); }
-    30% { opacity:1;  transform:translateX(-50%) scale(1.5); }
-    100%{ opacity:1;  transform:translateX(-50%) scale(1.25); }
-  }
-  .flame span{
-    position:absolute; left:50%; bottom:0; display:block;
-    border-radius:50% 50% 34% 34% / 66% 66% 34% 34%;
-    transform-origin:50% 100%;
-  }
-  .f-outer{
-    width:30px; height:62px; margin-left:-15px;
-    background:radial-gradient(ellipse at 50% 88%, var(--f1), var(--f2) 55%, transparent 78%);
-    filter:blur(5px); animation:flick 2.1s ease-in-out infinite;
-  }
-  .f-mid{
-    width:18px; height:43px; margin-left:-9px;
-    background:linear-gradient(to top, var(--f1) 0%, var(--f3) 60%, rgba(255,255,255,.2) 100%);
-    filter:blur(1.5px); animation:flick 1.5s ease-in-out infinite reverse;
-  }
-  .f-core{
-    width:7px; height:15px; margin-left:-3.5px;
-    background:linear-gradient(to top, var(--core), rgba(255,255,255,.9));
-    filter:blur(1.4px); opacity:.85; animation:flick 1.1s ease-in-out infinite;
-  }
-  .burst .f-outer{ animation-duration:.5s; }
-  .burst .f-mid{ animation-duration:.36s; }
-  .burst .f-core{ animation-duration:.28s; }
-  @keyframes flick{
-    0%,100%{ transform:scale(1,1) translateX(0) skewX(0deg); }
-    22%    { transform:scale(.94,1.07) translateX(-1px) skewX(-2.5deg); }
-    48%    { transform:scale(1.05,.9) translateX(1px) skewX(2deg); }
-    74%    { transform:scale(.97,1.04) translateX(-.5px) skewX(-1deg); }
-  }
-
-  .smoke{ position:absolute; left:50%; bottom:14px; width:2px; height:2px; pointer-events:none; }
-  .smoke i{
-    position:absolute; left:0; bottom:0; width:9px; height:9px; margin-left:-4px;
-    border-radius:50%; background:rgba(200,200,205,.34); filter:blur(4px); opacity:0;
-  }
-  .smoke.puff i{ animation:rise 3s ease-out forwards; }
-  .smoke.puff i:nth-child(2){ animation-delay:.3s; }
-  .smoke.puff i:nth-child(3){ animation-delay:.6s; }
-  @keyframes rise{
-    0%  { opacity:.55; transform:translate(0,0) scale(.6); }
-    45% { opacity:.35; transform:translate(7px,-46px) scale(1.5); }
-    100%{ opacity:0;   transform:translate(-5px,-104px) scale(2.4); }
-  }
-
-  .candle{
-    position:relative; width:clamp(46px, 13vw, 64px); flex:0 0 auto;
-    height:calc(var(--wax-stub) + (var(--wax-tall) - var(--wax-stub)) * var(--fill));
-    border-radius:6px 6px 3px 3px; overflow:visible;
+  .gpa.none{ color:rgba(141,129,113,.6); }
+  .tube{
+    position:relative; width:clamp(42px,12vw,58px); height:var(--tube-h);
+    border:1px solid var(--hair); border-radius:5px; overflow:hidden;
     background:
-      linear-gradient(90deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 14%,
-        rgba(255,255,255,.16) 38%, rgba(255,255,255,.05) 62%,
-        rgba(0,0,0,.2) 86%, rgba(0,0,0,.45) 100%),
-      linear-gradient(to bottom, var(--wax-shade), var(--wax) 12%, var(--wax) 78%, #d9c9a8 100%);
-    box-shadow:0 -10px 30px -10px transparent;
-    transition:box-shadow .5s ease, filter .8s ease;
+      repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px),
+        rgba(239,227,204,.1) calc(25% - 1px), rgba(239,227,204,.1) 25%);
   }
-  .lit .candle{ box-shadow:0 -12px 34px -10px var(--lane-glow); }
-  .burst .candle{ box-shadow:0 -14px 44px -4px var(--lane-glow); }
-  .lane:not(.lit) .candle{ filter:brightness(.5) saturate(.6); }
-  .candle::before{
-    content:""; position:absolute; top:-6px; left:0; right:0; height:12px; border-radius:50%;
-    background:radial-gradient(ellipse at 50% 40%, #fff6e2, #e6d5b4 60%, #cbb894);
+  .tube i{
+    position:absolute; left:0; right:0; bottom:0; display:block;
+    height:calc(var(--lvl) * 100%);
+    background:linear-gradient(to top, color-mix(in srgb, var(--accent) 45%, transparent), var(--accent));
+    box-shadow:0 0 18px -2px var(--accent);
+    transition:height .7s cubic-bezier(.3,1,.4,1);
   }
-  .candle::after{
-    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0;
-    background:linear-gradient(to top, transparent 0%, rgba(255,214,140,.7) 50%, transparent 100%);
-  }
-  .heal .candle::after{ animation:sheen 1.1s ease-out both; }
-  @keyframes sheen{
-    0%  { opacity:0; transform:translateY(100%); }
-    20% { opacity:1; }
-    100%{ opacity:0; transform:translateY(-100%); }
-  }
-  .drip{
-    position:absolute; width:9px; border-radius:6px 6px 8px 8px;
-    background:linear-gradient(to bottom, #f6ebd6, #dbc9a6);
-    box-shadow:inset -2px 0 3px rgba(0,0,0,.18);
-  }
-  .drip.a{ left:6px; top:5px; height:32px; }
-  .drip.b{ right:9px; top:2px; height:19px; width:7px; }
+  .tube.up i{ animation:jolt .6s ease-out; }
+  .tube.down i{ animation:sink .6s ease-out; }
+  @keyframes jolt{ 0%{ filter:brightness(2.4) } 100%{ filter:none } }
+  @keyframes sink{ 0%{ filter:grayscale(1) brightness(1.6) } 100%{ filter:none } }
+  .band{ font:400 .7rem/1.3 var(--sans); color:var(--ash); text-align:center; min-height:1.3em; }
+  .locked-in{ font:400 .68rem/1 var(--sans); color:var(--accent); opacity:0; transition:opacity .2s ease; }
+  .locked-in.on{ opacity:.9; }
 
-  .tray{
-    grid-row:3; grid-column:1 / -1; align-self:start; justify-self:center;
-    width:100%; height:18px; border-radius:9px;
-    background:linear-gradient(to bottom, #4d3f30, #1d1712 65%, #0d0a08);
-    box-shadow:0 8px 20px -6px rgba(0,0,0,.9), inset 0 1px 0 rgba(239,227,204,.2);
+  /* ---------- quiz ---------- */
+  .panel{ width:100%; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; }
+  .fuse{ width:min(400px,100%); height:2px; background:rgba(239,227,204,.12); }
+  .fuse i{ display:block; height:100%; width:100%; background:var(--amber); }
+  .fuse.low i{ background:var(--ember); }
+  .fuse.off{ opacity:0; }
+  .qtext{
+    font:500 clamp(1.9rem,8.5vw,2.5rem)/1.15 var(--serif); color:var(--tallow);
+    font-variant-numeric:lining-nums tabular-nums; min-height:1.15em;
   }
+  .qtext.count{ font-size:clamp(3rem,16vw,4.4rem); color:var(--amber); }
+  .choices{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; width:min(400px,100%); }
+  .choice{
+    position:relative; min-height:58px; padding:13px 10px;
+    font:400 clamp(1.25rem,5.2vw,1.5rem)/1.2 var(--serif); font-variant-numeric:lining-nums tabular-nums;
+    color:var(--tallow); background:transparent; border:1px solid var(--hair); border-radius:8px;
+    cursor:pointer; overflow-wrap:anywhere;
+    transition:border-color .15s, background .15s, color .15s, opacity .3s, box-shadow .3s;
+  }
+  .choice:hover:not(:disabled){ border-color:rgba(239,227,204,.42); }
+  .choice:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .choice:disabled{ cursor:default; }
+  .choice.picked{ border-color:var(--tallow); background:rgba(239,227,204,.07); }
+  .choice.right{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); box-shadow:0 0 24px -4px rgba(255,200,120,.5); }
+  .choice.wrong{ border-color:var(--ember); color:var(--ember); background:rgba(255,106,42,.07); }
+  .choice.dim{ opacity:.3; }
+  .choice kbd{ position:absolute; top:6px; left:8px; font:500 .6rem/1 var(--sans); color:var(--ash); }
+  .choice.right kbd{ color:rgba(13,10,8,.5); }
+  @media (pointer:coarse){ .choice kbd{ display:none } }
+  .qnote{ font:400 .85rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
 
-  .lane-foot{
-    grid-row:4; align-self:start; margin-top:10px; width:100%;
-    display:flex; flex-direction:column; align-items:center; gap:6px;
-  }
-  .pips{ display:flex; gap:6px; min-height:6px; }
-  .pip{ width:6px; height:6px; border-radius:50%; border:1px solid rgba(239,227,204,.28); transition:background .3s, box-shadow .3s; }
-  .pip.on{ background:var(--accent); border-color:var(--accent); box-shadow:0 0 7px var(--accent); }
-  .caption{
-    font:400 .8rem/1.35 var(--sans); color:var(--ash); text-align:center;
-    min-height:2.7em; white-space:pre-line; max-width:100%;
-  }
-  .caption.warm{ color:var(--ember); }
-  .caption.heal{ color:var(--amber); }
-  .app[data-screen="scOver"] .pips{ display:none; }
-  .app[data-screen="scIntro"] .lane-foot,
-  .app[data-screen="scHost"] .lane-foot,
-  .app[data-screen="scGuest"] .lane-foot,
-  .app[data-screen="scDead"] .lane-foot{ min-height:8px; margin-top:0; }
-
-  /* ---------- panels under the stage ---------- */
-  .panel{ width:100%; display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center; }
-  .hd{ font:500 clamp(1.45rem, 5.6vw, 1.85rem)/1.2 var(--serif); color:var(--tallow); max-width:22ch; }
-  .lead{ font:400 .95rem/1.55 var(--sans); color:var(--ash); max-width:36ch; }
-  .status{ font:400 .92rem/1.45 var(--sans); color:var(--tallow); opacity:.8; min-height:1.4em; max-width:34ch; }
-  .note{ font:400 .82rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
-  .note.warm, .conn{ color:var(--ember); }
-  .conn{ font:400 .85rem/1.4 var(--sans); }
+  /* ---------- chrome ---------- */
+  .hd{ font:500 clamp(1.4rem,5.4vw,1.8rem)/1.2 var(--serif); max-width:22ch; }
+  .lead{ font:400 .93rem/1.55 var(--sans); color:var(--ash); max-width:36ch; }
+  .status{ font:400 .9rem/1.45 var(--sans); opacity:.8; min-height:1.4em; max-width:34ch; }
+  .note{ font:400 .8rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
+  .note.warm{ color:var(--ember); }
+  .meta{ font:400 .75rem/1.3 var(--sans); color:var(--ash); display:flex; align-items:center; gap:6px; }
+  .meta svg{ width:13px; height:13px; fill:var(--ash); }
 
   .field{
-    width:min(280px, 82vw); padding:8px 6px;
-    font:400 1.3rem/1.3 var(--serif); color:var(--tallow); text-align:center;
-    background:none; border:0; border-bottom:1px solid var(--hair); border-radius:0;
-    transition:border-color .2s ease;
+    width:min(280px,82vw); padding:8px 6px;
+    font:400 1.25rem/1.3 var(--serif); color:var(--tallow); text-align:center;
+    background:none; border:0; border-bottom:1px solid var(--hair);
   }
-  .field::placeholder{ color:rgba(239,227,204,.3); }
-  .field:focus{ outline:none; border-bottom-color:var(--amber); }
+  .field::placeholder{ color:rgba(239,227,204,.3) }
+  .field:focus{ outline:none; border-bottom-color:var(--amber) }
 
   .btn{
-    font:500 .95rem/1 var(--sans); color:var(--tallow);
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font:500 .93rem/1 var(--sans); color:var(--tallow);
     background:transparent; border:1px solid var(--hair); border-radius:999px;
-    padding:13px 24px; cursor:pointer; text-decoration:none; display:inline-block;
-    transition:border-color .2s ease, background .2s ease, opacity .2s ease, color .2s ease;
+    padding:12px 22px; cursor:pointer; text-decoration:none;
+    transition:border-color .2s, background .2s, opacity .2s, color .2s;
   }
-  .btn:hover:not(:disabled){ border-color:rgba(239,227,204,.5); }
-  .btn.primary{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
-  .btn.primary:hover:not(:disabled){ background:#fff5df; }
-  .btn:focus-visible{ outline:2px solid var(--amber); outline-offset:3px; }
-  .btn:disabled{ opacity:.32; cursor:default; }
-  .row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .btn svg{ width:15px; height:15px; fill:currentColor }
+  .btn:hover:not(:disabled){ border-color:rgba(239,227,204,.5) }
+  .btn.primary{ background:var(--tallow); color:var(--soot); border-color:var(--tallow) }
+  .btn.primary:hover:not(:disabled){ background:#fff5df }
+  .btn:focus-visible{ outline:2px solid var(--amber); outline-offset:3px }
+  .btn:disabled{ opacity:.32; cursor:default }
+  .row{ display:flex; gap:9px; justify-content:center; flex-wrap:wrap }
 
   .linkbox{
-    width:min(420px, 100%); padding:11px 14px;
-    font:400 .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    width:min(420px,100%); padding:11px 14px;
+    font:400 .8rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     color:var(--tallow); opacity:.78; word-break:break-all;
     border:1px solid var(--hair); border-radius:8px;
   }
 
-  /* ---------- the quiz ---------- */
-  .quiz{ gap:14px; }
-  .fuse{ width:min(400px, 100%); height:2px; background:rgba(239,227,204,.12); position:relative; margin-bottom:6px; }
-  .fuse i{
-    display:block; height:100%; width:100%; position:relative;
-    background:linear-gradient(90deg, rgba(141,129,113,.6), var(--amber));
-    transition:background .3s ease;
+  /* ---------- mode picker ---------- */
+  .modes{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; width:100%; }
+  .mode{
+    display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center;
+    padding:17px 11px; cursor:pointer; color:var(--tallow);
+    background:transparent; border:1px solid var(--hair); border-radius:12px;
+    font:inherit; transition:border-color .2s, background .2s;
   }
-  .fuse i::after{
-    content:""; position:absolute; right:-3px; top:-3px; width:8px; height:8px; border-radius:50%;
-    background:var(--amber); box-shadow:0 0 10px 3px rgba(255,179,71,.65);
-    transition:background .3s ease, box-shadow .3s ease;
-  }
-  .fuse.low i{ background:linear-gradient(90deg, rgba(141,129,113,.6), var(--ember)); }
-  .fuse.low i::after{ background:var(--ember); box-shadow:0 0 12px 4px rgba(255,106,42,.7); }
-  .fuse.off i::after{ opacity:0; }
+  .mode svg{ width:26px; height:26px; fill:var(--tallow); transition:fill .2s }
+  .mode b{ font:500 .92rem/1.2 var(--sans) }
+  .mode span{ font:400 .74rem/1.4 var(--sans); color:var(--ash) }
+  .mode:hover:not(:disabled){ border-color:rgba(239,227,204,.5); background:rgba(239,227,204,.04) }
+  .mode:focus-visible{ outline:2px solid var(--amber); outline-offset:2px }
+  .mode:disabled{ cursor:default; opacity:.38 }
+  .mode .soon{ display:inline-flex; align-items:center; gap:4px; font-size:.68rem; color:var(--ash) }
+  .mode .soon svg{ width:10px; height:10px; fill:var(--ash) }
 
-  .qtext{
-    font:500 clamp(2rem, 9vw, 2.7rem)/1.15 var(--serif); color:var(--tallow);
-    font-variant-numeric:lining-nums tabular-nums; letter-spacing:.02em; min-height:1.15em;
-  }
-  .qtext.count{ font-size:clamp(3.4rem, 18vw, 5rem); color:var(--amber); text-shadow:0 0 30px rgba(255,179,71,.45); }
-  .choices{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; width:min(400px, 100%); }
-  .choice{
-    position:relative; min-height:62px; padding:14px 10px;
-    font:400 clamp(1.3rem, 5.5vw, 1.6rem)/1.2 var(--serif); font-variant-numeric:lining-nums tabular-nums;
-    color:var(--tallow); background:transparent; border:1px solid var(--hair); border-radius:8px;
-    cursor:pointer; overflow-wrap:anywhere;
-    transition:border-color .15s ease, background .15s ease, color .15s ease, opacity .3s ease, box-shadow .3s ease;
-  }
-  .choice:hover:not(:disabled){ border-color:rgba(239,227,204,.42); }
-  .choice:active:not(:disabled){ background:rgba(239,227,204,.06); }
-  .choice:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
-  .choice:disabled{ cursor:default; }
-  .choice.picked{ border-color:var(--tallow); background:rgba(239,227,204,.07); }
-  .choice.right{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); box-shadow:0 0 26px -4px rgba(255,200,120,.55); }
-  .choice.wrong{ border-color:var(--ember); color:var(--ember); background:rgba(255,106,42,.07); }
-  .choice.dim{ opacity:.32; }
-  .choice kbd{ position:absolute; top:7px; left:9px; font:500 .62rem/1 var(--sans); color:var(--ash); }
-  .choice.right kbd{ color:rgba(13,10,8,.5); }
-  @media (pointer:coarse){ .choice kbd{ display:none; } }
-  .qnote{ font:400 .9rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
-  .story{ font:400 .92rem/1.45 var(--sans); color:var(--tallow); opacity:.85; min-height:1.45em; max-width:34ch; }
-
-  /* ---------- the reveal ---------- */
-  .over .hd, .over .status, .over .row, .over .stats{ opacity:0; }
-  .over.reveal .hd{ animation:appear .7s .5s ease-out both; }
-  .over.reveal .status{ animation:appear .7s .75s ease-out both; }
-  .over.reveal .row{ animation:appear .7s 1s ease-out both; }
-  @keyframes appear{
-    from{ opacity:0; transform:translateY(8px); }
-    to  { opacity:1; transform:none; }
-  }
+  /* ---------- result ---------- */
+  .verdict{ display:flex; align-items:baseline; justify-content:center; gap:14px; font-variant-numeric:lining-nums tabular-nums }
+  .reveal .hd{ animation:appear .6s .35s ease-out both }
+  .reveal .status{ animation:appear .6s .6s ease-out both }
+  .reveal .row{ animation:appear .6s .85s ease-out both }
+  @keyframes appear{ from{ opacity:0; transform:translateY(7px) } to{ opacity:1; transform:none } }
 
   @media (max-width:360px){
-    .choice{ font-size:1.2rem; min-height:56px; padding:12px 8px; }
-    .app{ gap:18px; }
+    .choice{ font-size:1.15rem; min-height:52px }
+    .app{ gap:14px }
+    .bubble{ font-size:.84rem; min-height:46px; padding:9px 12px }
+  }
+  @media (max-height:680px){
+    :root{ --tube-h:clamp(86px,14dvh,120px) }
+    .app{ gap:13px }
   }
   @media (prefers-reduced-motion: reduce){
-    .f-outer, .f-mid, .f-core, .waiting .wick{ animation:none !important; }
-    .flame, .glow, .candle{ transition:none; }
-    .hit .flame, .hit .glow, .heal .candle::after{ animation:none !important; }
-    .smoke.puff i{ animation:fade 2s ease-out forwards; }
-    @keyframes fade{ from{ opacity:.5; } to{ opacity:0; } }
-    .over.reveal .hd, .over.reveal .status, .over.reveal .row{ animation-name:plain; }
-    @keyframes plain{ from{ opacity:0; } to{ opacity:1; } }
+    .float, .bubble.say, .tube.up i, .tube.down i{ animation:none !important }
+    .tube i{ transition:none }
+    .reveal .hd, .reveal .status, .reveal .row{ animation-name:plain }
+    @keyframes plain{ from{ opacity:0 } to{ opacity:1 } }
   }
 </style>
 </head>
 <body>
   <div class="vignette" aria-hidden="true"></div>
 
+  <svg class="sprite" aria-hidden="true">
+    <defs>
+      <symbol id="i-gavel" viewBox="0 0 24 24">
+        <rect x="3.6" y="2.6" width="16.8" height="6.4" rx="2.2"/>
+        <rect x="10.2" y="9" width="3.6" height="8.2"/>
+        <rect x="4.6" y="18" width="14.8" height="3.4" rx="1.7"/>
+      </symbol>
+      <symbol id="i-bolt" viewBox="0 0 24 24">
+        <path d="M13.6 1.5 4.2 13.8h5.5l-1.3 8.7 9.4-12.6h-5.4z"/>
+      </symbol>
+      <symbol id="i-hourglass" viewBox="0 0 24 24">
+        <path d="M5 2h14v2.2h-1.3v2.1c0 2-1.4 3.9-3.3 5.7 1.9 1.8 3.3 3.7 3.3 5.7v2.1H19V22H5v-2.2h1.3v-2.1c0-2 1.4-3.9 3.3-5.7C7.7 10.2 6.3 8.3 6.3 6.3V4.2H5z"/>
+      </symbol>
+      <symbol id="i-people" viewBox="0 0 24 24">
+        <circle cx="8.4" cy="7.2" r="3.7"/><circle cx="16.6" cy="8.4" r="3"/>
+        <path d="M1.6 20.4c0-3.8 3-6.4 6.8-6.4s6.8 2.6 6.8 6.4z"/>
+        <path d="M16.3 15.2c3.3.2 6.1 2.3 6.1 5.2h-4.8c0-1.9-.5-3.7-1.3-5.2z"/>
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24">
+        <path d="M7.4 10V7.6a4.6 4.6 0 0 1 9.2 0V10H18a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zm2.2 0h4.8V7.6a2.4 2.4 0 0 0-4.8 0z"/>
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect x="8.2" y="2.4" width="13" height="15.4" rx="2.2"/>
+        <path d="M5.8 6.2v13.2a2.4 2.4 0 0 0 2.4 2.4h9V20H8.6a.6.6 0 0 1-.6-.6V6.2z"/>
+      </symbol>
+      <symbol id="i-share" viewBox="0 0 24 24">
+        <path d="M12 1.6 17 7h-3.7v8.6h-2.6V7H7z"/>
+        <path d="M4.4 11.6h3v7.6h9.2v-7.6h3v8.8a1.4 1.4 0 0 1-1.4 1.4H5.8a1.4 1.4 0 0 1-1.4-1.4z"/>
+      </symbol>
+
+      <symbol id="char-host" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-robe)"/>
+        <ellipse cx="32" cy="29.5" rx="16" ry="16.5" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="35.5" rx="13.4" ry="15" fill="var(--ch-skin)"/>
+        <path d="M18.8 28.4q3.4-9.6 13.2-9.6 9.6 0 13.2 8.4-4.4-4.4-12-3.2-8 1.2-14.4 4.4z" fill="var(--ch-hair)"/>
+        <ellipse cx="26.6" cy="35" rx="1.9" ry="2.3" fill="var(--ch-ink)"/>
+        <ellipse cx="37.4" cy="35" rx="1.9" ry="2.3" fill="var(--ch-ink)"/>
+        <path d="M27.4 43.4q4.6 3.4 9.2 0" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
+      </symbol>
+
+      <symbol id="char-guest" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-robe)"/>
+        <path d="M14.6 31a17.4 17.4 0 0 1 34.8 0v17.4q0 3.8-4.2 4.6V33.4a13.2 13.2 0 0 0-26.4 0V53q-4.2-.8-4.2-4.6z" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="30" rx="15.6" ry="15.6" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="35.6" rx="13" ry="14.6" fill="var(--ch-skin)"/>
+        <ellipse cx="26.6" cy="35" rx="1.9" ry="2.3" fill="var(--ch-ink)"/>
+        <ellipse cx="37.4" cy="35" rx="1.9" ry="2.3" fill="var(--ch-ink)"/>
+        <path d="M27.4 43.4q4.6 3.4 9.2 0" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
+      </symbol>
+
+      <symbol id="char-judge" viewBox="0 0 64 72">
+        <path d="M15 72v-6q0-5 7-7.6l10-3.6 10 3.6q7 2.6 7 7.6v6z" fill="var(--ch-robe)"/>
+        <path d="M28.6 55.2h6.8v10L32 68.6l-3.4-3.4z" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="28.6" rx="18" ry="16.4" fill="var(--ch-hair)"/>
+        <g fill="var(--ch-hair)">
+          <ellipse cx="15.8" cy="36.6" rx="6.6" ry="4"/>
+          <ellipse cx="16.6" cy="44" rx="5.8" ry="3.8"/>
+          <ellipse cx="48.2" cy="36.6" rx="6.6" ry="4"/>
+          <ellipse cx="47.4" cy="44" rx="5.8" ry="3.8"/>
+        </g>
+        <ellipse cx="32" cy="34.8" rx="12.8" ry="14.4" fill="var(--ch-skin)"/>
+        <g fill="none" stroke="var(--ch-ink)" stroke-width="1.7">
+          <circle cx="26.6" cy="34.4" r="4.2"/><circle cx="37.4" cy="34.4" r="4.2"/>
+          <path d="M30.8 34.4h2.4" stroke-linecap="round"/>
+        </g>
+        <path d="M28.6 43.8q3.4 2.2 6.8 0" stroke="var(--ch-ink)" stroke-width="2" stroke-linecap="round" fill="none"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <main class="app" id="app">
-    <h1 class="wordmark" id="wordmark">Candle Race</h1>
-
-    <section class="stage" id="stage" aria-label="The two candles">
-      <div class="lane you" id="laneMine">
-        <div class="lane-name" id="nameMine">You</div>
-        <div class="candle-area">
-          <div class="flame-slot">
-            <div class="glow" aria-hidden="true"></div>
-            <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
-            <div class="smoke" id="smokeMine" aria-hidden="true"><i></i><i></i><i></i></div>
-            <span class="wick"></span>
-          </div>
-          <div class="candle" id="waxMine"><span class="drip a"></span><span class="drip b"></span></div>
-        </div>
-        <div class="lane-foot">
-          <div class="pips" id="pipsMine"></div>
-          <div class="caption" id="capMine"></div>
-        </div>
-      </div>
-
-      <div class="lane them" id="laneTheirs">
-        <div class="lane-name" id="nameTheirs">Your opponent</div>
-        <div class="candle-area">
-          <div class="flame-slot">
-            <div class="glow" aria-hidden="true"></div>
-            <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
-            <div class="smoke" id="smokeTheirs" aria-hidden="true"><i></i><i></i><i></i></div>
-            <span class="wick"></span>
-          </div>
-          <div class="candle" id="waxTheirs"><span class="drip a"></span><span class="drip b"></span></div>
-        </div>
-        <div class="lane-foot">
-          <div class="pips" id="pipsTheirs"></div>
-          <div class="caption" id="capTheirs"></div>
-        </div>
-      </div>
-
-      <div class="tray" aria-hidden="true"></div>
-    </section>
+    <h1 class="wordmark" id="wordmark">Study Duel</h1>
 
     <section class="panel" id="scIntro" hidden>
-      <p class="lead">Two candles, the same questions. Get one right and your opponent's candle flares up and burns faster. Get one wrong and yours does. Last flame burning wins.</p>
+      <div class="cast">
+        <div class="pod float"><svg class="head"><use href="#char-host"/></svg></div>
+        <div class="pod mid float"><svg class="head"><use href="#char-judge"/></svg></div>
+        <div class="pod float"><svg class="head"><use href="#char-guest"/></svg></div>
+      </div>
+      <p class="lead">Two of you, the same ten questions, one judge. Every answer is graded on the 3 to 7 scale and your GPA is the running average. Highest grade at the end takes it.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
-      <button class="btn primary" id="introGo">Start a race</button>
+      <button class="btn primary" id="introGo">Create a match</button>
       <p class="note" id="introNote"></p>
+    </section>
+
+    <section class="panel" id="scMode" hidden>
+      <h2 class="hd">Pick a mode</h2>
+      <div class="modes" id="modeGrid">
+        <button class="mode" type="button" data-mode="judge">
+          <svg><use href="#i-gavel"/></svg>
+          <b>Judge Mode</b>
+          <span>A judge marks every answer and calls each round.</span>
+        </button>
+        <button class="mode" type="button" disabled>
+          <svg><use href="#i-bolt"/></svg>
+          <b>Rapid Fire</b>
+          <span class="soon"><svg><use href="#i-lock"/></svg>Soon</span>
+        </button>
+        <button class="mode" type="button" disabled>
+          <svg><use href="#i-hourglass"/></svg>
+          <b>Sudden Death</b>
+          <span class="soon"><svg><use href="#i-lock"/></svg>Soon</span>
+        </button>
+        <button class="mode" type="button" disabled>
+          <svg><use href="#i-people"/></svg>
+          <b>Study Together</b>
+          <span class="soon"><svg><use href="#i-lock"/></svg>Soon</span>
+        </button>
+      </div>
+      <p class="note" id="modeNote"></p>
     </section>
 
     <section class="panel" id="scHost" hidden>
       <h2 class="hd">Send this to your opponent</h2>
       <p class="linkbox" id="hostLink"></p>
       <div class="row">
-        <button class="btn" id="hostCopy">Copy link</button>
-        <button class="btn" id="hostSend" hidden>Share</button>
+        <button class="btn" id="hostCopy"><svg><use href="#i-copy"/></svg>Copy link</button>
+        <button class="btn" id="hostSend" hidden><svg><use href="#i-share"/></svg>Share</button>
       </div>
       <p class="status" id="hostStatus"></p>
-      <button class="btn primary" id="hostStart" disabled>Start the race</button>
+      <button class="btn primary" id="hostStart" disabled>Start the match</button>
     </section>
 
     <section class="panel" id="scGuest" hidden>
       <h2 class="hd" id="guestHd">You've been challenged</h2>
-      <p class="lead">Same questions, same clock. Every one you get right sets their candle burning faster. Every one you miss sets yours off instead.</p>
+      <p class="meta" id="guestMode"><svg><use href="#i-gavel"/></svg><span>Judge Mode</span></p>
+      <p class="lead">Ten questions, same clock for both of you. Every answer is graded and your GPA is the average of the lot.</p>
       <input class="field" id="guestName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
       <button class="btn primary" id="guestReady">I'm ready</button>
       <p class="status" id="guestStatus"></p>
     </section>
 
-    <section class="panel quiz" id="scQuiz" hidden>
-      <div class="fuse" id="qTimer"><i id="qBar"></i></div>
-      <div class="qtext" id="qText">&mdash;</div>
-      <div class="choices" id="choices"></div>
-      <p class="qnote" id="qNote"></p>
-      <p class="story" id="qStory"></p>
+    <section class="panel" id="scArena" hidden>
+      <div class="bench">
+        <div class="pod"><svg class="head"><use href="#char-judge"/></svg></div>
+        <p class="bubble" id="bubble" aria-live="polite"></p>
+      </div>
+      <div class="players">
+        <div class="side you" id="sideMine">
+          <div class="pod"><svg class="head"><use href="#char-host"/></svg></div>
+          <div class="name" id="nameMine">You</div>
+          <div class="gpa none" id="gpaMine">—</div>
+          <div class="tube" id="tubeMine"><i></i></div>
+          <div class="band" id="bandMine"></div>
+          <div class="locked-in" id="lockMine">locked in</div>
+        </div>
+        <div class="side them" id="sideTheirs">
+          <div class="pod"><svg class="head"><use href="#char-guest"/></svg></div>
+          <div class="name" id="nameTheirs">Them</div>
+          <div class="gpa none" id="gpaTheirs">—</div>
+          <div class="tube" id="tubeTheirs"><i></i></div>
+          <div class="band" id="bandTheirs"></div>
+          <div class="locked-in" id="lockTheirs">locked in</div>
+        </div>
+      </div>
     </section>
 
-    <section class="panel over" id="scOver" hidden>
+    <section class="panel" id="scQuiz" hidden>
+      <div class="fuse" id="fuse"><i id="fuseBar"></i></div>
+      <div class="qtext" id="qText">—</div>
+      <div class="choices" id="choices"></div>
+      <p class="qnote" id="qNote"></p>
+    </section>
+
+    <section class="panel" id="scOver" hidden>
       <h2 class="hd" id="overHd"></h2>
       <p class="status" id="overSub"></p>
       <div class="row">
-        <button class="btn primary" id="overAgain" hidden>Race again</button>
+        <button class="btn primary" id="overAgain" hidden>Run it back</button>
         <a class="btn" href="./">New opponent</a>
       </div>
     </section>
 
     <section class="panel" id="scDead" hidden>
-      <h2 class="hd" id="deadHd">No race here</h2>
+      <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
       <a class="btn primary" href="./">Start your own</a>
     </section>
 
-    <p class="conn" id="conn" hidden></p>
+    <p class="note warm" id="conn" hidden></p>
   </main>
 
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const app = $('app'), stage = $('stage');
-  const PANELS = ['scIntro','scHost','scGuest','scQuiz','scOver','scDead'];
+  const app = $('app');
+  const PANELS = ['scIntro','scMode','scHost','scGuest','scArena','scQuiz','scOver','scDead'];
 
-  let ws = null, gameId = null, myRole = null;
-  let startWax = 180000, questionMs = 10000, streakN = 3;
+  // the grade scale everything hangs off: 3 fail, 7 high distinction
+  const FLOOR = 3, CEIL = 7;
+  const BANDS = ['Fail','Pass','Credit','Distinction','High distinction'];
+  const bandOf = g => BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(g) - FLOOR))];
+
+  let ws = null, gameId = null, myRole = null, pickedMode = 'judge';
+  let questionMs = 10000, total = 10;
   let phase = 'intro', round = 0, myAnswer = null, lastQ = null;
-  let deadlineAt = 0;                 // local clock, derived from the server's "ms left"
-  let choicesRendered = -1, storyRound = -1, revealed = false;
+  let deadlineAt = 0, choicesRendered = -1, saidRound = -1, revealed = false;
 
-  // each side extrapolates between server ticks off its own clock, so a
-  // skewed device clock can't drift the candles apart
-  const lane = {
-    mine:   { wax:startWax, rate:0, at:performance.now(), el:$('laneMine'),   candle:$('waxMine'),   smoke:$('smokeMine'),   name:$('nameMine'),   pips:$('pipsMine'),   cap:$('capMine') },
-    theirs: { wax:startWax, rate:0, at:performance.now(), el:$('laneTheirs'), candle:$('waxTheirs'), smoke:$('smokeTheirs'), name:$('nameTheirs'), pips:$('pipsTheirs'), cap:$('capTheirs') },
+  const side = {
+    mine:   { el:$('sideMine'),   name:$('nameMine'),   gpa:$('gpaMine'),   tube:$('tubeMine'),   band:$('bandMine'),   lock:$('lockMine'),   last:null },
+    theirs: { el:$('sideTheirs'), name:$('nameTheirs'), gpa:$('gpaTheirs'), tube:$('tubeTheirs'), band:$('bandTheirs'), lock:$('lockTheirs'), last:null },
   };
 
-  function show(id){
-    PANELS.forEach(p => { $(p).hidden = p !== id; });
-    app.dataset.screen = id || '';
-    $('wordmark').hidden = id === 'scQuiz' || id === 'scOver';
+  function show(ids){
+    PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
+    app.dataset.screen = ids[0] || '';
+    $('wordmark').hidden = ids.includes('scArena');
   }
 
-  function setLane(key, o){
-    const L = lane[key];
-    if(o.name != null) L.name.textContent = o.name;
-    if(o.full){ L.wax = startWax; L.rate = 0; L.at = performance.now(); }
-    if(o.lit != null){
-      L.el.classList.toggle('lit', o.lit);
-      if(o.lit){ L.el.classList.remove('out'); L.smoke.classList.remove('puff'); }
-    }
-    if(o.waiting != null) L.el.classList.toggle('waiting', o.waiting);
-    if(o.cap != null){ L.cap.textContent = o.cap; L.cap.className = 'caption' + (o.capTone ? ' ' + o.capTone : ''); }
-  }
-
-  function clearRaceMarks(){
-    for(const key of ['mine','theirs']){
-      lane[key].el.classList.remove('burst','out','won','hit','heal');
-      lane[key].smoke.classList.remove('puff');
+  function say(text, fresh){
+    const b = $('bubble');
+    if(b.textContent === text) return;
+    b.textContent = text;
+    if(fresh){
+      b.classList.remove('say');
+      void b.offsetWidth;
+      b.classList.add('say');
     }
   }
 
-  function pulse(el, cls){
-    el.classList.remove(cls);
-    void el.offsetWidth;
-    el.classList.add(cls);
-    setTimeout(() => el.classList.remove(cls), 1200);
-  }
-
-  function estWax(L){
-    return Math.max(0, L.wax - (performance.now() - L.at) * L.rate);
+  function setSide(key, p){
+    const S = side[key];
+    S.name.textContent = p.name || (key === 'mine' ? 'You' : 'Them');
+    const g = p.gpa;
+    if(g == null){
+      S.gpa.textContent = '—';
+      S.gpa.classList.add('none');
+      S.band.textContent = '';
+      S.tube.style.setProperty('--lvl', 0);
+    }else{
+      S.gpa.textContent = g.toFixed(1);
+      S.gpa.classList.remove('none');
+      S.band.textContent = bandOf(g);
+      // a scored 3.0 sits on the floor, but it still gets a sliver so it
+      // reads differently from the empty tube of someone yet to answer
+      const lvl = Math.min(1, Math.max(0, (g - FLOOR) / (CEIL - FLOOR)));
+      S.tube.style.setProperty('--lvl', Math.max(0.035, lvl).toFixed(3));
+      if(S.last != null && g !== S.last){
+        const dir = g > S.last ? 'up' : 'down';
+        S.tube.classList.remove('up','down');
+        void S.tube.offsetWidth;
+        S.tube.classList.add(dir);
+        setTimeout(() => S.tube.classList.remove(dir), 700);
+      }
+      S.last = g;
+    }
   }
 
   function paint(){
-    for(const key of ['mine','theirs']){
-      const L = lane[key];
-      const frac = startWax > 0 ? Math.min(1, estWax(L) / startWax) : 0;
-      L.candle.style.setProperty('--fill', frac.toFixed(3));
-    }
     if(phase === 'question'){
       const left = Math.max(0, deadlineAt - performance.now());
-      $('qBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
-      $('qTimer').classList.toggle('low', left < 3000);
+      $('fuseBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
+      $('fuse').classList.toggle('low', left < 3000);
     }else if(phase === 'countdown'){
       $('qText').textContent = String(Math.max(1, Math.ceil((deadlineAt - performance.now()) / 1000) - 0.2 | 0) || 1);
     }
@@ -511,18 +495,8 @@
   }
   requestAnimationFrame(paint);
 
-  function setPips(L, streak){
-    const want = streakN;
-    if(L.pips.children.length !== want){
-      L.pips.innerHTML = '';
-      for(let i=0;i<want;i++){ const d=document.createElement('span'); d.className='pip'; L.pips.appendChild(d); }
-    }
-    const lit = streak % want === 0 && streak > 0 ? want : streak % want;
-    [...L.pips.children].forEach((d,i) => d.classList.toggle('on', i < lit));
-  }
-
   function renderChoices(q, locked, result){
-    if(!q){ $('choices').innerHTML=''; choicesRendered = -1; return; }
+    if(!q){ $('choices').innerHTML = ''; choicesRendered = -1; return; }
     if(choicesRendered !== round){
       $('choices').innerHTML = '';
       q.choices.forEach((n,i) => {
@@ -554,7 +528,7 @@
     myAnswer = i;
     ws.send(JSON.stringify({ t:'answer', round, choice:i }));
     renderChoices(lastQ, true, null);
-    $('qNote').textContent = 'Locked in. Waiting for ' + (lane.theirs.name.textContent || 'them') + '.';
+    $('qNote').textContent = 'Locked in.';
   }
 
   document.addEventListener('keydown', e => {
@@ -563,50 +537,27 @@
     if(n >= 1 && n <= 4) answer(n - 1);
   });
 
-  // what the round did to each candle, in the language of fire
-  function flares(me, them){ return (them.right ? 1 : 0) + (me.right ? 0 : 1); }
-
-  function story(mine, theirs, them){
-    const parts = [];
-    if(mine.right && theirs.right) parts.push('Both right. Both candles flare.');
-    else if(mine.right) parts.push(them + (theirs.timedOut ? ' ran out of time' : ' got it wrong') + '. Their candle flares twice over.');
-    else if(theirs.right) parts.push('You ' + (mine.timedOut ? 'ran out of time' : 'got it wrong') + '. Your candle flares twice over.');
-    else parts.push('Both wrong. Both candles flare.');
-    if(mine.healed) parts.push('Three in a row: you get wax back.');
-    if(theirs.healed) parts.push(them + ' gets wax back.');
-    return parts.join(' ');
-  }
-
   function applyState(s){
     phase = s.phase;
+    if(s.total) total = s.total;
 
     if(phase === 'lobby'){
       const hostName = s.host.name || 'Someone';
-      stage.classList.remove('cold');
-      clearRaceMarks();
       if(myRole === 'host'){
-        show('scHost');
+        show(['scHost']);
         $('hostLink').textContent = shareUrl();
-        setLane('mine', { name: hostName, lit:true, full:true, cap:'' });
-        setLane('theirs', {
-          name: s.guest.ready ? (s.guest.name || 'Challenger') : (s.guest.here ? 'Deciding' : 'Waiting'),
-          lit: !!s.guest.ready, waiting: !s.guest.ready, full:true, cap:'',
-        });
         $('hostStatus').textContent = s.guest.ready
           ? (s.guest.name || 'They') + ' is ready.'
           : (s.guest.here ? "They've opened it. Waiting for them to say they're ready." : 'Waiting for someone to open it.');
         $('hostStart').disabled = !s.guest.ready;
       }else{
-        show('scGuest');
+        show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
-        setLane('theirs', { name: hostName, lit:true, full:true, waiting:false, cap:'' });
+        $('guestMode').querySelector('span').textContent = s.modeName || 'Judge Mode';
         if(s.guest.ready){
           $('guestName').hidden = true;
           $('guestReady').hidden = true;
           $('guestStatus').textContent = 'Waiting for ' + hostName + ' to start.';
-          setLane('mine', { name: s.guest.name || 'You', lit:true, full:true, cap:'' });
-        }else{
-          setLane('mine', { name: $('guestName').value.trim() || 'You', lit:false, full:true, cap:'' });
         }
       }
       return;
@@ -616,83 +567,68 @@
     const theirs = myRole === 'host' ? s.guest : s.host;
     const them = theirs.name || 'They';
 
-    setLane('mine', { name: mine.name || 'You', waiting:false });
-    setLane('theirs', { name: theirs.name || 'Them', waiting:false });
-    updateLane('mine', mine);
-    updateLane('theirs', theirs);
-    setPips(lane.mine, mine.streak || 0);
-    setPips(lane.theirs, theirs.streak || 0);
+    setSide('mine', mine);
+    setSide('theirs', theirs);
 
     if(s.ms != null) deadlineAt = performance.now() + s.ms;
     if(s.round != null && s.round !== round){ round = s.round; myAnswer = null; }
 
     if(phase === 'countdown'){
-      show('scQuiz');
-      revealed = false;
-      lane.mine.el.classList.remove('won'); lane.theirs.el.classList.remove('won');
+      show(['scArena','scQuiz']);
+      revealed = false; saidRound = -1;
+      say('Ten questions. Answer well.', true);
       $('qText').textContent = '3';
       $('qText').classList.add('count');
       $('choices').innerHTML = ''; choicesRendered = -1;
-      $('qNote').textContent = 'First question coming up';
-      $('qStory').textContent = '';
-      $('qBar').style.width = '100%';
-      $('qTimer').classList.remove('low'); $('qTimer').classList.add('off');
-      setLane('mine', { cap:'' }); setLane('theirs', { cap:'' });
+      $('qNote').textContent = '';
+      $('fuse').classList.add('off');
+      side.mine.lock.classList.remove('on'); side.theirs.lock.classList.remove('on');
       return;
     }
 
     if(phase === 'question'){
-      show('scQuiz');
+      show(['scArena','scQuiz']);
       lastQ = s.q;
       $('qText').classList.remove('count');
-      $('qTimer').classList.remove('off');
+      $('fuse').classList.remove('off');
       $('qText').textContent = s.q.text;
       renderChoices(s.q, myAnswer !== null, null);
-      setLane('mine', { cap:'' }); setLane('theirs', { cap:'' });
-      $('qStory').textContent = '';
+      say('Question ' + s.round + ' of ' + total + '.', saidRound !== s.round);
+      saidRound = s.round;
+      side.mine.lock.classList.toggle('on', mine.answered_now);
+      side.theirs.lock.classList.toggle('on', theirs.answered_now);
       $('qNote').textContent = myAnswer !== null
-        ? 'Locked in. Waiting for ' + them + '.'
-        : (theirs.answered ? them + ' has answered.' : 'Pick one, fast.');
+        ? 'Locked in.'
+        : (theirs.answered_now ? them + ' has answered.' : 'Pick one, fast.');
       return;
     }
 
     if(phase === 'resolve'){
-      show('scQuiz');
+      show(['scArena','scQuiz']);
       $('qText').classList.remove('count');
-      $('qTimer').classList.add('off');
-      const lastMine = myRole === 'host' ? s.last.host : s.last.guest;
-      const lastTheirs = myRole === 'host' ? s.last.guest : s.last.host;
+      $('fuse').classList.add('off');
       renderChoices(s.q, true, { correct: s.q.answer });
       $('qNote').textContent = s.q.text + ' = ' + s.q.choices[s.q.answer];
-      $('qStory').textContent = story(lastMine, lastTheirs, them);
-      const fm = flares(lastMine, lastTheirs), ft = flares(lastTheirs, lastMine);
-      setLane('mine',   { cap: lastMine.healed ? '+wax' : (fm ? 'flares' : 'holds'),   capTone: lastMine.healed ? 'heal' : (fm ? 'warm' : '') });
-      setLane('theirs', { cap: lastTheirs.healed ? '+wax' : (ft ? 'flares' : 'holds'), capTone: lastTheirs.healed ? 'heal' : (ft ? 'warm' : '') });
-      // the surge plays once per round, not on every snapshot of the resolve
-      if(storyRound !== round){
-        storyRound = round;
-        if(fm) pulse(lane.mine.el, 'hit');
-        if(ft) pulse(lane.theirs.el, 'hit');
-        if(lastMine.healed) pulse(lane.mine.el, 'heal');
-        if(lastTheirs.healed) pulse(lane.theirs.el, 'heal');
-      }
+      say(s.last.line, true);
+      side.mine.lock.classList.remove('on'); side.theirs.lock.classList.remove('on');
       return;
     }
 
     if(phase === 'over'){
-      show('scOver');
-      lane.mine.rate = 0; lane.theirs.rate = 0;
-      lane.mine.wax = mine.w; lane.theirs.wax = theirs.w;
+      show(['scArena','scOver']);
       const draw = s.over && s.over.draw;
-      const iLost = s.over && s.over.loser === myRole;
-      if(!draw) lane[iLost ? 'theirs' : 'mine'].el.classList.add('won');
-      lane.mine.el.classList.remove('burst'); lane.theirs.el.classList.remove('burst');
-      $('overHd').textContent = draw ? 'Both candles out' : (iLost ? 'Your candle went out' : 'You won');
+      const iLost = s.over && !draw && s.over.winner !== myRole;
+      const mg = mine.gpa == null ? 0 : mine.gpa;
+      $('overHd').textContent = draw ? 'Dead even' : (iLost ? them + ' takes it' : 'You take it');
       $('overSub').textContent = draw
-        ? 'A dead heat. Nobody outlasted anybody.'
-        : (iLost ? them + ' outlasted you.' : them + ' burned out first.');
-      setLane('mine',   { cap: (mine.right||0) + ' right\nbest streak ' + (mine.best||0) });
-      setLane('theirs', { cap: (theirs.right||0) + ' right\nbest streak ' + (theirs.best||0) });
+        ? 'Same grade, same time. Nothing to separate you.'
+        : (s.over.byTime
+            ? 'Same grade either way — ' + (iLost ? them + ' answered faster.' : 'you answered faster.')
+            : 'You finished on ' + mg.toFixed(1) + ', a ' + bandOf(mg).toLowerCase() + '. ' + them + ' finished on ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + '.');
+      say(draw
+        ? 'I can\'t split you. Dead even.'
+        : (iLost ? them + ' takes it, ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + ' to ' + mg.toFixed(1) + '.'
+                 : 'That\'s yours, ' + mg.toFixed(1) + ' to ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + '.'), true);
       $('overAgain').hidden = myRole !== 'host';
       $('overAgain').disabled = false;
       if(!revealed){
@@ -704,48 +640,14 @@
     }
   }
 
-  function updateLane(key, p){
-    const L = lane[key];
-    if(p.w != null){ L.wax = p.w; L.rate = p.r || 1; L.at = performance.now(); }
-    const burning = (p.r || 1) > 1;
-    L.el.classList.toggle('burst', burning && phase !== 'over');
-    const dead = (p.w != null && p.w <= 0);
-    if(dead){
-      if(!L.el.classList.contains('out')){
-        L.el.classList.remove('lit');
-        L.el.classList.add('out');
-        L.smoke.classList.add('puff');
-      }
-    }else{
-      L.el.classList.remove('out');
-      L.el.classList.add('lit');
-      L.smoke.classList.remove('puff');
-    }
-  }
-
-  function onTick(m){
-    const mine = myRole === 'host' ? m.h : m.g;
-    const theirs = myRole === 'host' ? m.g : m.h;
-    updateLane('mine', mine);
-    updateLane('theirs', theirs);
-    if(m.ms != null) deadlineAt = performance.now() + m.ms;
-  }
-
-  function shareUrl(){
-    return location.href.split('#')[0] + '#g=' + gameId;
-  }
+  function shareUrl(){ return location.href.split('#')[0] + '#g=' + gameId; }
 
   function goCold(hd, sub){
-    stage.classList.add('cold');
-    clearRaceMarks();
-    setLane('mine', { name:'', lit:false, waiting:false, full:true, cap:'' });
-    setLane('theirs', { name:'', lit:false, waiting:false, full:true, cap:'' });
     $('deadHd').textContent = hd;
     $('deadSub').textContent = sub;
-    show('scDead');
+    show(['scDead']);
   }
 
-  // ---------- connection ----------
   function connect(role, token){
     myRole = role;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -755,18 +657,17 @@
     ws.addEventListener('message', ev => {
       let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
       if(m.t === 'nogame' || m.t === 'full'){
-        if(m.t === 'full') goCold('That race is full', 'Two candles are already burning in this one.');
-        else goCold('No race here', "That link's expired, or it was mistyped.");
+        if(m.t === 'full') goCold('That match is full', 'Both seats are already taken in this one.');
+        else goCold('No match here', "That link's expired, or it was mistyped.");
         return;
       }
       if(m.t === 'welcome'){
-        startWax = m.startWax; questionMs = m.questionMs; streakN = m.streakN;
-        try{ localStorage.setItem('cr-' + role + '-' + gameId, m.token); }catch(e){}
+        questionMs = m.questionMs; total = m.total;
+        try{ localStorage.setItem('sd-' + role + '-' + gameId, m.token); }catch(e){}
         applyState(m);
         return;
       }
       if(m.t === 'state') applyState(m);
-      else if(m.t === 'tick') onTick(m);
     });
 
     ws.addEventListener('close', () => {
@@ -779,49 +680,55 @@
 
   // ---------- entry points ----------
   $('introGo').addEventListener('click', () => {
-    const name = $('introName').value.trim();
-    $('introGo').disabled = true;
-    $('introNote').className = 'note';
-    $('introNote').textContent = 'Setting up…';
+    try{ localStorage.setItem('sd-name', $('introName').value.trim()); }catch(e){}
+    show(['scMode']);
+  });
+  $('introName').addEventListener('keydown', e => { if(e.key === 'Enter') $('introGo').click(); });
+
+  $('modeGrid').addEventListener('click', e => {
+    const card = e.target.closest('.mode');
+    if(!card || card.disabled) return;
+    pickedMode = card.dataset.mode;
+    createMatch();
+  });
+
+  function createMatch(){
+    $('modeNote').className = 'note';
+    $('modeNote').textContent = 'Setting up…';
+    [...$('modeGrid').children].forEach(b => { b.disabled = true; });
     fetch('/api/games', {
       method:'POST',
       headers:{ 'content-type':'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name: $('introName').value.trim(), mode: pickedMode })
     })
       .then(r => { if(!r.ok) throw new Error('create failed'); return r.json(); })
       .then(d => {
         gameId = d.id;
-        try{ localStorage.setItem('cr-host-' + gameId, d.token); }catch(e){}
+        try{ localStorage.setItem('sd-host-' + gameId, d.token); }catch(e){}
         history.replaceState(null, '', shareUrl());
         connect('host', d.token);
       })
       .catch(() => {
-        $('introGo').disabled = false;
-        $('introNote').className = 'note warm';
-        $('introNote').textContent = "Couldn't reach the server. Try again.";
+        $('modeGrid').querySelector('[data-mode]').disabled = false;
+        $('modeNote').className = 'note warm';
+        $('modeNote').textContent = "Couldn't reach the server. Try again.";
       });
-  });
-
-  $('introName').addEventListener('keydown', e => { if(e.key === 'Enter') $('introGo').click(); });
-  $('introName').addEventListener('input', () => {
-    setLane('mine', { name: $('introName').value.trim() || 'You' });
-  });
-  $('guestName').addEventListener('input', () => {
-    setLane('mine', { name: $('guestName').value.trim() || 'You' });
-  });
+  }
 
   $('hostCopy').addEventListener('click', () => {
-    const url = shareUrl();
-    const done = () => { $('hostCopy').textContent = 'Copied'; setTimeout(() => { $('hostCopy').textContent = 'Copy link'; }, 1600); };
+    const done = () => {
+      $('hostCopy').lastChild.textContent = 'Copied';
+      setTimeout(() => { $('hostCopy').lastChild.textContent = 'Copy link'; }, 1600);
+    };
     if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(url).then(done).catch(() => {});
+      navigator.clipboard.writeText(shareUrl()).then(done).catch(() => {});
     }
   });
 
   if(navigator.share){
     $('hostSend').hidden = false;
     $('hostSend').addEventListener('click', () => {
-      navigator.share({ text: 'Race me. Candles, questions, last flame wins.', url: shareUrl() }).catch(() => {});
+      navigator.share({ text: 'Study duel? Ten questions, winner takes the grade.', url: shareUrl() }).catch(() => {});
     });
   }
 
@@ -847,39 +754,29 @@
   function route(){
     const m = /[#&]g=([A-Za-z0-9\-_]+)/.exec(location.hash);
     if(m){
-      if(m[1] === gameId && ws) return;          // already on this race
+      if(m[1] === gameId && ws) return;
       if(ws){ ws.close(); ws = null; }
       gameId = m[1];
-      show(null);
-      setLane('mine', { name:'', lit:false, full:true });
-      setLane('theirs', { name:'', lit:false, full:true });
+      show([]);
       $('conn').hidden = true;
       let tok = null;
-      try{ tok = localStorage.getItem('cr-host-' + gameId); }catch(e){}
+      try{ tok = localStorage.getItem('sd-host-' + gameId); }catch(e){}
       if(tok){
-        connect('host', tok);                     // the host came back after a refresh
+        connect('host', tok);                      // the host came back after a refresh
       }else{
         let g = null;
-        try{ g = localStorage.getItem('cr-guest-' + gameId); }catch(e){}
+        try{ g = localStorage.getItem('sd-guest-' + gameId); }catch(e){}
         connect('guest', g || '');
       }
     }else{
       if(ws){ ws.close(); ws = null; }
       gameId = null;
-      show('scIntro');
-      let saved = '';
-      try{ saved = localStorage.getItem('cr-name') || ''; }catch(e){}
-      $('introName').value = saved;
-      setLane('mine', { name: saved || 'You', lit:true, full:true });
-      setLane('theirs', { name:'Your opponent', lit:false, full:true });
+      show(['scIntro']);
+      try{ $('introName').value = localStorage.getItem('sd-name') || ''; }catch(e){}
     }
   }
   window.addEventListener('hashchange', route);
   route();
-
-  $('introName').addEventListener('change', () => {
-    try{ localStorage.setItem('cr-name', $('introName').value.trim()); }catch(e){}
-  });
 })();
 </script>
 </body>
