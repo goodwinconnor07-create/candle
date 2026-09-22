@@ -58,9 +58,6 @@
     50%    { --mouth:3.2px }
   }
   .pod.talking{ animation:talk .28s ease-in-out infinite; }
-  .cast{ display:flex; align-items:flex-end; justify-content:center; gap:clamp(10px,4vw,26px); }
-  .cast .pod{ width:clamp(56px,17vw,82px); }
-  .cast .pod.mid{ width:clamp(70px,21vw,100px); }
   .pod{ position:relative; }
   .pod::after{
     content:""; position:absolute; left:50%; bottom:-9px; transform:translateX(-50%);
@@ -93,10 +90,36 @@
   .charcard.on{ border-color:var(--amber); background:rgba(255,179,71,.09); }
   .charcard.on b{ color:var(--tallow); }
 
-  .float{ animation:bob 4.4s ease-in-out infinite; }
-  .float:nth-child(2){ animation-delay:-1.5s; }
-  .float:nth-child(3){ animation-delay:-2.9s; }
-  @keyframes bob{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-6px) } }
+  /* ---------- the looping demo on the intro ---------- */
+  .demo{ width:100%; max-width:390px; display:flex; flex-direction:column; gap:11px; }
+  .demo-bench{ display:flex; align-items:center; gap:9px; }
+  .demo-bench .pod{ width:clamp(42px,12vw,50px); flex:0 0 auto; }
+  .demo .bubble{ min-height:44px; font-size:.83rem; padding:9px 12px; }
+  .demo-players{ display:flex; justify-content:center; gap:clamp(30px,16vw,80px); }
+  .demo-side{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .demo-side .pod{ width:clamp(40px,11vw,48px); }
+  .answer{
+    position:relative; min-width:46px; min-height:28px; padding:4px 10px;
+    display:flex; align-items:center; justify-content:center;
+    font:400 .95rem/1 var(--serif); font-variant-numeric:lining-nums tabular-nums;
+    border:1px solid transparent; border-radius:8px; color:transparent;
+    opacity:0; transform:translateY(5px);
+    transition:opacity .25s ease, transform .25s ease,
+               background .3s ease, border-color .3s ease, color .3s ease;
+  }
+  .answer.on{ opacity:1; transform:none; border-color:var(--hair); color:var(--tallow); }
+  .answer.right{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
+  .answer.wrong{ border-color:var(--ember); color:var(--ember); background:rgba(255,106,42,.08); }
+  /* a tail pointing at whoever said it, same as the judge's bubble */
+  .answer::after{
+    content:""; position:absolute; bottom:-5px; left:50%; margin-left:-4.5px;
+    width:9px; height:9px; transform:rotate(45deg);
+    background:var(--soot); border:1px solid transparent; opacity:0;
+    transition:opacity .25s ease, background .3s ease, border-color .3s ease;
+  }
+  .answer.on::after{ opacity:1; border-right-color:var(--hair); border-bottom-color:var(--hair); }
+  .answer.right::after{ background:var(--tallow); border-right-color:var(--tallow); border-bottom-color:var(--tallow); }
+  .answer.wrong::after{ background:#1b1210; border-right-color:var(--ember); border-bottom-color:var(--ember); }
 
   /* ---------- the judge's bench ---------- */
   .bench{ width:100%; display:flex; align-items:center; justify-content:center; gap:12px; }
@@ -270,7 +293,7 @@
     .app{ gap:13px }
   }
   @media (prefers-reduced-motion: reduce){
-    .float, .pod.talking, .tube.up i, .tube.down i{ animation:none !important }
+    .pod.talking, .tube.up i, .tube.down i{ animation:none !important }
     .bubble.typing .typed::after{ display:none }
     .tube i{ transition:none }
     .reveal .hd, .reveal .status, .reveal .row{ animation-name:plain }
@@ -406,12 +429,28 @@
     <h1 class="wordmark" id="wordmark">Study Duel</h1>
 
     <section class="panel" id="scIntro" hidden>
-      <div class="cast">
-        <div class="pod float" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
-        <div class="pod mid float"><svg class="head"><use href="#char-judge"/></svg></div>
-        <div class="pod float" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+      <div class="demo" id="demo" aria-hidden="true">
+        <div class="demo-bench">
+          <div class="pod" id="demoPod"><svg class="head"><use href="#char-judge"/></svg></div>
+          <p class="bubble" id="demoBubble">
+            <span class="say-wrap">
+              <span class="ghost" id="demoGhost"></span>
+              <span class="typed" id="demoTyped"></span>
+            </span>
+          </p>
+        </div>
+        <div class="demo-players">
+          <div class="demo-side">
+            <div class="answer" id="demoAnsL"></div>
+            <div class="pod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+          </div>
+          <div class="demo-side">
+            <div class="answer" id="demoAnsR"></div>
+            <div class="pod" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+          </div>
+        </div>
       </div>
-      <p class="lead">Two of you, the same ten questions, one judge. Every answer is graded on the 3 to 7 scale and your GPA is the running average. Highest grade at the end takes it.</p>
+      <p class="lead">Ten questions, one judge. Every answer is graded from 3 to 7 and your GPA is the running average. Highest grade wins.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
       <button class="btn primary" id="introGo">Create a match</button>
       <p class="note" id="introNote"></p>
@@ -589,38 +628,108 @@
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
     $('wordmark').hidden = ids.includes('scArena');
+    if(ids.includes('scIntro')) demoStart(); else demoStop();
   }
 
   const stillMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  let typeTimer = null;
 
-  // the judge types his line out and works his jaw while it lands, then shuts
-  // it. screen readers get the whole line at once off the .sr copy instead of
-  // one character at a time
-  function say(text, fresh){
-    const ghost = $('bubbleGhost'), typed = $('bubbleTyped'), pod = $('judgePod'), b = $('bubble');
-    if(ghost.textContent === text) return;
+  // a judge who types his line out and works his jaw while it lands, then
+  // shuts it. the arena judge and the demo judge on the intro are both one of
+  // these. screen readers get the whole line at once off the .sr copy, when
+  // there is one, instead of one character at a time
+  function speaker(o){
+    const b = $(o.bubble), ghost = $(o.ghost), typed = $(o.typed), pod = $(o.pod);
+    const sr = o.sr ? $(o.sr) : null;
+    let timer = null;
 
-    clearInterval(typeTimer);
-    typeTimer = null;
-    ghost.textContent = text;
-    $('bubbleSr').textContent = text;
-
-    const finish = () => {
+    function finish(text){
       typed.textContent = text;
       b.classList.remove('typing');
       pod.classList.remove('talking');
-    };
-    if(!fresh || stillMotion.matches){ finish(); return; }
+    }
 
-    typed.textContent = '';
-    b.classList.add('typing');
-    pod.classList.add('talking');
-    let i = 0;
-    typeTimer = setInterval(() => {
-      typed.textContent = text.slice(0, ++i);
-      if(i >= text.length){ clearInterval(typeTimer); typeTimer = null; finish(); }
-    }, 22);
+    return {
+      say(text, fresh){
+        if(ghost.textContent === text) return;
+        clearInterval(timer);
+        timer = null;
+        ghost.textContent = text;
+        if(sr) sr.textContent = text;
+        if(!fresh || stillMotion.matches){ finish(text); return; }
+
+        typed.textContent = '';
+        b.classList.add('typing');
+        pod.classList.add('talking');
+        let i = 0;
+        timer = setInterval(() => {
+          typed.textContent = text.slice(0, ++i);
+          if(i >= text.length){ clearInterval(timer); timer = null; finish(text); }
+        }, 22);
+      },
+      stop(){
+        clearInterval(timer);
+        timer = null;
+        b.classList.remove('typing');
+        pod.classList.remove('talking');
+      },
+    };
+  }
+
+  const judge = speaker({ bubble:'bubble', ghost:'bubbleGhost', typed:'bubbleTyped', sr:'bubbleSr', pod:'judgePod' });
+
+  // ---------- the looping demo on the intro ----------
+  const DEMO = [
+    { q:'What is 7 + 5?',  right:'12', wrong:'14' },
+    { q:'What is 13 - 6?', right:'7',  wrong:'9'  },
+    { q:'What is 9 + 8?',  right:'17', wrong:'15' },
+  ];
+  const demoJudge = speaker({ bubble:'demoBubble', ghost:'demoGhost', typed:'demoTyped', pod:'demoPod' });
+  let demoTimers = [], demoRound = 0, demoOn = false;
+
+  function demoAt(ms, fn){ demoTimers.push(setTimeout(fn, ms)); }
+
+  function answerPill(id, text, cls){
+    const el = $(id);
+    el.textContent = text;
+    el.className = 'answer' + (cls ? ' ' + cls : '');
+  }
+
+  function demoCycle(){
+    const d = DEMO[demoRound++ % DEMO.length];
+    answerPill('demoAnsL', d.right, '');
+    answerPill('demoAnsR', d.wrong, '');
+    demoJudge.say(d.q, true);
+    demoAt(1400, () => answerPill('demoAnsL', d.right, 'on'));
+    demoAt(1900, () => answerPill('demoAnsR', d.wrong, 'on'));
+    demoAt(2800, () => {
+      answerPill('demoAnsL', d.right, 'on right');
+      answerPill('demoAnsR', d.wrong, 'on wrong');
+    });
+    demoAt(3300, () => demoJudge.say('Correct answer was ' + d.right + '.', true));
+    demoAt(6300, demoCycle);
+  }
+
+  function demoStop(){
+    demoOn = false;
+    demoTimers.forEach(clearTimeout);
+    demoTimers = [];
+    demoJudge.stop();
+  }
+
+  function demoStart(){
+    if(demoOn) return;
+    demoOn = true;
+    demoRound = 0;
+    // a loop that never stops is still motion, so show one finished round
+    // instead of cycling when the viewer asked for less of it
+    if(stillMotion.matches){
+      const d = DEMO[0];
+      demoJudge.say('Correct answer was ' + d.right + '.', false);
+      answerPill('demoAnsL', d.right, 'on right');
+      answerPill('demoAnsR', d.wrong, 'on wrong');
+      return;
+    }
+    demoCycle();
   }
 
   function setSide(key, p){
@@ -746,7 +855,7 @@
     if(phase === 'countdown'){
       show(['scArena','scQuiz']);
       revealed = false; saidRound = -1;
-      say('Ten questions. Answer well.', true);
+      judge.say('Ten questions. Answer well.', true);
       $('qText').textContent = '3';
       $('qText').classList.add('count');
       $('choices').innerHTML = ''; choicesRendered = -1;
@@ -763,7 +872,7 @@
       $('fuse').classList.remove('off');
       $('qText').textContent = s.q.text;
       renderChoices(s.q, myAnswer !== null, null);
-      say('Question ' + s.round + ' of ' + total + '.', saidRound !== s.round);
+      judge.say('Question ' + s.round + ' of ' + total + '.', saidRound !== s.round);
       saidRound = s.round;
       side.mine.lock.classList.toggle('on', mine.answered_now);
       side.theirs.lock.classList.toggle('on', theirs.answered_now);
@@ -779,7 +888,7 @@
       $('fuse').classList.add('off');
       renderChoices(s.q, true, { correct: s.q.answer });
       $('qNote').textContent = s.q.text + ' = ' + s.q.choices[s.q.answer];
-      say(s.last.line, true);
+      judge.say(s.last.line, true);
       side.mine.lock.classList.remove('on'); side.theirs.lock.classList.remove('on');
       return;
     }
@@ -795,7 +904,7 @@
         : (s.over.byTime
             ? 'Same grade either way — ' + (iLost ? them + ' answered faster.' : 'you answered faster.')
             : 'You finished on ' + mg.toFixed(1) + ', a ' + bandOf(mg).toLowerCase() + '. ' + them + ' finished on ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + '.');
-      say(draw
+      judge.say(draw
         ? 'I can\'t split you. Dead even.'
         : (iLost ? them + ' takes it, ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + ' to ' + mg.toFixed(1) + '.'
                  : 'That\'s yours, ' + mg.toFixed(1) + ' to ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + '.'), true);
