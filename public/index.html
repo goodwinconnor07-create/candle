@@ -14,7 +14,7 @@
     --hair:rgba(239,227,204,.16);
     --serif:Fraunces, Georgia, "Times New Roman", serif;
     --sans:system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-robe:#2a221b;
+    --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-robe:#2a221b; --ch-shirt:#2a221b;
     --tube-h:clamp(108px, 18dvh, 158px);
     --lvl:0;
   }
@@ -67,6 +67,32 @@
     width:64%; height:7px; border-radius:50%;
     background:radial-gradient(ellipse, rgba(239,227,204,.16), transparent 70%);
   }
+  /* only the shirt changes per character — the judge keeps his own grey robe.
+     the dino is the one that recolours its skin and crest too */
+  [data-char="boy"]     { --ch-shirt:#3f74d4; }
+  [data-char="girl"]    { --ch-shirt:#e46fa4; }
+  [data-char="shades"]  { --ch-shirt:#171412; }
+  [data-char="ponytail"]{ --ch-shirt:#e46fa4; }
+  [data-char="dino"]    { --ch-shirt:#356b2a; --ch-skin:#66b94f; --ch-hair:#a9de8b; }
+
+  .chars{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(84px,1fr));
+    gap:9px; width:100%; max-width:470px;
+  }
+  .charcard{
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    padding:10px 6px 8px; cursor:pointer; font:inherit; color:var(--tallow);
+    background:transparent; border:1px solid var(--hair); border-radius:11px;
+    transition:border-color .18s, background .18s;
+  }
+  .charcard .pod{ width:46px; }
+  .charcard .pod::after{ display:none; }
+  .charcard b{ font:500 .74rem/1.2 var(--sans); color:var(--ash); transition:color .18s; }
+  .charcard:hover{ border-color:rgba(239,227,204,.42); }
+  .charcard:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .charcard.on{ border-color:var(--amber); background:rgba(255,179,71,.09); }
+  .charcard.on b{ color:var(--tallow); }
+
   .float{ animation:bob 4.4s ease-in-out infinite; }
   .float:nth-child(2){ animation-delay:-1.5s; }
   .float:nth-child(3){ animation-delay:-2.9s; }
@@ -285,8 +311,8 @@
         <path d="M4.4 11.6h3v7.6h9.2v-7.6h3v8.8a1.4 1.4 0 0 1-1.4 1.4H5.8a1.4 1.4 0 0 1-1.4-1.4z"/>
       </symbol>
 
-      <symbol id="char-host" viewBox="0 0 64 72">
-        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-robe)"/>
+      <symbol id="char-boy" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-shirt)"/>
         <ellipse cx="32" cy="29.5" rx="16" ry="16.5" fill="var(--ch-hair)"/>
         <ellipse cx="32" cy="35.5" rx="13.4" ry="15" fill="var(--ch-skin)"/>
         <path d="M18.8 28.4q3.4-9.6 13.2-9.6 9.6 0 13.2 8.4-4.4-4.4-12-3.2-8 1.2-14.4 4.4z" fill="var(--ch-hair)"/>
@@ -295,14 +321,64 @@
         <path d="M27.4 43.4q4.6 3.4 9.2 0" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
       </symbol>
 
-      <symbol id="char-guest" viewBox="0 0 64 72">
-        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-robe)"/>
+      <symbol id="char-girl" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-shirt)"/>
         <path d="M14.6 31a17.4 17.4 0 0 1 34.8 0v17.4q0 3.8-4.2 4.6V33.4a13.2 13.2 0 0 0-26.4 0V53q-4.2-.8-4.2-4.6z" fill="var(--ch-hair)"/>
         <ellipse cx="32" cy="30" rx="15.6" ry="15.6" fill="var(--ch-hair)"/>
         <ellipse cx="32" cy="35.6" rx="13" ry="14.6" fill="var(--ch-skin)"/>
         <ellipse cx="26.6" cy="35" rx="1.9" ry="2.3" fill="var(--ch-ink)"/>
         <ellipse cx="37.4" cy="35" rx="1.9" ry="2.3" fill="var(--ch-ink)"/>
         <path d="M27.4 43.4q4.6 3.4 9.2 0" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
+      </symbol>
+
+      <symbol id="char-dino" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-shirt)"/>
+        <g fill="var(--ch-hair)">
+          <path d="M22.6 20.4 25.8 13l3.2 7.4z"/>
+          <path d="M28.8 18 32 10.2 35.2 18z"/>
+          <path d="M35 20.4 38.2 13l3.2 7.4z"/>
+        </g>
+        <ellipse cx="32" cy="32.6" rx="15.4" ry="15" fill="var(--ch-skin)"/>
+        <ellipse cx="32" cy="43.4" rx="11.4" ry="8.6" fill="var(--ch-hair)"/>
+        <ellipse cx="28.4" cy="39.6" rx="1.1" ry="1.5" fill="var(--ch-ink)"/>
+        <ellipse cx="35.6" cy="39.6" rx="1.1" ry="1.5" fill="var(--ch-ink)"/>
+        <path d="M23.4 45.6h17.2" stroke="var(--ch-ink)" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+        <g fill="#fffaf0">
+          <path d="M26 45.8h3.2l-1.6 3z"/><path d="M34.8 45.8H38l-1.6 3z"/>
+        </g>
+        <ellipse cx="25.6" cy="29.4" rx="3.9" ry="4.3" fill="#fffaf0"/>
+        <ellipse cx="38.4" cy="29.4" rx="3.9" ry="4.3" fill="#fffaf0"/>
+        <ellipse cx="26.2" cy="29.8" rx="1.8" ry="2.2" fill="var(--ch-ink)"/>
+        <ellipse cx="37.8" cy="29.8" rx="1.8" ry="2.2" fill="var(--ch-ink)"/>
+      </symbol>
+
+      <symbol id="char-shades" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-shirt)"/>
+        <ellipse cx="32" cy="30.4" rx="15.4" ry="16" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="36.4" rx="13.2" ry="14.6" fill="var(--ch-skin)"/>
+        <path d="M18.4 27.4q-1-10.4 7-15 9.2-5.2 17.8.4-4.8-.8-9 .8 3.8 1.4 5.6 4.4-8.4-4-15.6.6-4.4 2.8-5.8 8.8z" fill="var(--ch-hair)"/>
+        <g fill="var(--ch-ink)">
+          <rect x="19.8" y="31.4" width="10.4" height="7" rx="2.6"/>
+          <rect x="33.8" y="31.4" width="10.4" height="7" rx="2.6"/>
+          <rect x="29.6" y="33.4" width="4.8" height="1.9" rx=".9"/>
+        </g>
+        <path d="M22.4 33.6q2.2-1 4.4-.2" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+        <path d="M27.8 44q4.2 3 8.4-.6" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
+      </symbol>
+
+      <symbol id="char-ponytail" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-shirt)"/>
+        <path d="M43.6 25c7.2-1 12.4 2.6 13.9 9.7 1.5 7.1-1 13.8-5.1 16.9-2.6 1.9-5.2.2-4.3-2.7 2.7-8.7 1.4-16.6-4.5-23.9z" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="29.8" rx="15.8" ry="16.2" fill="var(--ch-hair)"/>
+        <ellipse cx="32" cy="35.8" rx="13.2" ry="14.8" fill="var(--ch-skin)"/>
+        <ellipse cx="45.2" cy="27.4" rx="3.2" ry="2.6" fill="var(--ch-shirt)"/>
+        <g fill="var(--ch-ink)">
+          <rect x="19.8" y="31" width="10.4" height="7" rx="2.6"/>
+          <rect x="33.8" y="31" width="10.4" height="7" rx="2.6"/>
+          <rect x="29.6" y="33" width="4.8" height="1.9" rx=".9"/>
+        </g>
+        <path d="M22.4 33.2q2.2-1 4.4-.2" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+        <path d="M27.4 43.8q4.6 3.4 9.2 0" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
       </symbol>
 
       <symbol id="char-judge" viewBox="0 0 64 72">
@@ -331,9 +407,9 @@
 
     <section class="panel" id="scIntro" hidden>
       <div class="cast">
-        <div class="pod float"><svg class="head"><use href="#char-host"/></svg></div>
+        <div class="pod float" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
         <div class="pod mid float"><svg class="head"><use href="#char-judge"/></svg></div>
-        <div class="pod float"><svg class="head"><use href="#char-guest"/></svg></div>
+        <div class="pod float" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
       </div>
       <p class="lead">Two of you, the same ten questions, one judge. Every answer is graded on the 3 to 7 scale and your GPA is the running average. Highest grade at the end takes it.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
@@ -368,6 +444,13 @@
       <p class="note" id="modeNote"></p>
     </section>
 
+    <section class="panel" id="scChar" hidden>
+      <h2 class="hd">Pick your character</h2>
+      <div class="chars" id="charGridHost"></div>
+      <button class="btn primary" id="charGo" disabled>Continue</button>
+      <p class="note" id="charNote"></p>
+    </section>
+
     <section class="panel" id="scHost" hidden>
       <h2 class="hd">Send this to your opponent</h2>
       <p class="linkbox" id="hostLink"></p>
@@ -382,9 +465,9 @@
     <section class="panel" id="scGuest" hidden>
       <h2 class="hd" id="guestHd">You've been challenged</h2>
       <p class="meta" id="guestMode"><svg><use href="#i-gavel"/></svg><span>Judge Mode</span></p>
-      <p class="lead">Ten questions, same clock for both of you. Every answer is graded and your GPA is the average of the lot.</p>
+      <div class="chars" id="charGridGuest"></div>
       <input class="field" id="guestName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
-      <button class="btn primary" id="guestReady">I'm ready</button>
+      <button class="btn primary" id="guestReady" disabled>I'm ready</button>
       <p class="status" id="guestStatus"></p>
     </section>
 
@@ -401,7 +484,7 @@
       </div>
       <div class="players">
         <div class="side you" id="sideMine">
-          <div class="pod"><svg class="head"><use href="#char-host"/></svg></div>
+          <div class="pod" id="podMine" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
           <div class="name" id="nameMine">You</div>
           <div class="gpa none" id="gpaMine">—</div>
           <div class="tube" id="tubeMine"><i></i></div>
@@ -409,7 +492,7 @@
           <div class="locked-in" id="lockMine">locked in</div>
         </div>
         <div class="side them" id="sideTheirs">
-          <div class="pod"><svg class="head"><use href="#char-guest"/></svg></div>
+          <div class="pod" id="podTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
           <div class="name" id="nameTheirs">Them</div>
           <div class="gpa none" id="gpaTheirs">—</div>
           <div class="tube" id="tubeTheirs"><i></i></div>
@@ -448,22 +531,59 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scMode','scHost','scGuest','scArena','scQuiz','scOver','scDead'];
+  const PANELS = ['scIntro','scMode','scChar','scHost','scGuest','scArena','scQuiz','scOver','scDead'];
+  const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail']];
 
   // the grade scale everything hangs off: 3 fail, 7 high distinction
   const FLOOR = 3, CEIL = 7;
   const BANDS = ['Fail','Pass','Credit','Distinction','High distinction'];
   const bandOf = g => BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(g) - FLOOR))];
 
-  let ws = null, gameId = null, myRole = null, pickedMode = 'judge';
+  let ws = null, gameId = null, myRole = null, pickedMode = 'judge', pickedChar = '';
   let questionMs = 10000, total = 10;
   let phase = 'intro', round = 0, myAnswer = null, lastQ = null;
   let deadlineAt = 0, choicesRendered = -1, saidRound = -1, revealed = false;
 
   const side = {
-    mine:   { el:$('sideMine'),   name:$('nameMine'),   gpa:$('gpaMine'),   tube:$('tubeMine'),   band:$('bandMine'),   lock:$('lockMine'),   last:null },
-    theirs: { el:$('sideTheirs'), name:$('nameTheirs'), gpa:$('gpaTheirs'), tube:$('tubeTheirs'), band:$('bandTheirs'), lock:$('lockTheirs'), last:null },
+    mine:   { el:$('sideMine'),   pod:$('podMine'),   name:$('nameMine'),   gpa:$('gpaMine'),   tube:$('tubeMine'),   band:$('bandMine'),   lock:$('lockMine'),   last:null },
+    theirs: { el:$('sideTheirs'), pod:$('podTheirs'), name:$('nameTheirs'), gpa:$('gpaTheirs'), tube:$('tubeTheirs'), band:$('bandTheirs'), lock:$('lockTheirs'), last:null },
   };
+
+  function wearChar(pod, id){
+    if(!pod || !id) return;
+    pod.dataset.char = id;
+    const u = pod.querySelector('use');
+    if(u) u.setAttribute('href', '#char-' + id);
+  }
+
+  function buildPicker(gridId, onPick){
+    const grid = $(gridId);
+    CHAR_LIST.forEach(([id, label]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'charcard';
+      b.dataset.char = id;
+      const pod = document.createElement('span');
+      pod.className = 'pod';
+      pod.dataset.char = id;
+      pod.innerHTML = '<svg class="head"><use href="#char-' + id + '"/></svg>';
+      const tag = document.createElement('b');
+      tag.textContent = label;
+      b.append(pod, tag);
+      b.addEventListener('click', () => { choose(id); onPick(); });
+      grid.appendChild(b);
+    });
+  }
+
+  function choose(id){
+    pickedChar = id;
+    try{ localStorage.setItem('sd-char', id); }catch(e){}
+    ['charGridHost','charGridGuest'].forEach(g => {
+      [...$(g).children].forEach(c => c.classList.toggle('on', c.dataset.char === id));
+    });
+    $('charGo').disabled = false;
+    $('guestReady').disabled = false;
+  }
 
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
@@ -506,6 +626,7 @@
   function setSide(key, p){
     const S = side[key];
     S.name.textContent = p.name || (key === 'mine' ? 'You' : 'Them');
+    wearChar(S.pod, p.char);
     const g = p.gpa;
     if(g == null){
       S.gpa.textContent = '—';
@@ -597,7 +718,7 @@
         $('hostStatus').textContent = s.guest.ready
           ? (s.guest.name || 'They') + ' is ready.'
           : (s.guest.here ? "They've opened it. Waiting for them to say they're ready." : 'Waiting for someone to open it.');
-        $('hostStart').disabled = !s.guest.ready;
+        $('hostStart').disabled = !(s.guest.ready && s.host.char && s.guest.char);
       }else{
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
@@ -605,6 +726,7 @@
         if(s.guest.ready){
           $('guestName').hidden = true;
           $('guestReady').hidden = true;
+          $('charGridGuest').hidden = true;
           $('guestStatus').textContent = 'Waiting for ' + hostName + ' to start.';
         }
       }
@@ -727,7 +849,7 @@
       // a socket that closed without ever saying anything never connected. say
       // so, rather than leaving the host sat on "Setting up…" indefinitely
       if(!heard){
-        if(!$('scMode').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
+        if(!$('scChar').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
         else{
           $('conn').textContent = "Couldn't connect to the match. Refresh to try again.";
           $('conn').hidden = false;
@@ -752,13 +874,26 @@
     const card = e.target.closest('.mode');
     if(!card || card.disabled) return;
     pickedMode = card.dataset.mode;
+    show(['scChar']);
+  });
+
+  buildPicker('charGridHost', () => { $('charNote').textContent = ''; });
+  buildPicker('charGridGuest', () => {});
+  (function restoreChar(){
+    let saved = '';
+    try{ saved = localStorage.getItem('sd-char') || ''; }catch(e){}
+    if(CHAR_LIST.some(c => c[0] === saved)) choose(saved);
+  })();
+
+  $('charGo').addEventListener('click', () => {
+    if(!pickedChar) return;
     createMatch();
   });
 
   function createFailed(why){
-    [...$('modeGrid').children].forEach(b => { b.disabled = !b.dataset.mode; });
-    $('modeNote').className = 'note warm';
-    $('modeNote').textContent = why;
+    $('charGo').disabled = !pickedChar;
+    $('charNote').className = 'note warm';
+    $('charNote').textContent = why;
   }
 
   function reason(e){
@@ -767,16 +902,16 @@
   }
 
   async function createMatch(){
-    $('modeNote').className = 'note';
-    $('modeNote').textContent = 'Setting up…';
-    [...$('modeGrid').children].forEach(b => { b.disabled = true; });
+    $('charNote').className = 'note';
+    $('charNote').textContent = 'Setting up…';
+    $('charGo').disabled = true;
 
     let made;
     try{
       const r = await fetch('/api/games', {
         method:'POST',
         headers:{ 'content-type':'application/json' },
-        body: JSON.stringify({ name: $('introName').value.trim(), mode: pickedMode })
+        body: JSON.stringify({ name: $('introName').value.trim(), mode: pickedMode, char: pickedChar })
       });
       if(!r.ok) throw new Error('the server answered ' + r.status);
       made = await r.json();
@@ -822,7 +957,8 @@
   });
 
   $('guestReady').addEventListener('click', () => {
-    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim() }));
+    if(!pickedChar) return;
+    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim(), char: pickedChar }));
     $('guestReady').disabled = true;
   });
   $('guestName').addEventListener('keydown', e => { if(e.key === 'Enter') $('guestReady').click(); });

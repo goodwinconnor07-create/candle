@@ -36,6 +36,7 @@ const SCORE_RIGHT  = 7;       // high distinction for a correct answer
 const SCORE_WRONG  = 3;       // fail for a wrong one, or for running out of time
 const NAME_MAX     = 16;
 const MODES        = { judge: 'Judge Mode' };
+const CHARS        = ['boy', 'girl', 'dino', 'shades', 'ponytail'];
 const ROOM_TTL_MS  = 24 * 60 * 60 * 1000;
 
 function json(data, init) {
@@ -61,6 +62,10 @@ function clean(str, max) {
 }
 
 function rnd(n) { return Math.floor(Math.random() * n); }
+
+// a seat's character is picked in the browser, so it only counts if it's one
+// we actually know about
+function cleanChar(c) { return CHARS.indexOf(c) >= 0 ? c : ''; }
 
 function mean(list) {
   if (!list.length) return null;
@@ -140,6 +145,8 @@ export class GameRoom {
         guestName: '',
         guestToken: '',
         guestReady: false,
+        hostChar: cleanChar(body.char),
+        guestChar: '',
         mode: MODES[body.mode] ? body.mode : 'judge',
       };
       await this.saveLobby();
@@ -220,14 +227,18 @@ export class GameRoom {
     if (!lobby) return;
 
     if (msg.t === 'ready' && role === 'guest' && !this.game) {
+      const char = cleanChar(msg.char);
+      if (!char) return;                    // no character, no seat
       lobby.guestName = clean(msg.name, NAME_MAX) || 'Challenger';
+      lobby.guestChar = char;
       lobby.guestReady = true;
       await this.saveLobby();
       this.broadcast(this.snapshot());
       return;
     }
 
-    if (msg.t === 'start' && role === 'host' && lobby.guestReady && !this.game) {
+    if (msg.t === 'start' && role === 'host' && lobby.guestReady
+        && lobby.hostChar && lobby.guestChar && !this.game) {
       this.startGame();
       return;
     }
@@ -242,16 +253,16 @@ export class GameRoom {
     }
   }
 
-  newPlayer(name) {
-    return { name, scores: [], right: 0, ms: 0 };
+  newPlayer(name, char) {
+    return { name, char, scores: [], right: 0, ms: 0 };
   }
 
   startGame() {
     const now = Date.now();
     this.game = {
       phase: 'countdown',
-      host: this.newPlayer(this.lobby.hostName),
-      guest: this.newPlayer(this.lobby.guestName || 'Challenger'),
+      host: this.newPlayer(this.lobby.hostName, this.lobby.hostChar),
+      guest: this.newPlayer(this.lobby.guestName || 'Challenger', this.lobby.guestChar),
       round: 0,
       q: null,
       askedAt: 0,
@@ -382,6 +393,7 @@ export class GameRoom {
   side(p) {
     return {
       name: p.name,
+      char: p.char,
       gpa: this.gpaOf(p),
       answered: p.scores.length,
       right: p.right,
@@ -400,8 +412,11 @@ export class GameRoom {
         phase: 'lobby',
         mode,
         modeName: MODES[mode],
-        host: { name: lobby ? lobby.hostName : '', ready: true },
-        guest: { name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady), here: !!(lobby && lobby.guestToken) },
+        host: { name: lobby ? lobby.hostName : '', ready: true, char: lobby ? lobby.hostChar : '' },
+        guest: {
+          name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady),
+          here: !!(lobby && lobby.guestToken), char: lobby ? lobby.guestChar : '',
+        },
       };
     }
 
@@ -450,7 +465,7 @@ async function api(request, env) {
     const res = await room.fetch('https://room/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: body.name, mode: body.mode }),
+      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char }),
     });
     const created = await res.json();
     return json({ id, token: created.token }, { status: 201 });
