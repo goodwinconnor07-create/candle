@@ -51,13 +51,10 @@
   .head{ display:block; width:100%; height:auto; aspect-ratio:64/72; }
 
   /* the judge's jaw. custom properties reach into the <use> shadow tree where
-     plain selectors can't, so registering it is what lets the mouth animate */
+     plain selectors can't, so this is what lets the mouth move at all. the
+     flap itself is set from JS rather than a keyframe, so it doesn't depend on
+     @property interpolation being supported */
   @property --mouth{ syntax:'<length>'; inherits:true; initial-value:0px; }
-  @keyframes talk{
-    0%,100%{ --mouth:0.6px }
-    50%    { --mouth:3.2px }
-  }
-  .pod.talking{ animation:talk .28s ease-in-out infinite; }
   .pod{ position:relative; }
   .pod::after{
     content:""; position:absolute; left:50%; bottom:-9px; transform:translateX(-50%);
@@ -292,10 +289,13 @@
     :root{ --tube-h:clamp(86px,14dvh,120px) }
     .app{ gap:13px }
   }
+  /* reduced motion means less travel across the screen, not a dead page. the
+     judge still types and works his jaw and the demo still cycles — those are
+     small and they carry the meaning. what goes is the sliding and scaling */
   @media (prefers-reduced-motion: reduce){
-    .pod.talking, .tube.up i, .tube.down i{ animation:none !important }
-    .bubble.typing .typed::after{ display:none }
-    .tube i{ transition:none }
+    .answer{ transform:none !important; transition:opacity .2s ease, background .3s ease, border-color .3s ease, color .3s ease; }
+    .tube.up i, .tube.down i{ animation:none !important }
+    .tube i{ transition:height .2s linear }
     .reveal .hd, .reveal .status, .reveal .row{ animation-name:plain }
     @keyframes plain{ from{ opacity:0 } to{ opacity:1 } }
   }
@@ -420,7 +420,7 @@
           <path d="M30.8 34.4h2.4" stroke-linecap="round"/>
         </g>
         <path d="M29 43.9q3 2.1 6 0" stroke="var(--ch-ink)" stroke-width="2" stroke-linecap="round" fill="none"/>
-        <ellipse cx="32" cy="44.7" rx="4.1" fill="var(--ch-ink)" style="ry:var(--mouth)"/>
+        <ellipse cx="32" cy="44.7" rx="4.1" fill="var(--ch-ink)" style="ry:var(--mouth, 0px)"/>
       </symbol>
     </defs>
   </svg>
@@ -631,8 +631,6 @@
     if(ids.includes('scIntro')) demoStart(); else demoStop();
   }
 
-  const stillMotion = matchMedia('(prefers-reduced-motion: reduce)');
-
   // a judge who types his line out and works his jaw while it lands, then
   // shuts it. the arena judge and the demo judge on the intro are both one of
   // these. screen readers get the whole line at once off the .sr copy, when
@@ -640,12 +638,27 @@
   function speaker(o){
     const b = $(o.bubble), ghost = $(o.ghost), typed = $(o.typed), pod = $(o.pod);
     const sr = o.sr ? $(o.sr) : null;
-    let timer = null;
+    let timer = null, jaw = null;
+
+    function jawOn(){
+      clearInterval(jaw);
+      let open = false;
+      jaw = setInterval(() => {
+        open = !open;
+        pod.style.setProperty('--mouth', open ? '3.2px' : '0.7px');
+      }, 165);
+    }
+    function jawOff(){
+      clearInterval(jaw);
+      jaw = null;
+      pod.style.removeProperty('--mouth');
+    }
 
     function finish(text){
       typed.textContent = text;
       b.classList.remove('typing');
       pod.classList.remove('talking');
+      jawOff();
     }
 
     return {
@@ -655,11 +668,12 @@
         timer = null;
         ghost.textContent = text;
         if(sr) sr.textContent = text;
-        if(!fresh || stillMotion.matches){ finish(text); return; }
+        if(!fresh){ finish(text); return; }
 
         typed.textContent = '';
         b.classList.add('typing');
         pod.classList.add('talking');
+        jawOn();
         let i = 0;
         timer = setInterval(() => {
           typed.textContent = text.slice(0, ++i);
@@ -671,6 +685,7 @@
         timer = null;
         b.classList.remove('typing');
         pod.classList.remove('talking');
+        jawOff();
       },
     };
   }
@@ -720,15 +735,6 @@
     if(demoOn) return;
     demoOn = true;
     demoRound = 0;
-    // a loop that never stops is still motion, so show one finished round
-    // instead of cycling when the viewer asked for less of it
-    if(stillMotion.matches){
-      const d = DEMO[0];
-      demoJudge.say('Correct answer was ' + d.right + '.', false);
-      answerPill('demoAnsL', d.right, 'on right');
-      answerPill('demoAnsR', d.wrong, 'on wrong');
-      return;
-    }
     demoCycle();
   }
 
