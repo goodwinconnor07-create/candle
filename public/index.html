@@ -45,6 +45,48 @@
   .wordmark{ font:500 1.2rem/1.2 var(--serif); letter-spacing:.01em; }
   .app[data-screen="scIntro"] .wordmark{ font-size:clamp(2rem, 8.5vw, 2.8rem); }
 
+  /* ---------- the crest: two figures clashing swords over the wordmark ---------- */
+  .logo{ display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .crest{
+    width:clamp(96px, 30vw, 148px); height:auto; overflow:visible;
+    display:none;
+  }
+  .app[data-screen="scIntro"] .crest{ display:block; }
+  .crest-shade{ fill:rgba(0,0,0,.5); }
+  .fighter .cape, .fighter .leg{ fill:var(--tallow); opacity:.92; }
+  .fighter .head, .fighter .arm{ fill:var(--tallow); }
+  .fighter .hilt{ fill:var(--ash); }
+  .fighter-a .blade{ fill:var(--amber); }
+  .fighter-b .blade{ fill:var(--cold); }
+  .spark path{ fill:#fff3d6; }
+  .fighter-a{ transform-origin:47px 44px; transform-box:fill-box; }
+  .fighter-b{ transform-origin:113px 44px; transform-box:fill-box; }
+  .spark{ transform-origin:80px 9px; transform-box:fill-box; }
+  .app[data-screen="scIntro"] .fighter-a{ animation:parry-a 2.8s ease-in-out infinite; }
+  .app[data-screen="scIntro"] .fighter-b{ animation:parry-b 2.8s ease-in-out infinite; }
+  .app[data-screen="scIntro"] .spark{ animation:flash 2.8s ease-in-out infinite; }
+  @keyframes parry-a{
+    0%,38%,100%{ transform:rotate(0deg); }
+    50%        { transform:rotate(-7deg); }
+    62%        { transform:rotate(2deg); }
+  }
+  @keyframes parry-b{
+    0%,38%,100%{ transform:rotate(0deg); }
+    50%        { transform:rotate(7deg); }
+    62%        { transform:rotate(-2deg); }
+  }
+  @keyframes flash{
+    0%,38%,100%{ opacity:.55; transform:scale(.85); }
+    50%        { opacity:1; transform:scale(1.35); }
+    62%        { opacity:.7; transform:scale(.95); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .app[data-screen="scIntro"] .fighter-a,
+    .app[data-screen="scIntro"] .fighter-b,
+    .app[data-screen="scIntro"] .spark{ animation:none; }
+    .spark{ opacity:1; }
+  }
+
   /* ---------- characters ---------- */
   /* an svg with no height attribute falls back to 150px, which leaves a dead
      gap under every character — pin the height to the artwork's own ratio */
@@ -496,7 +538,37 @@
   </svg>
 
   <main class="app" id="app">
-    <h1 class="wordmark" id="wordmark">Study Duel</h1>
+    <div class="logo" id="logo">
+      <svg class="crest" viewBox="0 0 160 76" aria-hidden="true">
+        <ellipse class="crest-shade" cx="41" cy="70" rx="16" ry="3.4"/>
+        <ellipse class="crest-shade" cx="119" cy="70" rx="16" ry="3.4"/>
+
+        <g class="fighter fighter-a">
+          <path class="leg" d="M30 70 L36 46 L44 46 L42 70 Z"/>
+          <path class="leg" d="M44 70 L46 50 L53 50 L52 70 Z"/>
+          <path class="cape" d="M27 52 Q28 38 38 31 L47 25 Q55 29 54 40 L52 52 Z"/>
+          <circle class="head" cx="40" cy="20" r="7.6"/>
+          <path class="arm" d="M46 33 L64 15 L67 18 L50 37 Z"/>
+          <path class="blade" d="M62 17 L83 -3 L86 0 L66 21 Z"/>
+          <rect class="hilt" x="58.5" y="13" width="6.5" height="5.4" rx="1" transform="rotate(-42 61.75 15.7)"/>
+        </g>
+
+        <g class="fighter fighter-b">
+          <path class="leg" d="M130 70 L124 46 L116 46 L118 70 Z"/>
+          <path class="leg" d="M116 70 L114 50 L107 50 L108 70 Z"/>
+          <path class="cape" d="M133 52 Q132 38 122 31 L113 25 Q105 29 106 40 L108 52 Z"/>
+          <circle class="head" cx="120" cy="20" r="7.6"/>
+          <path class="arm" d="M114 33 L96 15 L93 18 L110 37 Z"/>
+          <path class="blade" d="M98 17 L77 -3 L74 0 L94 21 Z"/>
+          <rect class="hilt" x="95" y="13" width="6.5" height="5.4" rx="1" transform="rotate(42 98.25 15.7)"/>
+        </g>
+
+        <g class="spark">
+          <path d="M80 8 L83.5 -1.5 L86 7.5 L95 4 L87 10.5 L91.5 18 L83 13 L79.5 21 L78 12 Z"/>
+        </g>
+      </svg>
+      <h1 class="wordmark" id="wordmark">Study Duel</h1>
+    </div>
 
     <section class="panel" id="scIntro" hidden>
       <div class="demo" id="demo" aria-hidden="true">
