@@ -2,152 +2,161 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0a08">
 <title>Candle Race</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --flame-h: 1;
-    --wax: #efe2c8;
-    --wax-shade: #c8b795;
-    --ink: #e8dcc6;
+    --soot:#0d0a08; --ash:#8d8171; --tallow:#efe3cc; --amber:#ffb347; --ember:#ff6a2a; --cold:#6cd4ff;
+    --wax:#efe3cc; --wax-shade:#cdbb97;
+    --hair:rgba(239,227,204,.16);
+    --serif:Fraunces, Georgia, "Times New Roman", serif;
+    --sans:system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --wax-tall:clamp(112px, 18dvh, 156px);
+    --wax-stub:22px;
+    --flame-slot:84px;
+    --fill:1;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; }
+  html{ overflow-x:hidden; }
   body{
-    background:#000; color:var(--ink);
-    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    background:var(--soot); color:var(--tallow);
+    font:400 1rem/1.5 var(--sans);
     display:flex; flex-direction:column; align-items:center;
-    min-height:100dvh; padding:20px 14px;
+    min-height:100dvh;
+    padding:max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
     overflow-x:hidden; overflow-y:auto;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-font-smoothing:antialiased;
   }
-
-  .room{
-    position:fixed; inset:0; pointer-events:none; z-index:0;
-    background:
-      radial-gradient(70vmin 60vmin at 30% 42%, rgba(255,168,72,.20) 0%, rgba(255,130,40,.09) 38%, rgba(0,0,0,0) 72%),
-      radial-gradient(70vmin 60vmin at 70% 42%, rgba(70,180,255,.17) 0%, rgba(20,100,210,.08) 38%, rgba(0,0,0,0) 72%);
-    opacity:0; transition:opacity 1.4s ease;
+  .vignette{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(130% 90% at 50% 38%, transparent 40%, rgba(0,0,0,.6) 100%);
   }
-  .room.on{ opacity:1; }
-
-  .stage{ position:relative; z-index:1; width:100%; max-width:760px; margin:auto 0; }
-  .screen{ display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center; }
+  .app{
+    position:relative; z-index:1; width:100%; max-width:520px; margin:auto 0;
+    display:flex; flex-direction:column; align-items:center; gap:22px;
+  }
   [hidden]{ display:none !important; }
 
-  .title{
-    font-size: clamp(2rem, 8vw, 3.1rem); font-weight:400; letter-spacing:.04em;
-    color:#ffd9a0; text-shadow:0 0 28px rgba(255,150,50,.4);
+  .wordmark{
+    font:500 1.25rem/1.2 var(--serif); color:var(--tallow); letter-spacing:.01em;
+    transition:font-size .3s ease;
   }
-  .hd{ font-size:1.1rem; font-weight:400; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,205,145,.75); }
-  .blurb{ max-width:36ch; font-size:.95rem; line-height:1.65; color:rgba(232,220,198,.6); }
-  .note{ font-size:.7rem; letter-spacing:.1em; color:rgba(232,220,198,.3); min-height:1.2em; }
-  .status{ font-size:.85rem; letter-spacing:.06em; color:rgba(255,205,145,.6); min-height:1.3em; }
+  .app[data-screen="scIntro"] .wordmark{ font-size:clamp(2.1rem, 9vw, 2.9rem); text-shadow:0 0 34px rgba(255,179,71,.28); }
+  .app[data-screen="scDead"] .wordmark{ font-size:1.6rem; }
 
-  .field{
-    width:min(300px,84vw); padding:11px 14px; font:inherit; font-size:1rem;
-    color:var(--ink); text-align:center; background:rgba(0,0,0,.4);
-    border:1px solid rgba(232,220,198,.2); border-radius:11px;
+  /* ---------- the stage: two candles on one tray ---------- */
+  .stage{
+    position:relative; z-index:0; width:min(100%, 440px);
+    display:grid; grid-template-columns:1fr 1fr;
+    grid-template-rows:auto calc(var(--flame-slot) + var(--wax-tall)) 18px auto;
+    column-gap:clamp(12px, 6vw, 44px); row-gap:0;
+    justify-items:center; align-items:end;
   }
-  .field::placeholder{ color:rgba(232,220,198,.26); }
-  .field:focus{ outline:none; border-color:rgba(255,168,72,.8); }
-
-  .ctl{
-    font:inherit; font-size:.78rem; letter-spacing:.14em; text-transform:uppercase;
-    color:rgba(232,220,198,.7); background:transparent;
-    border:1px solid rgba(232,220,198,.24); border-radius:999px;
-    padding:10px 20px; cursor:pointer;
-    transition:color .2s ease, border-color .2s ease, background .2s ease, opacity .2s ease;
-  }
-  .ctl:hover:not(:disabled){ color:#ffd9a0; border-color:rgba(255,190,120,.55); background:rgba(255,160,60,.08); }
-  .ctl:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:3px; }
-  .ctl:disabled{ opacity:.32; cursor:default; }
-  .ctl.big{ font-size:.86rem; padding:13px 30px; border-color:rgba(255,190,120,.45); color:#ffd9a0; }
-  a.ctl{ display:inline-block; text-decoration:none; }
-  .row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
-
-  .linkbox{
-    width:min(420px,88vw); padding:11px 14px; font-size:.76rem; line-height:1.5;
-    word-break:break-all; color:rgba(232,220,198,.55);
-    background:rgba(0,0,0,.4); border:1px solid rgba(232,220,198,.14); border-radius:11px;
-  }
-
-  /* ---------- the two lanes ---------- */
-  .lanes{ display:flex; justify-content:center; align-items:flex-end; gap:clamp(14px,6vw,58px); width:100%; }
-  /* fixed width, so a long verdict line wraps instead of stretching the lane */
-  .lane{ display:flex; flex-direction:column; align-items:center; gap:10px; flex:0 0 auto; width:clamp(104px,30vw,150px); }
-
+  .lane{ display:contents; }
+  .lane > *{ grid-column:var(--col); }
   .lane.you{
-    --flame-outer-1:rgba(255,148,40,.95); --flame-outer-2:rgba(255,92,10,.55); --flame-outer-3:rgba(255,60,0,0);
-    --flame-mid-1:#ffb43c; --flame-mid-2:#ffd97a; --flame-mid-3:#fff3c4;
-    --flame-core-1:#5fa8ff; --flame-core-2:#cfe6ff;
-    --wick-lit-1:#ffcf7a; --wick-lit-2:#6b3a16; --wick-glow:rgba(255,170,70,.9);
-    --accent:#ffd9a0; --accent-glow:rgba(255,150,50,.45);
+    --col:1;
+    --f1:#ffb347; --f2:#ff7a1f; --f3:#fff1c9; --core:#5fa8ff;
+    --lane-glow:rgba(255,160,60,.55); --accent:var(--amber);
   }
   .lane.them{
-    --flame-outer-1:rgba(60,190,255,.9); --flame-outer-2:rgba(10,110,220,.5); --flame-outer-3:rgba(0,60,160,0);
-    --flame-mid-1:#3cc0ff; --flame-mid-2:#8fe0ff; --flame-mid-3:#dff6ff;
-    --flame-core-1:#0a5fd0; --flame-core-2:#cfeeff;
-    --wick-lit-1:#9fe2ff; --wick-lit-2:#10304f; --wick-glow:rgba(70,190,255,.85);
-    --accent:#bfe8ff; --accent-glow:rgba(60,160,255,.4);
+    --col:2;
+    --f1:#6cd4ff; --f2:#1f8fe0; --f3:#e6f8ff; --core:#0b57c8;
+    --lane-glow:rgba(80,190,255,.5); --accent:var(--cold);
   }
 
   .lane-name{
-    font-size:.72rem; letter-spacing:.2em; text-transform:uppercase;
-    color:var(--accent); opacity:.8; max-width:100%;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    grid-row:1; align-self:end; margin-bottom:2px;
+    font:500 .84rem/1.3 var(--sans); color:var(--tallow); opacity:.75;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    transition:opacity .4s ease;
   }
+  .lane:not(.lit) .lane-name{ opacity:.35; }
 
   .candle-area{
-    position:relative; width:100%; height:284px;
+    grid-row:2; height:100%;
     display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
   }
-  .flame-slot, .candle, .holder{ flex:0 0 auto; }
-  /* tall enough that a flame at full flare still clears the name above it */
-  .flame-slot{ position:relative; width:44px; height:96px; display:flex; align-items:flex-end; justify-content:center; }
+  .flame-slot{
+    position:relative; width:44px; height:var(--flame-slot);
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  .glow{
+    position:absolute; left:50%; bottom:-50px; z-index:-1;
+    width:min(220px, 46vw); height:min(220px, 46vw);
+    transform:translateX(-50%); border-radius:50%; pointer-events:none;
+    background:radial-gradient(circle, var(--lane-glow) 0%, transparent 62%);
+    filter:blur(6px); opacity:0; transition:opacity .6s ease, transform .6s ease;
+  }
+  .lit .glow{ opacity:.55; }
+  .burst .glow{ opacity:1; transform:translateX(-50%) scale(1.25); }
+  .won .glow{ opacity:.85; transform:translateX(-50%) scale(1.15); }
 
   .wick{
-    width:3px; height:13px; border-radius:2px 2px 0 0; margin-bottom:-1px;
-    background:linear-gradient(var(--wick-lit-1), var(--wick-lit-2));
-    box-shadow:0 0 6px var(--wick-glow);
+    width:3px; height:12px; border-radius:2px 2px 0 0; margin-bottom:-1px;
+    background:linear-gradient(#3a302a, #1c1714); transition:background .4s ease, box-shadow .4s ease;
   }
-  .out .wick{ background:linear-gradient(#4b4038,#22201e); box-shadow:none; }
+  .lit .wick{ background:linear-gradient(#ffd79a, #6b3a16); box-shadow:0 0 6px var(--lane-glow); }
+  .waiting .wick{ animation:breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe{
+    0%,100%{ box-shadow:0 0 0 0 transparent; }
+    50%    { box-shadow:0 0 9px 2px var(--lane-glow); }
+  }
 
   .flame{
-    position:absolute; left:50%; bottom:11px; transform:translateX(-50%);
-    width:30px; height:64px; pointer-events:none;
+    position:absolute; left:50%; bottom:10px; transform:translateX(-50%);
+    width:30px; height:62px; pointer-events:none; opacity:0;
     transition:transform .45s cubic-bezier(.3,1.4,.5,1), opacity .35s ease;
   }
-  .out .flame{ opacity:0; }
-  .burst .flame{ transform:translateX(-50%) scale(1.55); }
+  .lit .flame{ opacity:1; }
+  .burst .flame{ transform:translateX(-50%) scale(1.5); }
+  .won .flame{ transform:translateX(-50%) scale(1.2); }
+  .hit .flame{ animation:surge .85s cubic-bezier(.2,.9,.3,1) both; }
+  @keyframes surge{
+    0%  { transform:translateX(-50%) scale(1.05); }
+    35% { transform:translateX(-50%) scale(1.95); }
+    100%{ transform:translateX(-50%) scale(1.5); }
+  }
+  .hit .glow{ animation:bloom .85s ease-out both; }
+  @keyframes bloom{
+    0%  { opacity:.6; transform:translateX(-50%) scale(.95); }
+    30% { opacity:1;  transform:translateX(-50%) scale(1.5); }
+    100%{ opacity:1;  transform:translateX(-50%) scale(1.25); }
+  }
   .flame span{
     position:absolute; left:50%; bottom:0; display:block;
     border-radius:50% 50% 34% 34% / 66% 66% 34% 34%;
     transform-origin:50% 100%;
   }
   .f-outer{
-    width:30px; height:64px; margin-left:-15px;
-    background:radial-gradient(ellipse at 50% 88%, var(--flame-outer-1), var(--flame-outer-2) 55%, var(--flame-outer-3) 78%);
+    width:30px; height:62px; margin-left:-15px;
+    background:radial-gradient(ellipse at 50% 88%, var(--f1), var(--f2) 55%, transparent 78%);
     filter:blur(5px); animation:flick 2.1s ease-in-out infinite;
   }
   .f-mid{
-    width:18px; height:44px; margin-left:-9px;
-    background:linear-gradient(to top, var(--flame-mid-1) 0%, var(--flame-mid-2) 45%, var(--flame-mid-3) 78%, rgba(255,255,255,.2) 100%);
-    filter:blur(1.6px); animation:flick 1.5s ease-in-out infinite reverse;
+    width:18px; height:43px; margin-left:-9px;
+    background:linear-gradient(to top, var(--f1) 0%, var(--f3) 60%, rgba(255,255,255,.2) 100%);
+    filter:blur(1.5px); animation:flick 1.5s ease-in-out infinite reverse;
   }
   .f-core{
     width:7px; height:15px; margin-left:-3.5px;
-    background:linear-gradient(to top, var(--flame-core-1), var(--flame-core-2) 60%, rgba(255,255,255,.85));
-    filter:blur(1.5px); opacity:.85; animation:flick 1.1s ease-in-out infinite;
+    background:linear-gradient(to top, var(--core), rgba(255,255,255,.9));
+    filter:blur(1.4px); opacity:.85; animation:flick 1.1s ease-in-out infinite;
   }
-  .burst .f-outer{ animation-duration:.5s }
-  .burst .f-mid{ animation-duration:.36s }
-  .burst .f-core{ animation-duration:.28s }
+  .burst .f-outer{ animation-duration:.5s; }
+  .burst .f-mid{ animation-duration:.36s; }
+  .burst .f-core{ animation-duration:.28s; }
   @keyframes flick{
-    0%,100%{ transform: scale(1, calc(1 * var(--flame-h))) translateX(0) skewX(0deg) }
-    22%    { transform: scale(.94, calc(1.07 * var(--flame-h))) translateX(-1px) skewX(-2.5deg) }
-    48%    { transform: scale(1.05, calc(.9 * var(--flame-h))) translateX(1px) skewX(2deg) }
-    74%    { transform: scale(.97, calc(1.04 * var(--flame-h))) translateX(-.5px) skewX(-1deg) }
+    0%,100%{ transform:scale(1,1) translateX(0) skewX(0deg); }
+    22%    { transform:scale(.94,1.07) translateX(-1px) skewX(-2.5deg); }
+    48%    { transform:scale(1.05,.9) translateX(1px) skewX(2deg); }
+    74%    { transform:scale(.97,1.04) translateX(-.5px) skewX(-1deg); }
   }
 
   .smoke{ position:absolute; left:50%; bottom:14px; width:2px; height:2px; pointer-events:none; }
@@ -155,249 +164,330 @@
     position:absolute; left:0; bottom:0; width:9px; height:9px; margin-left:-4px;
     border-radius:50%; background:rgba(200,200,205,.34); filter:blur(4px); opacity:0;
   }
-  .smoke.puff i{ animation:rise 2.8s ease-out forwards; }
-  .smoke.puff i:nth-child(2){ animation-delay:.28s }
-  .smoke.puff i:nth-child(3){ animation-delay:.56s }
+  .smoke.puff i{ animation:rise 3s ease-out forwards; }
+  .smoke.puff i:nth-child(2){ animation-delay:.3s; }
+  .smoke.puff i:nth-child(3){ animation-delay:.6s; }
   @keyframes rise{
-    0%  { opacity:.55; transform:translate(0,0) scale(.6) }
-    45% { opacity:.35; transform:translate(7px,-42px) scale(1.5) }
-    100%{ opacity:0;   transform:translate(-5px,-96px) scale(2.4) }
+    0%  { opacity:.55; transform:translate(0,0) scale(.6); }
+    45% { opacity:.35; transform:translate(7px,-46px) scale(1.5); }
+    100%{ opacity:0;   transform:translate(-5px,-104px) scale(2.4); }
   }
 
   .candle{
-    position:relative; width:clamp(52px,14vw,68px);
-    height:168px;
-    border-radius:7px 7px 4px 4px;
+    position:relative; width:clamp(46px, 13vw, 64px); flex:0 0 auto;
+    height:calc(var(--wax-stub) + (var(--wax-tall) - var(--wax-stub)) * var(--fill));
+    border-radius:6px 6px 3px 3px; overflow:visible;
     background:
       linear-gradient(90deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.12) 14%,
         rgba(255,255,255,.16) 38%, rgba(255,255,255,.05) 62%,
         rgba(0,0,0,.2) 86%, rgba(0,0,0,.45) 100%),
       linear-gradient(to bottom, var(--wax-shade), var(--wax) 12%, var(--wax) 78%, #d9c9a8 100%);
-    box-shadow:0 -12px 32px -10px var(--accent-glow);
-    transition:box-shadow .4s ease, filter 1s ease;
+    box-shadow:0 -10px 30px -10px transparent;
+    transition:box-shadow .5s ease, filter .8s ease;
   }
-  .burst .candle{ box-shadow:0 -14px 40px -6px rgba(255,90,40,.75); }
-  .out .candle{ filter:brightness(.5) saturate(.6); box-shadow:none; }
+  .lit .candle{ box-shadow:0 -12px 34px -10px var(--lane-glow); }
+  .burst .candle{ box-shadow:0 -14px 44px -4px var(--lane-glow); }
+  .lane:not(.lit) .candle{ filter:brightness(.5) saturate(.6); }
   .candle::before{
     content:""; position:absolute; top:-6px; left:0; right:0; height:12px; border-radius:50%;
     background:radial-gradient(ellipse at 50% 40%, #fff6e2, #e6d5b4 60%, #cbb894);
+  }
+  .candle::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0;
+    background:linear-gradient(to top, transparent 0%, rgba(255,214,140,.7) 50%, transparent 100%);
+  }
+  .heal .candle::after{ animation:sheen 1.1s ease-out both; }
+  @keyframes sheen{
+    0%  { opacity:0; transform:translateY(100%); }
+    20% { opacity:1; }
+    100%{ opacity:0; transform:translateY(-100%); }
   }
   .drip{
     position:absolute; width:9px; border-radius:6px 6px 8px 8px;
     background:linear-gradient(to bottom, #f6ebd6, #dbc9a6);
     box-shadow:inset -2px 0 3px rgba(0,0,0,.18);
   }
-  .drip.a{ left:7px; top:5px; height:34px; }
-  .drip.b{ right:10px; top:2px; height:20px; width:7px; }
-  .holder{
-    width:clamp(84px,22vw,112px); height:18px; margin-top:-3px; border-radius:50%;
-    background:radial-gradient(ellipse at 50% 34%, #6b5a45, #3a3027 62%, #14110e);
+  .drip.a{ left:6px; top:5px; height:32px; }
+  .drip.b{ right:9px; top:2px; height:19px; width:7px; }
+
+  .tray{
+    grid-row:3; grid-column:1 / -1; align-self:start; justify-self:center;
+    width:100%; height:18px; border-radius:9px;
+    background:linear-gradient(to bottom, #4d3f30, #1d1712 65%, #0d0a08);
+    box-shadow:0 8px 20px -6px rgba(0,0,0,.9), inset 0 1px 0 rgba(239,227,204,.2);
   }
 
-  .intro-candle{
-    --flame-outer-1:rgba(255,148,40,.95); --flame-outer-2:rgba(255,92,10,.55); --flame-outer-3:rgba(255,60,0,0);
-    --flame-mid-1:#ffb43c; --flame-mid-2:#ffd97a; --flame-mid-3:#fff3c4;
-    --flame-core-1:#5fa8ff; --flame-core-2:#cfe6ff;
-    --wick-lit-1:#ffcf7a; --wick-lit-2:#6b3a16; --wick-glow:rgba(255,170,70,.9);
-    --accent:#ffd9a0; --accent-glow:rgba(255,150,50,.45);
-    display:flex; flex-direction:column; align-items:center; gap:0; margin-bottom:12px;
+  .lane-foot{
+    grid-row:4; align-self:start; margin-top:10px; width:100%;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
   }
-  .intro-candle .flame-slot{
-    position:relative; width:24px; height:60px; display:flex; align-items:flex-end; justify-content:center; margin-bottom:2px;
+  .pips{ display:flex; gap:6px; min-height:6px; }
+  .pip{ width:6px; height:6px; border-radius:50%; border:1px solid rgba(239,227,204,.28); transition:background .3s, box-shadow .3s; }
+  .pip.on{ background:var(--accent); border-color:var(--accent); box-shadow:0 0 7px var(--accent); }
+  .caption{
+    font:400 .8rem/1.35 var(--sans); color:var(--ash); text-align:center;
+    min-height:2.7em; white-space:pre-line; max-width:100%;
   }
-  .intro-candle .candle{
-    width:36px; height:70px;
-    box-shadow:0 -8px 20px -8px var(--accent-glow);
-  }
-  .intro-candle .holder{
-    width:60px; height:14px; margin-top:-2px;
-  }
-  .intro-candle .wick{
-    width:2px; height:9px;
-  }
-  .intro-candle .flame{
-    width:20px; height:42px; bottom:6px;
-  }
-  .intro-candle .f-outer{
-    width:20px; height:42px; margin-left:-10px;
-  }
-  .intro-candle .f-mid{
-    width:12px; height:28px; margin-left:-6px;
-  }
-  .intro-candle .f-core{
-    width:5px; height:10px; margin-left:-2.5px;
-  }
+  .caption.warm{ color:var(--ember); }
+  .caption.heal{ color:var(--amber); }
+  .app[data-screen="scOver"] .pips{ display:none; }
+  .app[data-screen="scIntro"] .lane-foot,
+  .app[data-screen="scHost"] .lane-foot,
+  .app[data-screen="scGuest"] .lane-foot,
+  .app[data-screen="scDead"] .lane-foot{ min-height:8px; margin-top:0; }
 
-  .lane-foot{ min-height:52px; width:100%; display:flex; flex-direction:column; align-items:center; gap:6px; }
-  .pips{ display:flex; gap:5px; }
-  .pip{ width:7px; height:7px; border-radius:50%; border:1px solid rgba(232,220,198,.3); }
-  .pip.on{ background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px var(--accent-glow); }
-  .verdict{ font-size:.66rem; letter-spacing:.08em; text-transform:uppercase; line-height:1.4; max-width:100%; min-height:1.1em; }
-  .verdict.good{ color:#8ef0b4; }
-  .verdict.bad{ color:#ff9a86; }
-  .verdict.heal{ color:#ffe08a; }
+  /* ---------- panels under the stage ---------- */
+  .panel{ width:100%; display:flex; flex-direction:column; align-items:center; gap:16px; text-align:center; }
+  .hd{ font:500 clamp(1.45rem, 5.6vw, 1.85rem)/1.2 var(--serif); color:var(--tallow); max-width:22ch; }
+  .lead{ font:400 .95rem/1.55 var(--sans); color:var(--ash); max-width:36ch; }
+  .status{ font:400 .92rem/1.45 var(--sans); color:var(--tallow); opacity:.8; min-height:1.4em; max-width:34ch; }
+  .note{ font:400 .82rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
+  .note.warm, .conn{ color:var(--ember); }
+  .conn{ font:400 .85rem/1.4 var(--sans); }
+
+  .field{
+    width:min(280px, 82vw); padding:8px 6px;
+    font:400 1.3rem/1.3 var(--serif); color:var(--tallow); text-align:center;
+    background:none; border:0; border-bottom:1px solid var(--hair); border-radius:0;
+    transition:border-color .2s ease;
+  }
+  .field::placeholder{ color:rgba(239,227,204,.3); }
+  .field:focus{ outline:none; border-bottom-color:var(--amber); }
+
+  .btn{
+    font:500 .95rem/1 var(--sans); color:var(--tallow);
+    background:transparent; border:1px solid var(--hair); border-radius:999px;
+    padding:13px 24px; cursor:pointer; text-decoration:none; display:inline-block;
+    transition:border-color .2s ease, background .2s ease, opacity .2s ease, color .2s ease;
+  }
+  .btn:hover:not(:disabled){ border-color:rgba(239,227,204,.5); }
+  .btn.primary{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
+  .btn.primary:hover:not(:disabled){ background:#fff5df; }
+  .btn:focus-visible{ outline:2px solid var(--amber); outline-offset:3px; }
+  .btn:disabled{ opacity:.32; cursor:default; }
+  .row{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+
+  .linkbox{
+    width:min(420px, 100%); padding:11px 14px;
+    font:400 .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color:var(--tallow); opacity:.78; word-break:break-all;
+    border:1px solid var(--hair); border-radius:8px;
+  }
 
   /* ---------- the quiz ---------- */
-  .quiz{ width:100%; margin-top:26px; display:flex; flex-direction:column; align-items:center; gap:14px; }
-  .qtimer{ width:min(380px,86vw); height:3px; border-radius:2px; background:rgba(232,220,198,.14); overflow:hidden; }
-  .qtimer i{ display:block; height:100%; width:100%; background:linear-gradient(90deg,#ffb43c,#ff7a2f); transition:background .3s ease; }
-  .qtimer.low i{ background:linear-gradient(90deg,#ff7a5c,#ff3d2e); }
-  .qtext{ font-size:clamp(1.9rem,8vw,2.8rem); letter-spacing:.06em; font-variant-numeric:tabular-nums; color:#ffeccd; }
-  .choices{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; width:min(380px,86vw); }
-  .choice{
-    font:inherit; font-size:1.25rem; font-variant-numeric:tabular-nums;
-    padding:15px 8px; cursor:pointer; color:var(--ink);
-    background:rgba(255,255,255,.04); border:1px solid rgba(232,220,198,.2); border-radius:13px;
-    transition:background .15s ease, border-color .15s ease, transform .12s ease, opacity .2s ease;
+  .quiz{ gap:14px; }
+  .fuse{ width:min(400px, 100%); height:2px; background:rgba(239,227,204,.12); position:relative; margin-bottom:6px; }
+  .fuse i{
+    display:block; height:100%; width:100%; position:relative;
+    background:linear-gradient(90deg, rgba(141,129,113,.6), var(--amber));
+    transition:background .3s ease;
   }
-  .choice:hover:not(:disabled){ background:rgba(255,160,60,.12); border-color:rgba(255,190,120,.5); }
-  .choice:active:not(:disabled){ transform:scale(.97); }
-  .choice:focus-visible{ outline:2px solid rgba(255,190,110,.7); outline-offset:2px; }
+  .fuse i::after{
+    content:""; position:absolute; right:-3px; top:-3px; width:8px; height:8px; border-radius:50%;
+    background:var(--amber); box-shadow:0 0 10px 3px rgba(255,179,71,.65);
+    transition:background .3s ease, box-shadow .3s ease;
+  }
+  .fuse.low i{ background:linear-gradient(90deg, rgba(141,129,113,.6), var(--ember)); }
+  .fuse.low i::after{ background:var(--ember); box-shadow:0 0 12px 4px rgba(255,106,42,.7); }
+  .fuse.off i::after{ opacity:0; }
+
+  .qtext{
+    font:500 clamp(2rem, 9vw, 2.7rem)/1.15 var(--serif); color:var(--tallow);
+    font-variant-numeric:lining-nums tabular-nums; letter-spacing:.02em; min-height:1.15em;
+  }
+  .qtext.count{ font-size:clamp(3.4rem, 18vw, 5rem); color:var(--amber); text-shadow:0 0 30px rgba(255,179,71,.45); }
+  .choices{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; width:min(400px, 100%); }
+  .choice{
+    position:relative; min-height:62px; padding:14px 10px;
+    font:400 clamp(1.3rem, 5.5vw, 1.6rem)/1.2 var(--serif); font-variant-numeric:lining-nums tabular-nums;
+    color:var(--tallow); background:transparent; border:1px solid var(--hair); border-radius:8px;
+    cursor:pointer; overflow-wrap:anywhere;
+    transition:border-color .15s ease, background .15s ease, color .15s ease, opacity .3s ease, box-shadow .3s ease;
+  }
+  .choice:hover:not(:disabled){ border-color:rgba(239,227,204,.42); }
+  .choice:active:not(:disabled){ background:rgba(239,227,204,.06); }
+  .choice:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
   .choice:disabled{ cursor:default; }
-  .choice.picked{ border-color:rgba(255,190,120,.8); background:rgba(255,160,60,.16); }
-  .choice.right{ border-color:#5fd39a; background:rgba(60,200,140,.18); color:#c9ffe4; }
-  .choice.wrong{ border-color:#e0705c; background:rgba(220,80,60,.16); color:#ffd2c8; }
-  .choice.dim{ opacity:.4; }
-  .qnote{ font-size:.74rem; letter-spacing:.1em; color:rgba(232,220,198,.4); min-height:1.2em; }
-  .count{ font-size:clamp(3rem,16vw,5rem); color:#ffd9a0; text-shadow:0 0 30px rgba(255,150,50,.5); }
+  .choice.picked{ border-color:var(--tallow); background:rgba(239,227,204,.07); }
+  .choice.right{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); box-shadow:0 0 26px -4px rgba(255,200,120,.55); }
+  .choice.wrong{ border-color:var(--ember); color:var(--ember); background:rgba(255,106,42,.07); }
+  .choice.dim{ opacity:.32; }
+  .choice kbd{ position:absolute; top:7px; left:9px; font:500 .62rem/1 var(--sans); color:var(--ash); }
+  .choice.right kbd{ color:rgba(13,10,8,.5); }
+  @media (pointer:coarse){ .choice kbd{ display:none; } }
+  .qnote{ font:400 .9rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
+  .story{ font:400 .92rem/1.45 var(--sans); color:var(--tallow); opacity:.85; min-height:1.45em; max-width:34ch; }
 
-  .scoreline{ font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; color:rgba(232,220,198,.32); }
+  /* ---------- the reveal ---------- */
+  .over .hd, .over .status, .over .row, .over .stats{ opacity:0; }
+  .over.reveal .hd{ animation:appear .7s .5s ease-out both; }
+  .over.reveal .status{ animation:appear .7s .75s ease-out both; }
+  .over.reveal .row{ animation:appear .7s 1s ease-out both; }
+  @keyframes appear{
+    from{ opacity:0; transform:translateY(8px); }
+    to  { opacity:1; transform:none; }
+  }
 
-  @media (max-width:420px){
-    .choice{ font-size:1.1rem; padding:13px 6px; }
+  @media (max-width:360px){
+    .choice{ font-size:1.2rem; min-height:56px; padding:12px 8px; }
+    .app{ gap:18px; }
   }
   @media (prefers-reduced-motion: reduce){
-    .f-outer,.f-mid,.f-core{ animation:none !important; }
-    .flame{ transition:none; }
+    .f-outer, .f-mid, .f-core, .waiting .wick{ animation:none !important; }
+    .flame, .glow, .candle{ transition:none; }
+    .hit .flame, .hit .glow, .heal .candle::after{ animation:none !important; }
+    .smoke.puff i{ animation:fade 2s ease-out forwards; }
+    @keyframes fade{ from{ opacity:.5; } to{ opacity:0; } }
+    .over.reveal .hd, .over.reveal .status, .over.reveal .row{ animation-name:plain; }
+    @keyframes plain{ from{ opacity:0; } to{ opacity:1; } }
   }
 </style>
 </head>
 <body>
-  <div class="room" id="room"></div>
+  <div class="vignette" aria-hidden="true"></div>
 
-  <main class="stage">
+  <main class="app" id="app">
+    <h1 class="wordmark" id="wordmark">Candle Race</h1>
 
-    <section class="screen" id="scIntro">
-      <div class="intro-candle">
-        <div class="flame-slot">
-          <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
-          <span class="wick"></span>
+    <section class="stage" id="stage" aria-label="The two candles">
+      <div class="lane you" id="laneMine">
+        <div class="lane-name" id="nameMine">You</div>
+        <div class="candle-area">
+          <div class="flame-slot">
+            <div class="glow" aria-hidden="true"></div>
+            <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
+            <div class="smoke" id="smokeMine" aria-hidden="true"><i></i><i></i><i></i></div>
+            <span class="wick"></span>
+          </div>
+          <div class="candle" id="waxMine"><span class="drip a"></span><span class="drip b"></span></div>
         </div>
-        <div class="candle"><span class="drip a"></span><span class="drip b"></span></div>
-        <div class="holder"></div>
+        <div class="lane-foot">
+          <div class="pips" id="pipsMine"></div>
+          <div class="caption" id="capMine"></div>
+        </div>
       </div>
-      <h1 class="title">Candle Race</h1>
-      <p class="blurb">Two candles, the same questions. Get one right and your opponent's candle flares up and burns faster. Get one wrong and yours does. Three in a row wins your wax back. Last flame burning takes it.</p>
+
+      <div class="lane them" id="laneTheirs">
+        <div class="lane-name" id="nameTheirs">Your opponent</div>
+        <div class="candle-area">
+          <div class="flame-slot">
+            <div class="glow" aria-hidden="true"></div>
+            <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
+            <div class="smoke" id="smokeTheirs" aria-hidden="true"><i></i><i></i><i></i></div>
+            <span class="wick"></span>
+          </div>
+          <div class="candle" id="waxTheirs"><span class="drip a"></span><span class="drip b"></span></div>
+        </div>
+        <div class="lane-foot">
+          <div class="pips" id="pipsTheirs"></div>
+          <div class="caption" id="capTheirs"></div>
+        </div>
+      </div>
+
+      <div class="tray" aria-hidden="true"></div>
+    </section>
+
+    <section class="panel" id="scIntro" hidden>
+      <p class="lead">Two candles, the same questions. Get one right and your opponent's candle flares up and burns faster. Get one wrong and yours does. Last flame burning wins.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
-      <button class="ctl big" id="introGo">Start a race</button>
+      <button class="btn primary" id="introGo">Start a race</button>
       <p class="note" id="introNote"></p>
     </section>
 
-    <section class="screen" id="scHost" hidden>
+    <section class="panel" id="scHost" hidden>
       <h2 class="hd">Send this to your opponent</h2>
       <p class="linkbox" id="hostLink"></p>
       <div class="row">
-        <button class="ctl" id="hostCopy">Copy link</button>
-        <button class="ctl" id="hostSend" hidden>Send</button>
+        <button class="btn" id="hostCopy">Copy link</button>
+        <button class="btn" id="hostSend" hidden>Share</button>
       </div>
-      <p class="status" id="hostStatus">Waiting for them to open it&hellip;</p>
-      <button class="ctl big" id="hostStart" disabled>Start the race</button>
+      <p class="status" id="hostStatus"></p>
+      <button class="btn primary" id="hostStart" disabled>Start the race</button>
     </section>
 
-    <section class="screen" id="scGuest" hidden>
+    <section class="panel" id="scGuest" hidden>
       <h2 class="hd" id="guestHd">You've been challenged</h2>
-      <p class="blurb">Same questions, same clock. Every answer you get right sets their candle burning faster &mdash; and every one you miss sets yours off instead.</p>
+      <p class="lead">Same questions, same clock. Every one you get right sets their candle burning faster. Every one you miss sets yours off instead.</p>
       <input class="field" id="guestName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
-      <button class="ctl big" id="guestReady">I'm ready</button>
+      <button class="btn primary" id="guestReady">I'm ready</button>
       <p class="status" id="guestStatus"></p>
     </section>
 
-    <section class="screen" id="scArena" hidden>
-      <div class="lanes">
-        <div class="lane you" id="laneMine">
-          <div class="lane-name" id="nameMine">You</div>
-          <div class="candle-area">
-            <div class="flame-slot">
-              <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
-              <div class="smoke" id="smokeMine" aria-hidden="true"><i></i><i></i><i></i></div>
-              <span class="wick"></span>
-            </div>
-            <div class="candle" id="waxMine"><span class="drip a"></span><span class="drip b"></span></div>
-            <div class="holder"></div>
-          </div>
-          <div class="lane-foot">
-            <div class="pips" id="pipsMine"></div>
-            <div class="verdict" id="verdictMine"></div>
-          </div>
-        </div>
-
-        <div class="lane them" id="laneTheirs">
-          <div class="lane-name" id="nameTheirs">Them</div>
-          <div class="candle-area">
-            <div class="flame-slot">
-              <div class="flame" aria-hidden="true"><span class="f-outer"></span><span class="f-mid"></span><span class="f-core"></span></div>
-              <div class="smoke" id="smokeTheirs" aria-hidden="true"><i></i><i></i><i></i></div>
-              <span class="wick"></span>
-            </div>
-            <div class="candle" id="waxTheirs"><span class="drip a"></span><span class="drip b"></span></div>
-            <div class="holder"></div>
-          </div>
-          <div class="lane-foot">
-            <div class="pips" id="pipsTheirs"></div>
-            <div class="verdict" id="verdictTheirs"></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="quiz">
-        <div class="qtimer" id="qTimer"><i id="qBar"></i></div>
-        <div class="qtext" id="qText">&mdash;</div>
-        <div class="choices" id="choices"></div>
-        <p class="qnote" id="qNote"></p>
-      </div>
+    <section class="panel quiz" id="scQuiz" hidden>
+      <div class="fuse" id="qTimer"><i id="qBar"></i></div>
+      <div class="qtext" id="qText">&mdash;</div>
+      <div class="choices" id="choices"></div>
+      <p class="qnote" id="qNote"></p>
+      <p class="story" id="qStory"></p>
     </section>
 
-    <section class="screen" id="scOver" hidden>
+    <section class="panel over" id="scOver" hidden>
       <h2 class="hd" id="overHd"></h2>
       <p class="status" id="overSub"></p>
-      <p class="scoreline" id="overScore"></p>
       <div class="row">
-        <button class="ctl big" id="overAgain" hidden>Race again</button>
-        <a class="ctl" href="./">New opponent</a>
+        <button class="btn primary" id="overAgain" hidden>Race again</button>
+        <a class="btn" href="./">New opponent</a>
       </div>
     </section>
 
-    <section class="screen" id="scDead" hidden>
-      <h2 class="hd" id="deadHd">Race not found</h2>
-      <p class="blurb" id="deadSub">That link's expired, or someone's already taken the second spot.</p>
-      <a class="ctl big" href="./">Start your own</a>
+    <section class="panel" id="scDead" hidden>
+      <h2 class="hd" id="deadHd">No race here</h2>
+      <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
+      <a class="btn primary" href="./">Start your own</a>
     </section>
 
+    <p class="conn" id="conn" hidden></p>
   </main>
 
 <script>
 (function(){
   const $ = id => document.getElementById(id);
-  const room = $('room');
-
-  const WAX_TALL = 168, WAX_STUB = 26;
+  const app = $('app'), stage = $('stage');
+  const PANELS = ['scIntro','scHost','scGuest','scQuiz','scOver','scDead'];
 
   let ws = null, gameId = null, myRole = null;
   let startWax = 180000, questionMs = 10000, streakN = 3;
-  let phase = 'intro', round = 0, myAnswer = null;
+  let phase = 'intro', round = 0, myAnswer = null, lastQ = null;
   let deadlineAt = 0;                 // local clock, derived from the server's "ms left"
-  let choicesRendered = -1;
+  let choicesRendered = -1, storyRound = -1, revealed = false;
 
   // each side extrapolates between server ticks off its own clock, so a
   // skewed device clock can't drift the candles apart
   const lane = {
-    mine:   { wax:startWax, rate:1, at:0, el:$('laneMine'),   candle:$('waxMine'),   smoke:$('smokeMine'),   name:$('nameMine'),   pips:$('pipsMine'),   verdict:$('verdictMine') },
-    theirs: { wax:startWax, rate:1, at:0, el:$('laneTheirs'), candle:$('waxTheirs'), smoke:$('smokeTheirs'), name:$('nameTheirs'), pips:$('pipsTheirs'), verdict:$('verdictTheirs') },
+    mine:   { wax:startWax, rate:0, at:performance.now(), el:$('laneMine'),   candle:$('waxMine'),   smoke:$('smokeMine'),   name:$('nameMine'),   pips:$('pipsMine'),   cap:$('capMine') },
+    theirs: { wax:startWax, rate:0, at:performance.now(), el:$('laneTheirs'), candle:$('waxTheirs'), smoke:$('smokeTheirs'), name:$('nameTheirs'), pips:$('pipsTheirs'), cap:$('capTheirs') },
   };
 
-  function show(which){
-    ['scIntro','scHost','scGuest','scArena','scOver','scDead'].forEach(id => { $(id).hidden = true; });
-    which.forEach(id => { $(id).hidden = false; });
+  function show(id){
+    PANELS.forEach(p => { $(p).hidden = p !== id; });
+    app.dataset.screen = id || '';
+    $('wordmark').hidden = id === 'scQuiz' || id === 'scOver';
+  }
+
+  function setLane(key, o){
+    const L = lane[key];
+    if(o.name != null) L.name.textContent = o.name;
+    if(o.full){ L.wax = startWax; L.rate = 0; L.at = performance.now(); }
+    if(o.lit != null){
+      L.el.classList.toggle('lit', o.lit);
+      if(o.lit){ L.el.classList.remove('out'); L.smoke.classList.remove('puff'); }
+    }
+    if(o.waiting != null) L.el.classList.toggle('waiting', o.waiting);
+    if(o.cap != null){ L.cap.textContent = o.cap; L.cap.className = 'caption' + (o.capTone ? ' ' + o.capTone : ''); }
+  }
+
+  function clearRaceMarks(){
+    for(const key of ['mine','theirs']){
+      lane[key].el.classList.remove('burst','out','won','hit','heal');
+      lane[key].smoke.classList.remove('puff');
+    }
+  }
+
+  function pulse(el, cls){
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 1200);
   }
 
   function estWax(L){
@@ -408,7 +498,7 @@
     for(const key of ['mine','theirs']){
       const L = lane[key];
       const frac = startWax > 0 ? Math.min(1, estWax(L) / startWax) : 0;
-      L.candle.style.height = (WAX_STUB + (WAX_TALL - WAX_STUB) * frac).toFixed(1) + 'px';
+      L.candle.style.setProperty('--fill', frac.toFixed(3));
     }
     if(phase === 'question'){
       const left = Math.max(0, deadlineAt - performance.now());
@@ -439,7 +529,9 @@
         const b = document.createElement('button');
         b.className = 'choice';
         b.type = 'button';
-        b.textContent = n;
+        const k = document.createElement('kbd'); k.textContent = i + 1;
+        b.appendChild(k);
+        b.appendChild(document.createTextNode(String(n)));
         b.addEventListener('click', () => answer(i));
         $('choices').appendChild(b);
       });
@@ -462,7 +554,7 @@
     myAnswer = i;
     ws.send(JSON.stringify({ t:'answer', round, choice:i }));
     renderChoices(lastQ, true, null);
-    $('qNote').textContent = 'Locked in — waiting for ' + (lane.theirs.name.textContent || 'them');
+    $('qNote').textContent = 'Locked in. Waiting for ' + (lane.theirs.name.textContent || 'them') + '.';
   }
 
   document.addEventListener('keydown', e => {
@@ -471,17 +563,18 @@
     if(n >= 1 && n <= 4) answer(n - 1);
   });
 
-  let lastQ = null;
+  // what the round did to each candle, in the language of fire
+  function flares(me, them){ return (them.right ? 1 : 0) + (me.right ? 0 : 1); }
 
-  function verdictFor(line, isMine){
-    if(!line) return ['',''];
-    if(line.right){
-      let txt = isMine ? 'correct — you hit them' : 'correct — they hit you';
-      if(line.healed) return [txt + ' · +wax', 'heal'];
-      return [txt, 'good'];
-    }
-    const why = line.timedOut ? 'too slow' : 'wrong';
-    return [why + ' — ' + (isMine ? 'your candle flares' : 'their candle flares'), 'bad'];
+  function story(mine, theirs, them){
+    const parts = [];
+    if(mine.right && theirs.right) parts.push('Both right. Both candles flare.');
+    else if(mine.right) parts.push(them + (theirs.timedOut ? ' ran out of time' : ' got it wrong') + '. Their candle flares twice over.');
+    else if(theirs.right) parts.push('You ' + (mine.timedOut ? 'ran out of time' : 'got it wrong') + '. Your candle flares twice over.');
+    else parts.push('Both wrong. Both candles flare.');
+    if(mine.healed) parts.push('Three in a row: you get wax back.');
+    if(theirs.healed) parts.push(them + ' gets wax back.');
+    return parts.join(' ');
   }
 
   function applyState(s){
@@ -489,20 +582,31 @@
 
     if(phase === 'lobby'){
       const hostName = s.host.name || 'Someone';
+      stage.classList.remove('cold');
+      clearRaceMarks();
       if(myRole === 'host'){
-        show(['scHost']);
+        show('scHost');
         $('hostLink').textContent = shareUrl();
+        setLane('mine', { name: hostName, lit:true, full:true, cap:'' });
+        setLane('theirs', {
+          name: s.guest.ready ? (s.guest.name || 'Challenger') : (s.guest.here ? 'Deciding' : 'Waiting'),
+          lit: !!s.guest.ready, waiting: !s.guest.ready, full:true, cap:'',
+        });
         $('hostStatus').textContent = s.guest.ready
           ? (s.guest.name || 'They') + ' is ready.'
-          : 'Waiting for them to open it…';
+          : (s.guest.here ? "They've opened it. Waiting for them to say they're ready." : 'Waiting for someone to open it.');
         $('hostStart').disabled = !s.guest.ready;
       }else{
-        show(['scGuest']);
+        show('scGuest');
         $('guestHd').textContent = hostName + ' has challenged you';
+        setLane('theirs', { name: hostName, lit:true, full:true, waiting:false, cap:'' });
         if(s.guest.ready){
           $('guestName').hidden = true;
           $('guestReady').hidden = true;
-          $('guestStatus').textContent = 'Waiting for ' + hostName + ' to start…';
+          $('guestStatus').textContent = 'Waiting for ' + hostName + ' to start.';
+          setLane('mine', { name: s.guest.name || 'You', lit:true, full:true, cap:'' });
+        }else{
+          setLane('mine', { name: $('guestName').value.trim() || 'You', lit:false, full:true, cap:'' });
         }
       }
       return;
@@ -510,9 +614,10 @@
 
     const mine = myRole === 'host' ? s.host : s.guest;
     const theirs = myRole === 'host' ? s.guest : s.host;
+    const them = theirs.name || 'They';
 
-    lane.mine.name.textContent = mine.name || 'You';
-    lane.theirs.name.textContent = theirs.name || 'Them';
+    setLane('mine', { name: mine.name || 'You', waiting:false });
+    setLane('theirs', { name: theirs.name || 'Them', waiting:false });
     updateLane('mine', mine);
     updateLane('theirs', theirs);
     setPips(lane.mine, mine.streak || 0);
@@ -521,59 +626,81 @@
     if(s.ms != null) deadlineAt = performance.now() + s.ms;
     if(s.round != null && s.round !== round){ round = s.round; myAnswer = null; }
 
-    room.classList.add('on');
-
     if(phase === 'countdown'){
-      show(['scArena']);
+      show('scQuiz');
+      revealed = false;
+      lane.mine.el.classList.remove('won'); lane.theirs.el.classList.remove('won');
       $('qText').textContent = '3';
+      $('qText').classList.add('count');
       $('choices').innerHTML = ''; choicesRendered = -1;
       $('qNote').textContent = 'First question coming up';
+      $('qStory').textContent = '';
       $('qBar').style.width = '100%';
-      lane.mine.verdict.textContent = ''; lane.theirs.verdict.textContent = '';
+      $('qTimer').classList.remove('low'); $('qTimer').classList.add('off');
+      setLane('mine', { cap:'' }); setLane('theirs', { cap:'' });
       return;
     }
 
     if(phase === 'question'){
-      show(['scArena']);
+      show('scQuiz');
       lastQ = s.q;
+      $('qText').classList.remove('count');
+      $('qTimer').classList.remove('off');
       $('qText').textContent = s.q.text;
       renderChoices(s.q, myAnswer !== null, null);
-      lane.mine.verdict.textContent = ''; lane.mine.verdict.className = 'verdict';
-      lane.theirs.verdict.textContent = ''; lane.theirs.verdict.className = 'verdict';
+      setLane('mine', { cap:'' }); setLane('theirs', { cap:'' });
+      $('qStory').textContent = '';
       $('qNote').textContent = myAnswer !== null
-        ? 'Locked in — waiting for ' + (theirs.name || 'them')
-        : (theirs.answered ? (theirs.name || 'They') + ' has answered' : 'Pick one, fast');
+        ? 'Locked in. Waiting for ' + them + '.'
+        : (theirs.answered ? them + ' has answered.' : 'Pick one, fast.');
       return;
     }
 
     if(phase === 'resolve'){
-      show(['scArena']);
+      show('scQuiz');
+      $('qText').classList.remove('count');
+      $('qTimer').classList.add('off');
       const lastMine = myRole === 'host' ? s.last.host : s.last.guest;
       const lastTheirs = myRole === 'host' ? s.last.guest : s.last.host;
       renderChoices(s.q, true, { correct: s.q.answer });
       $('qNote').textContent = s.q.text + ' = ' + s.q.choices[s.q.answer];
-      const [mt, mc] = verdictFor(lastMine, true);
-      const [tt, tc] = verdictFor(lastTheirs, false);
-      lane.mine.verdict.textContent = mt; lane.mine.verdict.className = 'verdict ' + mc;
-      lane.theirs.verdict.textContent = tt; lane.theirs.verdict.className = 'verdict ' + tc;
+      $('qStory').textContent = story(lastMine, lastTheirs, them);
+      const fm = flares(lastMine, lastTheirs), ft = flares(lastTheirs, lastMine);
+      setLane('mine',   { cap: lastMine.healed ? '+wax' : (fm ? 'flares' : 'holds'),   capTone: lastMine.healed ? 'heal' : (fm ? 'warm' : '') });
+      setLane('theirs', { cap: lastTheirs.healed ? '+wax' : (ft ? 'flares' : 'holds'), capTone: lastTheirs.healed ? 'heal' : (ft ? 'warm' : '') });
+      // the surge plays once per round, not on every snapshot of the resolve
+      if(storyRound !== round){
+        storyRound = round;
+        if(fm) pulse(lane.mine.el, 'hit');
+        if(ft) pulse(lane.theirs.el, 'hit');
+        if(lastMine.healed) pulse(lane.mine.el, 'heal');
+        if(lastTheirs.healed) pulse(lane.theirs.el, 'heal');
+      }
       return;
     }
 
     if(phase === 'over'){
-      show(['scArena','scOver']);
-      $('choices').innerHTML = ''; choicesRendered = -1;
-      $('qText').textContent = '—';
-      $('qNote').textContent = '';
-      $('qBar').style.width = '0%';
+      show('scOver');
+      lane.mine.rate = 0; lane.theirs.rate = 0;
+      lane.mine.wax = mine.w; lane.theirs.wax = theirs.w;
       const draw = s.over && s.over.draw;
       const iLost = s.over && s.over.loser === myRole;
+      if(!draw) lane[iLost ? 'theirs' : 'mine'].el.classList.add('won');
+      lane.mine.el.classList.remove('burst'); lane.theirs.el.classList.remove('burst');
       $('overHd').textContent = draw ? 'Both candles out' : (iLost ? 'Your candle went out' : 'You won');
       $('overSub').textContent = draw
-        ? 'Dead heat — nobody outlasted anybody.'
-        : (iLost ? (theirs.name || 'They') + ' outlasted you.' : (theirs.name || 'They') + ' burned out first.');
-      $('overScore').textContent = 'you ' + (mine.right||0) + ' right · best streak ' + (mine.best||0)
-        + '   —   ' + (theirs.name || 'them') + ' ' + (theirs.right||0) + ' right · best streak ' + (theirs.best||0);
+        ? 'A dead heat. Nobody outlasted anybody.'
+        : (iLost ? them + ' outlasted you.' : them + ' burned out first.');
+      setLane('mine',   { cap: (mine.right||0) + ' right\nbest streak ' + (mine.best||0) });
+      setLane('theirs', { cap: (theirs.right||0) + ' right\nbest streak ' + (theirs.best||0) });
       $('overAgain').hidden = myRole !== 'host';
+      $('overAgain').disabled = false;
+      if(!revealed){
+        revealed = true;
+        $('scOver').classList.remove('reveal');
+        void $('scOver').offsetWidth;
+        $('scOver').classList.add('reveal');
+      }
     }
   }
 
@@ -581,13 +708,17 @@
     const L = lane[key];
     if(p.w != null){ L.wax = p.w; L.rate = p.r || 1; L.at = performance.now(); }
     const burning = (p.r || 1) > 1;
-    L.el.classList.toggle('burst', burning);
+    L.el.classList.toggle('burst', burning && phase !== 'over');
     const dead = (p.w != null && p.w <= 0);
-    if(dead && !L.el.classList.contains('out')){
-      L.el.classList.add('out');
-      L.smoke.classList.add('puff');
-    }else if(!dead){
+    if(dead){
+      if(!L.el.classList.contains('out')){
+        L.el.classList.remove('lit');
+        L.el.classList.add('out');
+        L.smoke.classList.add('puff');
+      }
+    }else{
       L.el.classList.remove('out');
+      L.el.classList.add('lit');
       L.smoke.classList.remove('puff');
     }
   }
@@ -604,6 +735,16 @@
     return location.href.split('#')[0] + '#g=' + gameId;
   }
 
+  function goCold(hd, sub){
+    stage.classList.add('cold');
+    clearRaceMarks();
+    setLane('mine', { name:'', lit:false, waiting:false, full:true, cap:'' });
+    setLane('theirs', { name:'', lit:false, waiting:false, full:true, cap:'' });
+    $('deadHd').textContent = hd;
+    $('deadSub').textContent = sub;
+    show('scDead');
+  }
+
   // ---------- connection ----------
   function connect(role, token){
     myRole = role;
@@ -614,11 +755,8 @@
     ws.addEventListener('message', ev => {
       let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
       if(m.t === 'nogame' || m.t === 'full'){
-        $('deadHd').textContent = m.t === 'full' ? 'That race is full' : 'Race not found';
-        $('deadSub').textContent = m.t === 'full'
-          ? 'Someone else already took the second candle.'
-          : "That link's expired, or it was mistyped.";
-        show(['scDead']);
+        if(m.t === 'full') goCold('That race is full', 'Two candles are already burning in this one.');
+        else goCold('No race here', "That link's expired, or it was mistyped.");
         return;
       }
       if(m.t === 'welcome'){
@@ -632,8 +770,9 @@
     });
 
     ws.addEventListener('close', () => {
-      if(phase !== 'over' && phase !== 'intro'){
-        $('qNote').textContent = 'Connection dropped — refresh to rejoin';
+      if(phase !== 'over' && phase !== 'intro' && $('scDead').hidden){
+        $('conn').textContent = 'Connection dropped. Refresh to rejoin.';
+        $('conn').hidden = false;
       }
     });
   }
@@ -642,6 +781,7 @@
   $('introGo').addEventListener('click', () => {
     const name = $('introName').value.trim();
     $('introGo').disabled = true;
+    $('introNote').className = 'note';
     $('introNote').textContent = 'Setting up…';
     fetch('/api/games', {
       method:'POST',
@@ -657,11 +797,18 @@
       })
       .catch(() => {
         $('introGo').disabled = false;
-        $('introNote').textContent = "Couldn't reach the server — try again";
+        $('introNote').className = 'note warm';
+        $('introNote').textContent = "Couldn't reach the server. Try again.";
       });
   });
 
   $('introName').addEventListener('keydown', e => { if(e.key === 'Enter') $('introGo').click(); });
+  $('introName').addEventListener('input', () => {
+    setLane('mine', { name: $('introName').value.trim() || 'You' });
+  });
+  $('guestName').addEventListener('input', () => {
+    setLane('mine', { name: $('guestName').value.trim() || 'You' });
+  });
 
   $('hostCopy').addEventListener('click', () => {
     const url = shareUrl();
@@ -674,7 +821,7 @@
   if(navigator.share){
     $('hostSend').hidden = false;
     $('hostSend').addEventListener('click', () => {
-      navigator.share({ text: 'Race me — candles, maths, last flame wins.', url: shareUrl() }).catch(() => {});
+      navigator.share({ text: 'Race me. Candles, questions, last flame wins.', url: shareUrl() }).catch(() => {});
     });
   }
 
@@ -695,22 +842,40 @@
     setTimeout(() => { $('overAgain').disabled = false; }, 1200);
   });
 
-  const m = /[#&]g=([A-Za-z0-9\-_]+)/.exec(location.hash);
-  if(m){
-    gameId = m[1];
-    let tok = null;
-    try{ tok = localStorage.getItem('cr-host-' + gameId); }catch(e){}
-    if(tok){
-      connect('host', tok);                       // the host came back after a refresh
+  // a link pasted into a tab that's already open here is a hash-only change,
+  // not a reload, so routing has to be reachable more than once
+  function route(){
+    const m = /[#&]g=([A-Za-z0-9\-_]+)/.exec(location.hash);
+    if(m){
+      if(m[1] === gameId && ws) return;          // already on this race
+      if(ws){ ws.close(); ws = null; }
+      gameId = m[1];
+      show(null);
+      setLane('mine', { name:'', lit:false, full:true });
+      setLane('theirs', { name:'', lit:false, full:true });
+      $('conn').hidden = true;
+      let tok = null;
+      try{ tok = localStorage.getItem('cr-host-' + gameId); }catch(e){}
+      if(tok){
+        connect('host', tok);                     // the host came back after a refresh
+      }else{
+        let g = null;
+        try{ g = localStorage.getItem('cr-guest-' + gameId); }catch(e){}
+        connect('guest', g || '');
+      }
     }else{
-      let g = null;
-      try{ g = localStorage.getItem('cr-guest-' + gameId); }catch(e){}
-      connect('guest', g || '');
+      if(ws){ ws.close(); ws = null; }
+      gameId = null;
+      show('scIntro');
+      let saved = '';
+      try{ saved = localStorage.getItem('cr-name') || ''; }catch(e){}
+      $('introName').value = saved;
+      setLane('mine', { name: saved || 'You', lit:true, full:true });
+      setLane('theirs', { name:'Your opponent', lit:false, full:true });
     }
-  }else{
-    show(['scIntro']);
-    try{ $('introName').value = localStorage.getItem('cr-name') || ''; }catch(e){}
   }
+  window.addEventListener('hashchange', route);
+  route();
 
   $('introName').addEventListener('change', () => {
     try{ localStorage.setItem('cr-name', $('introName').value.trim()); }catch(e){}

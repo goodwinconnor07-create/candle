@@ -373,7 +373,7 @@ export class GameRoom {
         t: 'state',
         phase: 'lobby',
         host: { name: lobby ? lobby.hostName : '', ready: true },
-        guest: { name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady) },
+        guest: { name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady), here: !!(lobby && lobby.guestToken) },
       };
     }
 
