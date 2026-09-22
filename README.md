@@ -82,3 +82,37 @@ The knobs are all constants at the top of `worker.js`:
 | `BURST_RATE` / `BURST_MS` | how much faster a hit candle burns, and for how long |
 | `BURST_CAP_MS` | stops stacked hits from snowballing |
 | `STREAK_N` / `HEAL_MS` | right answers needed to earn wax, and how much |
+
+
+## Debate Mode
+
+Three topics a match, drawn from live Australian superannuation arguments —
+Division 296, super for housing, the preservation age, the 12% guarantee.
+The app assigns you a side, you get three minutes and fifty words to argue
+it, and the sides swap each round so nobody is stuck defending one line.
+
+Both cases stay private until both are filed. Then Claude reads them and
+scores each debater from 3 to 7 on their own merit, so you can both argue
+well or both argue badly — it isn't a win-or-lose split. The judge works
+through what you did well, then what let you down, then the grade.
+
+A round the judge can't score is left out of the average rather than
+guessed at, and both players are told why.
+
+### Setting the key
+
+Debate Mode needs an Anthropic API key, set as a Worker secret:
+
+```
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+Until that's set the mode still runs, but every round comes back unscored
+with the judge saying he hasn't been given his credentials. Roughly two
+cents a match at current Opus pricing.
+
+For local work, put the same key in a `.dev.vars` file (gitignored):
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```

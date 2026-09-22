@@ -9,11 +9,20 @@ a different machine.
 Edit `worker.js` or `public/index.html`, then:
 
 ```
+npm install        # first time only, for the Anthropic SDK
 npx wrangler deploy
 ```
 
-Same command every time. There's no build step, and nothing to migrate — the
-Durable Object binding is already in `wrangler.toml` and doesn't change.
+The front end is still plain HTML with no build step. The Worker now bundles
+one dependency (the Anthropic SDK, for Debate Mode's judge), which wrangler
+handles on deploy. Nothing to migrate — the Durable Object binding is already
+in `wrangler.toml` and doesn't change.
+
+Debate Mode needs a key, set once:
+
+```
+npx wrangler secret put ANTHROPIC_API_KEY
+```
 
 ## From a fresh machine
 
