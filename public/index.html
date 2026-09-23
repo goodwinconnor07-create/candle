@@ -126,6 +126,7 @@
   [data-char="nerd"]      { --ch-shirt:#c9963c; }
   [data-char="vampire"]   { --ch-shirt:#4a1626; --ch-skin:#cfc3ba; --ch-hair:#17130f; }
   [data-char="astronaut"] { --ch-shirt:#e8e2d8; }
+  [data-char="bot"]       { --ch-shirt:#4d5b66; --ch-hair:#8b98a3; --ch-skin:#333b42; }
 
   .chars{
     display:grid; grid-template-columns:repeat(auto-fit, minmax(84px,1fr));
@@ -420,6 +421,9 @@
   .mode.on b{ color:var(--tallow); }
   .mode .soon{ display:inline-flex; align-items:center; gap:4px; font-size:.68rem; color:var(--ash) }
   .mode .soon svg{ width:10px; height:10px; fill:var(--ash) }
+  .modes.cols3{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .modes.cols3 .mode{ padding:14px 7px; gap:5px; }
+  .modes.cols3 .mode span{ font-size:.7rem; }
 
   /* ---------- result ---------- */
   .verdict{ display:flex; align-items:baseline; justify-content:center; gap:14px; font-variant-numeric:lining-nums tabular-nums }
@@ -489,6 +493,11 @@
       <symbol id="i-share" viewBox="0 0 24 24">
         <path d="M12 1.6 17 7h-3.7v8.6h-2.6V7H7z"/>
         <path d="M4.4 11.6h3v7.6h9.2v-7.6h3v8.8a1.4 1.4 0 0 1-1.4 1.4H5.8a1.4 1.4 0 0 1-1.4-1.4z"/>
+      </symbol>
+      <symbol id="i-bot" viewBox="0 0 24 24">
+        <rect x="10.6" y="1.6" width="2.8" height="4.4" rx="1.4"/>
+        <circle cx="12" cy="2" r="1.7"/>
+        <path fill-rule="evenodd" d="M4.6 7.4h14.8a2.6 2.6 0 0 1 2.6 2.6v8a2.6 2.6 0 0 1-2.6 2.6H4.6A2.6 2.6 0 0 1 2 18v-8a2.6 2.6 0 0 1 2.6-2.6zm4.2 5a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4zm6.4 0a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z"/>
       </symbol>
       <symbol id="i-back" viewBox="0 0 24 24">
         <path d="M11.4 3.4a1.4 1.4 0 0 1 0 2L6.8 10h13.8a1.4 1.4 0 0 1 0 2.8H6.8l4.6 4.6a1.4 1.4 0 1 1-2 2l-7-7a1.4 1.4 0 0 1 0-2l7-7a1.4 1.4 0 0 1 2 0z"/>
@@ -637,6 +646,21 @@
         <path d="M20.4 17.6q-4.6 5.4-4 12.6" stroke="#fff" stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round" fill="none"/>
       </symbol>
 
+      <symbol id="char-bot" viewBox="0 0 64 72">
+        <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="var(--ch-shirt)"/>
+        <rect x="9.5" y="25" width="6.5" height="12" rx="2.75" fill="var(--ch-hair)"/>
+        <rect x="48" y="25" width="6.5" height="12" rx="2.75" fill="var(--ch-hair)"/>
+        <rect x="30.6" y="5" width="2.8" height="9.6" fill="var(--ch-hair)"/>
+        <circle cx="32" cy="5" r="3.2" fill="#7fe0ff"/>
+        <rect x="15" y="14" width="34" height="34" rx="10" fill="var(--ch-hair)"/>
+        <rect x="18.5" y="17.5" width="27" height="27" rx="7" fill="var(--ch-skin)"/>
+        <rect x="22.5" y="26" width="8" height="8" rx="2.5" fill="var(--ch-ink)"/>
+        <rect x="33.5" y="26" width="8" height="8" rx="2.5" fill="var(--ch-ink)"/>
+        <circle cx="26.5" cy="30" r="2.6" fill="#7fe0ff"/>
+        <circle cx="37.5" cy="30" r="2.6" fill="#7fe0ff"/>
+        <rect x="25" y="37.5" width="14" height="2.6" rx="1.3" fill="var(--ch-ink)"/>
+      </symbol>
+
       <symbol id="char-placeholder" viewBox="0 0 64 72">
         <path d="M18 72v-5.5q0-4.6 6.5-6.9l7.5-2.6 7.5 2.6q6.5 2.3 6.5 6.9V72z" fill="rgba(239,227,204,.13)"/>
         <ellipse cx="32" cy="29.5" rx="16" ry="16.5" fill="rgba(239,227,204,.2)"/>
@@ -715,6 +739,40 @@
       <button class="btn primary" id="introGo">Go</button>
     </section>
 
+    <section class="panel" id="scOpponent" hidden>
+      <h2 class="hd">Who are you playing?</h2>
+      <div class="modes" id="opponentGrid">
+        <button class="mode" type="button" data-opp="friend">
+          <svg><use href="#i-people"/></svg>
+          <b>Invite a Friend</b>
+          <span>Send a link, they join and play live.</span>
+        </button>
+        <button class="mode" type="button" data-opp="bot">
+          <svg><use href="#i-bot"/></svg>
+          <b>Play a Bot</b>
+          <span>No waiting around — pick a difficulty and go.</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="panel" id="scBotDiff" hidden>
+      <h2 class="hd">Choose a difficulty</h2>
+      <div class="modes cols3" id="diffGrid">
+        <button class="mode" type="button" data-diff="easy">
+          <b>Easy</b>
+          <span>Answers fast, gets a lot wrong.</span>
+        </button>
+        <button class="mode" type="button" data-diff="medium">
+          <b>Medium</b>
+          <span>A fair fight.</span>
+        </button>
+        <button class="mode" type="button" data-diff="hard">
+          <b>Hard</b>
+          <span>Takes its time, rarely misses.</span>
+        </button>
+      </div>
+    </section>
+
     <section class="panel" id="scSetup" hidden>
       <h2 class="hd">Who are you?</h2>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
@@ -724,9 +782,9 @@
     </section>
 
     <section class="panel" id="scHost" hidden>
-      <h2 class="hd">Send this to your opponent</h2>
+      <h2 class="hd" id="hostHd">Send this to your opponent</h2>
       <p class="linkbox" id="hostLink"></p>
-      <div class="row">
+      <div class="row" id="hostShareRow">
         <button class="btn" id="hostCopy"><svg><use href="#i-copy"/></svg>Copy link</button>
         <button class="btn" id="hostSend" hidden><svg><use href="#i-share"/></svg>Share</button>
       </div>
@@ -855,7 +913,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scSetup','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scOver','scDead'];
+  const PANELS = ['scIntro','scOpponent','scBotDiff','scSetup','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scOver','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   // the grade scale everything hangs off: 3 fail, 7 high distinction
@@ -864,6 +922,7 @@
   const bandOf = g => BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(g) - FLOOR))];
 
   let ws = null, gameId = null, myRole = null, pickedMode = 'judge', pickedChar = '';
+  let opponentType = 'friend', botDifficulty = 'medium';
   let questionMs = 10000, total = 10, debateMs = 180000, wordMax = 50, limitMs = 10000;
   let recapRound = -1, recapTimers = [], debateRound = -1;
   let phase = 'intro', round = 0, myAnswer = null, lastQ = null;
@@ -937,7 +996,7 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running (arena, quiz, debate, recap, over) or the link's already dead
   // there's nothing sane to back out to, so it stays hidden
-  const BACK_SCREENS = new Set(['scSetup', 'scHost', 'scGuest']);
+  const BACK_SCREENS = new Set(['scOpponent', 'scBotDiff', 'scSetup', 'scHost', 'scGuest']);
 
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
@@ -1197,8 +1256,11 @@
       const hostName = s.host.name || 'Someone';
       if(myRole === 'host'){
         show(['scHost']);
-        $('hostLink').textContent = shareUrl();
+        $('hostHd').textContent = s.vsBot ? 'Ready when you are' : 'Send this to your opponent';
+        $('hostLink').hidden = !!s.vsBot;
+        $('hostShareRow').hidden = !!s.vsBot;
         setLobbyCard('lbHost', { char: s.host.char, name: s.host.name || 'You', ready: true, statusText: 'Ready' });
+        if(!s.vsBot) $('hostLink').textContent = shareUrl();
         if(s.guest.ready){
           setLobbyCard('lbGuest', { char: s.guest.char, name: s.guest.name || 'They', ready: true, statusText: 'Ready' });
         }else if(s.guest.here){
@@ -1487,7 +1549,27 @@
     demoStart();
   });
 
-  $('introGo').addEventListener('click', () => { show(['scSetup']); });
+  $('introGo').addEventListener('click', () => { show(['scOpponent']); });
+
+  $('opponentGrid').addEventListener('click', e => {
+    const card = e.target.closest('.mode');
+    if(!card) return;
+    opponentType = card.dataset.opp;
+    if(opponentType === 'bot') show(['scBotDiff']);
+    else{
+      $('setupGo').textContent = 'Create a match';
+      show(['scSetup']);
+    }
+  });
+
+  $('diffGrid').addEventListener('click', e => {
+    const card = e.target.closest('.mode');
+    if(!card) return;
+    botDifficulty = card.dataset.diff;
+    [...$('diffGrid').children].forEach(c => c.classList.toggle('on', c.dataset.diff === botDifficulty));
+    $('setupGo').textContent = 'Face the bot';
+    show(['scSetup']);
+  });
 
   $('setupGo').addEventListener('click', () => {
     if(!pickedChar) return;
@@ -1525,7 +1607,10 @@
       const r = await fetch('/api/games', {
         method:'POST',
         headers:{ 'content-type':'application/json' },
-        body: JSON.stringify({ name: $('introName').value.trim(), mode: pickedMode, char: pickedChar })
+        body: JSON.stringify({
+          name: $('introName').value.trim(), mode: pickedMode, char: pickedChar,
+          vsBot: opponentType === 'bot', botDifficulty,
+        })
       });
       if(!r.ok) throw new Error('the server answered ' + r.status);
       made = await r.json();
@@ -1606,6 +1691,10 @@
     }catch(e){}
     if(savedMode === 'judge' || savedMode === 'debate') pickedMode = savedMode;
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
+    opponentType = 'friend';
+    botDifficulty = 'medium';
+    [...$('diffGrid').children].forEach(c => c.classList.remove('on'));
+    $('setupGo').textContent = 'Create a match';
     show(['scIntro']);
   }
 
