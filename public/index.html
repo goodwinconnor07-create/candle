@@ -603,11 +603,11 @@
         <div class="demo-players">
           <div class="demo-side">
             <div class="answer" id="demoAnsL"></div>
-            <div class="pod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+            <div class="pod" id="demoPodL" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
           </div>
           <div class="demo-side">
             <div class="answer" id="demoAnsR"></div>
-            <div class="pod" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+            <div class="pod" id="demoPodR" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
           </div>
         </div>
       </div>
@@ -892,6 +892,19 @@
   const demoJudge = speaker({ bubble:'demoBubble', ghost:'demoGhost', typed:'demoTyped', pod:'demoPod' });
   let demoTimers = [], demoRound = 0, demoOn = false;
 
+  function pickRandomChars(){
+    const chars = CHAR_LIST.map(c => c[0]);
+    const left = chars[Math.floor(Math.random() * chars.length)];
+    const rightChars = chars.filter(c => c !== left);
+    const right = rightChars[Math.floor(Math.random() * rightChars.length)];
+    return { left, right };
+  }
+
+  function setDemoChars(left, right){
+    wearChar($('demoPodL'), left);
+    wearChar($('demoPodR'), right);
+  }
+
   function demoAt(ms, fn){ demoTimers.push(setTimeout(fn, ms)); }
 
   function answerPill(id, text, cls){
@@ -901,6 +914,8 @@
   }
 
   function debateCycle(){
+    const chars = pickRandomChars();
+    setDemoChars(chars.left, chars.right);
     const d = DEBATE_DEMO[demoRound++ % DEBATE_DEMO.length];
     answerPill('demoAnsL', '', '');
     answerPill('demoAnsR', '', '');
@@ -918,6 +933,8 @@
 
   function demoCycle(){
     if(pickedMode === 'debate') return debateCycle();
+    const chars = pickRandomChars();
+    setDemoChars(chars.left, chars.right);
     const d = DEMO[demoRound++ % DEMO.length];
     answerPill('demoAnsL', d.right, '');
     answerPill('demoAnsR', d.wrong, '');
