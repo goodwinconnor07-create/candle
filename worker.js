@@ -38,7 +38,7 @@ const SCORE_RIGHT  = 7;       // high distinction for a correct answer
 const SCORE_WRONG  = 3;       // fail for a wrong one, or for running out of time
 const NAME_MAX     = 16;
 const MODES        = { judge: 'Judge Mode', debate: 'Debate Mode' };
-const CHARS        = ['boy', 'girl', 'dino', 'shades', 'ponytail'];
+const CHARS        = ['boy', 'girl', 'dino', 'shades', 'ponytail', 'nerd', 'vampire', 'astronaut'];
 
 // ---- Debate Mode ----
 const DEBATE_ROUNDS = 3;
