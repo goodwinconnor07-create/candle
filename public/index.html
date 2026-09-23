@@ -58,6 +58,31 @@
   .backbtn:hover{ color:var(--tallow); border-color:rgba(239,227,204,.4); }
   .backbtn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
 
+  /* the way out mid-match — holds the same corner as .backbtn, but the two
+     are never visible at once, so nothing collides. Held down, a ring fills
+     over 3s; let go early and it snaps back empty and fires nothing */
+  .quitbtn{
+    position:fixed; z-index:20;
+    top:max(14px, env(safe-area-inset-top)); left:max(14px, env(safe-area-inset-left));
+    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    background:rgba(13,10,8,.6); border:1px solid var(--hair); border-radius:999px;
+    color:var(--ash); cursor:pointer; -webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none; user-select:none; touch-action:none;
+    transition:border-color .18s ease, color .18s ease, background .18s ease;
+  }
+  .quitbtn:hover{ color:var(--tallow); border-color:rgba(239,227,204,.4); }
+  .quitbtn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .quitbtn.holding{ color:var(--ember); border-color:rgba(255,106,42,.5); }
+  .quitbtn-icon{ width:14px; height:14px; fill:currentColor; position:relative; z-index:1; }
+  .quitbtn-ring{
+    position:absolute; inset:-1px; width:40px; height:40px;
+    transform:rotate(-90deg); pointer-events:none;
+  }
+  .quitbtn-ring-fill{
+    fill:none; stroke:var(--ember); stroke-width:2.4; stroke-linecap:round;
+    stroke-dasharray:109.96; stroke-dashoffset:109.96;
+  }
+
   /* ---------- the crest: two figures clashing swords over the wordmark ---------- */
   .logo{ display:flex; flex-direction:column; align-items:center; gap:2px; }
   .crest{
@@ -460,6 +485,12 @@
   <button class="backbtn" id="backBtn" type="button" aria-label="Back to menu" hidden>
     <svg><use href="#i-back"/></svg>
   </button>
+  <button class="quitbtn" id="quitBtn" type="button" aria-label="Hold to end the match and return to the menu" hidden>
+    <svg class="quitbtn-ring" viewBox="0 0 40 40" aria-hidden="true">
+      <circle class="quitbtn-ring-fill" id="quitRing" cx="20" cy="20" r="17.5"/>
+    </svg>
+    <svg class="quitbtn-icon"><use href="#i-close"/></svg>
+  </button>
 
   <svg class="sprite" aria-hidden="true">
     <defs>
@@ -501,6 +532,9 @@
       </symbol>
       <symbol id="i-back" viewBox="0 0 24 24">
         <path d="M11.4 3.4a1.4 1.4 0 0 1 0 2L6.8 10h13.8a1.4 1.4 0 0 1 0 2.8H6.8l4.6 4.6a1.4 1.4 0 1 1-2 2l-7-7a1.4 1.4 0 0 1 0-2l7-7a1.4 1.4 0 0 1 2 0z"/>
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="M12 9.9 5.3 3.2 3.2 5.3 9.9 12l-6.7 6.7 2.1 2.1L12 14.1l6.7 6.7 2.1-2.1L14.1 12l6.7-6.7-2.1-2.1z"/>
       </symbol>
 
       <symbol id="char-boy" viewBox="0 0 64 72">
@@ -1003,6 +1037,11 @@
     app.dataset.screen = ids[0] || '';
     $('wordmark').hidden = ids.includes('scArena');
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
+    // scOver already has its own way out ("New opponent"), so the hold-to-quit
+    // button only covers the phases where a match is actually in progress
+    const showQuit = ids.includes('scArena') && !ids.includes('scOver');
+    if(showQuit && $('quitBtn').hidden) resetQuitRing();
+    $('quitBtn').hidden = !showQuit;
     if(ids.includes('scIntro')) demoStart(); else demoStop();
   }
 
@@ -1706,6 +1745,58 @@
     try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
     toIntro();
   });
+
+  // hold-to-quit: mid-match, one tap should never be enough to leave. the
+  // ring fills over 3s of holding; let go early — pointer or key — and it
+  // snaps back to empty without firing anything
+  const QUIT_HOLD_MS = 3000;
+  const QUIT_RING_CIRC = 109.96;
+  let quitTimer = null;
+
+  function resetQuitRing(){
+    const ring = $('quitRing');
+    ring.style.transition = 'none';
+    ring.style.strokeDashoffset = String(QUIT_RING_CIRC);
+    void ring.offsetWidth;   // force reflow so the next hold fills from empty
+    ring.style.transition = '';
+    $('quitBtn').classList.remove('holding');
+  }
+
+  function quitHoldStart(){
+    if(quitTimer) return;
+    $('quitBtn').classList.add('holding');
+    const ring = $('quitRing');
+    ring.style.transition = 'stroke-dashoffset ' + QUIT_HOLD_MS + 'ms linear';
+    ring.style.strokeDashoffset = '0';
+    quitTimer = setTimeout(() => {
+      quitTimer = null;
+      if($('quitBtn').hidden) return;   // the match ended on its own mid-hold
+      try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
+      toIntro();
+    }, QUIT_HOLD_MS);
+  }
+
+  function quitHoldCancel(){
+    if(!quitTimer) return;
+    clearTimeout(quitTimer);
+    quitTimer = null;
+    resetQuitRing();
+  }
+
+  $('quitBtn').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try{ $('quitBtn').setPointerCapture(e.pointerId); }catch(err){}
+    quitHoldStart();
+  });
+  $('quitBtn').addEventListener('pointerup', quitHoldCancel);
+  $('quitBtn').addEventListener('pointercancel', quitHoldCancel);
+  $('quitBtn').addEventListener('keydown', e => {
+    if((e.key === 'Enter' || e.key === ' ') && !e.repeat){ e.preventDefault(); quitHoldStart(); }
+  });
+  $('quitBtn').addEventListener('keyup', e => {
+    if(e.key === 'Enter' || e.key === ' ') quitHoldCancel();
+  });
+  $('quitBtn').addEventListener('blur', quitHoldCancel);
 
   // a link pasted into a tab that's already open here is a hash-only change,
   // not a reload, so routing has to be reachable more than once
