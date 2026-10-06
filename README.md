@@ -133,6 +133,11 @@ other player ball in hand. Clear your group, then sink the 8. Sink it early, or
 scratch on it, and you lose. There's a 30 second shot clock once you've
 answered right.
 
+Spin works like iMessage: tap the white ball under the cue slider and drag
+the red dot to where the tip should land. Top spin follows through after
+the first hit, back spin draws the cue ball back, and side spin throws it
+left or right off the cushions.
+
 The room simulates every shot itself (`simulate()` in `pool.js`) and sends both
 phones the frames to replay, so the two screens can't disagree about whether a
 ball dropped. Pool is friends-only for now; the bot option is greyed out.
