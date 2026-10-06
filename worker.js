@@ -28,6 +28,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import * as Pool from './pool.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const RESOLVE_MS   = 3400;    // pause on the judge's ruling
@@ -37,7 +38,14 @@ const TOTAL_Q      = 10;      // questions in a match
 const SCORE_RIGHT  = 7;       // high distinction for a correct answer
 const SCORE_WRONG  = 3;       // fail for a wrong one, or for running out of time
 const NAME_MAX     = 16;
-const MODES        = { judge: 'Judge Mode', debate: 'Debate Mode' };
+const MODES        = { judge: 'Judge Mode', debate: 'Debate Mode', pool: 'Pool' };
+
+// ---- Pool ----
+// every shot is earned: the shooter answers a question first, and a miss
+// hands the table over without a shot being taken
+const POOL_RESULT_MS = 1500;   // pause on right/wrong before the shot or handover
+const AIM_MS         = 30000;  // shot clock once a question is answered right
+const ROLL_PAD_MS    = 700;    // breathing room after the replay before the next question
 const CHARS        = ['boy', 'girl', 'dino', 'shades', 'ponytail', 'nerd', 'vampire', 'astronaut'];
 
 // ---- Debate Mode ----
@@ -427,7 +435,8 @@ export class GameRoom {
 
     if (url.pathname === '/create') {
       const body = await request.json().catch(() => ({}));
-      const vsBot = !!body.vsBot;
+      // there's no pool-playing bot yet, so a pool room is always two people
+      const vsBot = !!body.vsBot && body.mode !== 'pool';
       const botDifficulty = vsBot ? cleanDifficulty(body.botDifficulty) : '';
       this.lobby = {
         hostName: clean(body.name, NAME_MAX) || 'Someone',
@@ -550,6 +559,10 @@ export class GameRoom {
       return;
     }
 
+    if (msg.t === 'pans') { this.poolAnswer(role, msg.choice); return; }
+    if (msg.t === 'aim') { this.poolAim(role, msg); return; }
+    if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
+
     if (msg.t === 'again' && this.game && this.game.phase === 'over') {
       this.startGame();
     }
@@ -562,7 +575,7 @@ export class GameRoom {
   startGame() {
     const now = Date.now();
     this.game = {
-      mode: this.lobby.mode === 'debate' ? 'debate' : 'judge',
+      mode: MODES[this.lobby.mode] ? this.lobby.mode : 'judge',
       phase: 'countdown',
       host: this.newPlayer(this.lobby.hostName, this.lobby.hostChar),
       guest: this.newPlayer(this.lobby.guestName || 'Challenger', this.lobby.guestChar),
@@ -588,8 +601,172 @@ export class GameRoom {
     // topic order is shuffled as indices, not strings, so a bot round can
     // look its canned argument up by the same index that picked the topic
     if (this.game.mode === 'debate') this.game.pool = shuffle(DEBATE_TOPICS.map((_, i) => i));
+    if (this.game.mode === 'pool') {
+      const breaker = Math.random() < 0.5 ? 'host' : 'guest';
+      this.game.table = {
+        balls: Pool.rack(),
+        turn: breaker,
+        groups: { host: null, guest: null },
+        ballInHand: true,               // the break is placed anywhere behind the head string
+        kitchen: true,
+        broken: false,
+        shotId: 0,
+        shot: null,
+        after: null,
+        call: this.game[breaker].name + ' breaks.',
+        stats: { host: { asked: 0, right: 0 }, guest: { asked: 0, right: 0 } },
+        pqResult: null,
+      };
+    }
     this.broadcast(this.snapshot());
     this.startLoop();
+  }
+
+  // ---- Pool ----
+  // a turn is: question → (right) aim and shoot → replay → next question.
+  // a wrong answer or a timeout skips the shot and hands the table over.
+
+  poolAsk() {
+    const g = this.game;
+    g.q = makeQuestion();
+    g.table.pqResult = null;
+    g.phase = 'pq';
+    g.deadline = Date.now() + QUESTION_MS;
+    this.broadcast(this.snapshot());
+  }
+
+  poolAnswer(role, choice) {
+    const g = this.game;
+    if (!g || g.mode !== 'pool' || g.phase !== 'pq' || role !== g.table.turn) return;
+    const T = g.table;
+    const picked = choice == null ? null : Number(choice);
+    const right = picked === g.q.answer;
+    T.stats[role].asked += 1;
+    if (right) T.stats[role].right += 1;
+    T.pqResult = { choice: picked, right };
+    g.phase = 'pqres';
+    g.deadline = Date.now() + POOL_RESULT_MS;
+    this.broadcast(this.snapshot());
+  }
+
+  // hand the table to the other player. ball in hand follows a foul, and it
+  // also has to follow whenever the cue ball is sitting in a pocket
+  poolPass(foul, call) {
+    const T = this.game.table;
+    T.turn = T.turn === 'host' ? 'guest' : 'host';
+    T.ballInHand = foul || T.balls[0].in;
+    T.kitchen = !T.broken;
+    T.call = call;
+    this.poolAsk();
+  }
+
+  // the shooter's cue direction, relayed so the other player can watch them
+  // line it up. it's cosmetic, so it isn't stored and isn't trusted for anything
+  poolAim(role, msg) {
+    const g = this.game;
+    if (!g || g.mode !== 'pool' || g.phase !== 'aim' || role !== g.table.turn) return;
+    const num = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 1000) / 1000 : 0);
+    this.broadcast({ t: 'aim', dx: num(msg.dx), dy: num(msg.dy), p: num(msg.p), cx: num(msg.cx), cy: num(msg.cy) });
+  }
+
+  poolShoot(role, msg) {
+    const g = this.game;
+    if (!g || g.mode !== 'pool' || g.phase !== 'aim' || role !== g.table.turn) return;
+    const T = g.table;
+    let dx = Number(msg.dx), dy = Number(msg.dy);
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (!(len > 0.0001) || !Number.isFinite(len)) return;
+    dx /= len; dy /= len;
+    const power = clamp(Number(msg.power) || 0, 0.03, 1);
+
+    const before = T.balls.map((b) => ({ ...b }));
+    if (T.ballInHand) {
+      const cx = Number(msg.cx), cy = Number(msg.cy);
+      if (!Pool.placeOk(before, cx, cy, T.kitchen)) return;
+      before[0] = { x: cx, y: cy, in: false };
+    }
+
+    const sim = Pool.simulate(before, dx, dy, power * Pool.MAX_SPEED);
+    const rule = Pool.judgeShot({ balls: before, groups: T.groups, broken: T.broken }, sim, role);
+    const shooter = role, other = role === 'host' ? 'guest' : 'host';
+    const me = g[shooter].name, them = g[other].name;
+
+    T.balls = sim.balls;
+    if (rule.respot8) Pool.respot(T.balls, 8);
+    T.groups = rule.groups;
+    const wasBreak = !T.broken;
+    T.broken = true;
+    T.shotId += 1;
+    T.shot = { id: T.shotId, frames: sim.frames };
+
+    const down = rule.objects.filter((n) => n !== 8);
+    const sank = down.length === 1 ? 'the ' + down[0] : (down.length ? down.length + ' balls' : '');
+    let call;
+    if (rule.win) {
+      call = rule.win === shooter ? me + ' ' + rule.winWhy + '.' : me + ' ' + rule.winWhy + '. ' + them + ' wins.';
+    } else if (rule.foul) {
+      call = 'Foul, ' + rule.foul + '. ' + them + ' has ball in hand.';
+    } else if (rule.next === 'same') {
+      call = wasBreak
+        ? (sank ? me + ' sinks ' + sank + ' on the break and goes again.' : me + ' goes again.')
+        : (rule.assigned ? me + ' sinks ' + sank + '. ' + me + ' is ' + rule.assigned + '.' : me + ' sinks ' + sank + ' and goes again.');
+      if (rule.respot8) call += ' The 8 goes back on the spot.';
+    } else {
+      call = (sank ? me + ' sinks ' + sank + ' but not their own. ' : 'Nothing down. ') + 'Over to ' + them + '.';
+    }
+
+    T.after = {
+      win: rule.win,
+      winWhy: rule.win ? call : '',
+      turn: rule.next === 'same' ? shooter : other,
+      ballInHand: !!rule.foul || T.balls[0].in,
+      call,
+    };
+    g.phase = 'rolling';
+    g.deadline = Date.now() + Math.ceil(sim.frames.length * 1000 / Pool.FPS) + ROLL_PAD_MS;
+    this.broadcast(this.snapshot());
+  }
+
+  poolTick(g) {
+    if (Date.now() < g.deadline) return;
+    const T = g.table;
+    if (g.phase === 'countdown') { this.poolAsk(); return; }
+    if (g.phase === 'pq') { this.poolAnswer(T.turn, null); return; }
+    if (g.phase === 'pqres') {
+      if (T.pqResult && T.pqResult.right) {
+        g.phase = 'aim';
+        g.deadline = Date.now() + AIM_MS;
+        T.call = g[T.turn].name + (!T.broken ? ' to break.' : T.ballInHand ? ' has ball in hand.' : ' to shoot.');
+        this.broadcast(this.snapshot());
+      } else {
+        const them = g[T.turn === 'host' ? 'guest' : 'host'].name;
+        this.poolPass(false, (T.pqResult && T.pqResult.choice != null ? 'Wrong answer. ' : 'No answer. ') + 'Over to ' + them + '.');
+      }
+      return;
+    }
+    if (g.phase === 'aim') {
+      const them = g[T.turn === 'host' ? 'guest' : 'host'].name;
+      this.poolPass(true, 'Out of time. ' + them + ' has ball in hand.');
+      return;
+    }
+    if (g.phase === 'rolling') {
+      const a = T.after;
+      T.shot = null;
+      T.after = null;
+      if (a.win) {
+        g.phase = 'over';
+        g.over = { winner: a.win, why: a.winWhy };
+        T.call = a.call;
+        this.stopLoop();
+        this.broadcast(this.snapshot());
+        return;
+      }
+      T.turn = a.turn;
+      T.ballInHand = a.ballInHand;
+      T.kitchen = false;
+      T.call = a.call;
+      this.poolAsk();
+    }
   }
 
   startLoop() {
@@ -608,6 +785,7 @@ export class GameRoom {
   tick() {
     const g = this.game;
     if (!g || g.phase === 'over') { this.stopLoop(); return; }
+    if (g.mode === 'pool') { this.poolTick(g); return; }
     if (g.vsBot) this.botTick(g);
     if (Date.now() < g.deadline) return;
 
@@ -866,6 +1044,29 @@ export class GameRoom {
       last: g.last,
       over: g.over,
     };
+
+    if (g.mode === 'pool') {
+      const T = g.table;
+      snap.table = {
+        balls: T.balls.map((b) => (b.in ? null : [Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10])),
+        turn: T.turn,
+        groups: T.groups,
+        ballInHand: T.ballInHand,
+        kitchen: T.kitchen,
+        call: T.call,
+        stats: T.stats,
+        pqResult: T.pqResult,
+      };
+      // the replay rides along only while it's playing; the balls above are
+      // already where it ends, so a late joiner just sees the settled table
+      if (T.shot) snap.table.shot = T.shot;
+      if (g.q && (g.phase === 'pq' || g.phase === 'pqres')) {
+        snap.q = g.phase === 'pq'
+          ? { text: g.q.text, choices: g.q.choices }
+          : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+      }
+      return snap;
+    }
 
     if (g.mode === 'debate') {
       snap.topic = g.topic;
