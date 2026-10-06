@@ -13,15 +13,15 @@
 
 export const PW = 500;
 export const PL = 1000;
-export const BALL_R = 13;
+export const BALL_R = 14;
 export const HEAD_Y = 750;              // the break is played from below this line
 export const FOOT_Y = 250;              // apex of the rack
 export const CUE_SPOT = [PW / 2, 830];
 
-const CORNER_GAP = 36;                  // how far each corner pocket's mouth runs along the rail
-const SIDE_GAP = 27;                    // half-width of a side pocket's mouth
-const CORNER_CAPTURE = 34;              // a ball whose centre gets this close to a pocket drops
-const SIDE_CAPTURE = 27;
+const CORNER_GAP = 39;                  // how far each corner pocket's mouth runs along the rail
+const SIDE_GAP = 29;                    // half-width of a side pocket's mouth
+const CORNER_CAPTURE = 37;              // a ball whose centre gets this close to a pocket drops
+const SIDE_CAPTURE = 29;
 
 export const POCKETS = [
   [0, 0, CORNER_CAPTURE], [PW, 0, CORNER_CAPTURE],
