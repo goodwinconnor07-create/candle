@@ -1456,12 +1456,15 @@
   // the room runs every shot and sends back frames to replay. this side only
   // draws the table, lets the shooter aim and place, and plays frames back.
   // table units match pool.js: 500 across, 1000 long, rack at the top.
-  const PW = 500, PL = 1000, PR = 13, RAIL = 34, HEAD_Y = 750, FOOT_Y = 250, CUE_SPOT = [250, 830];
+  const PW = 500, PL = 1000, PR = 14, HEAD_Y = 750, FOOT_Y = 250, CUE_SPOT = [250, 830];
+  // rails, iMessage-proportioned: a teal cushion strip, then the wood
+  const CUSH = 16, WOOD = 42, RAIL = CUSH + WOOD;
+  const CORNER_GAP = 39, SIDE_GAP = 29;     // pocket mouths, matching pool.js
   const OW = PW + RAIL * 2, OL = PL + RAIL * 2;
   const POOL_FPS = 30, AIM_MS = 30000;
   const POCKET_AT = [[0, 0], [PW, 0], [0, PL / 2], [PW, PL / 2], [0, PL], [PW, PL]];
-  const BALL_COL = ['#f4efe4', '#f2c12e', '#2d5fcf', '#d63a2c', '#6a3fa3', '#ef8a22', '#2a8c4a', '#8c2a2a', '#17120f',
-                    '#f2c12e', '#2d5fcf', '#d63a2c', '#6a3fa3', '#ef8a22', '#2a8c4a', '#8c2a2a'];
+  const BALL_COL = ['#fbfbf8', '#f6c40c', '#1f4fc6', '#e2282a', '#5b2c93', '#f3701d', '#138c46', '#7d1e1f', '#121212',
+                    '#f6c40c', '#1f4fc6', '#e2282a', '#5b2c93', '#f3701d', '#138c46', '#7d1e1f'];
   const pv = {
     s: null, balls: [], anim: null, played: 0, cardWanted: false,
     aim: { x: 0, y: -1 }, power: 0, cue: null, drag: null, pull: null,
@@ -1521,6 +1524,7 @@
     const c = $('pCanvas'), dpr = Math.min(window.devicePixelRatio || 1, 3);
     pv.w = w; pv.h = h; pv.scale = w / OW; pv.dpr = dpr;
     for(const b of balls3d) b.dirty = true;
+    tableCache = null;
     c.style.width = w + 'px'; c.style.height = h + 'px';
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     $('cueBar').style.height = (h - 46) + 'px';
@@ -1530,47 +1534,130 @@
 
   function circle(ctx, x, y, r){ ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
 
-  function drawTable(ctx, T){
-    // walnut rails
-    const wood = ctx.createLinearGradient(-RAIL, 0, PW + RAIL, 0);
-    wood.addColorStop(0, '#3a2216'); wood.addColorStop(.5, '#4b2d1d'); wood.addColorStop(1, '#3a2216');
-    ctx.fillStyle = wood;
-    ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, OW, OL, 30); ctx.fill();
-    ctx.fillStyle = '#21140d';
-    ctx.beginPath(); ctx.roundRect(-9, -9, PW + 18, PL + 18, 8); ctx.fill();
+  // the table never changes during a game, so it's painted once into its own
+  // canvas at the current size and copied in each frame
+  let tableCache = null;
 
-    const felt = ctx.createRadialGradient(PW / 2, PL / 2, 40, PW / 2, PL / 2, PL * .62);
-    felt.addColorStop(0, '#27695d'); felt.addColorStop(1, '#153d36');
+  function tableCanvas(){
+    const main = $('pCanvas');
+    if(tableCache && tableCache.width === main.width && tableCache.height === main.height) return tableCache;
+    const c = document.createElement('canvas');
+    c.width = main.width; c.height = main.height;
+    const ctx = c.getContext('2d'), k = pv.dpr * pv.scale;
+    ctx.setTransform(k, 0, 0, k, RAIL * k, RAIL * k);
+    let seed = 11;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
+    // mahogany rails with a grain that runs along each rail, mitred at the
+    // corners like a real frame
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, OW, OL, 22); ctx.clip();
+    ctx.fillStyle = '#7b3427'; ctx.fillRect(-RAIL, -RAIL, OW, OL);
+    const rails = [
+      { pts: [[-RAIL, -RAIL], [-CUSH, -CUSH], [-CUSH, PL + CUSH], [-RAIL, PL + RAIL]], along: 'y', from: -RAIL, to: -CUSH },
+      { pts: [[PW + RAIL, -RAIL], [PW + CUSH, -CUSH], [PW + CUSH, PL + CUSH], [PW + RAIL, PL + RAIL]], along: 'y', from: PW + CUSH, to: PW + RAIL },
+      { pts: [[-RAIL, -RAIL], [PW + RAIL, -RAIL], [PW + CUSH, -CUSH], [-CUSH, -CUSH]], along: 'x', from: -RAIL, to: -CUSH },
+      { pts: [[-RAIL, PL + RAIL], [PW + RAIL, PL + RAIL], [PW + CUSH, PL + CUSH], [-CUSH, PL + CUSH]], along: 'x', from: PL + CUSH, to: PL + RAIL },
+    ];
+    for(const r of rails){
+      ctx.save();
+      ctx.beginPath(); r.pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.clip();
+      const tone = ctx.createLinearGradient(r.along === 'y' ? r.from : 0, r.along === 'x' ? r.from : 0, r.along === 'y' ? r.to : 0, r.along === 'x' ? r.to : 0);
+      tone.addColorStop(0, '#6a2b20'); tone.addColorStop(.45, '#8a3c2c'); tone.addColorStop(1, '#5e261c');
+      ctx.fillStyle = tone; ctx.fillRect(-RAIL, -RAIL, OW, OL);
+      for(let g = 0; g < 70; g++){
+        const at = r.from + rnd() * (r.to - r.from), w = .4 + rnd() * 1.8;
+        ctx.fillStyle = rnd() < .6 ? 'rgba(60,20,12,' + (.12 + rnd() * .3).toFixed(2) + ')' : 'rgba(176,94,70,' + (.08 + rnd() * .2).toFixed(2) + ')';
+        if(r.along === 'y') ctx.fillRect(at, -RAIL, w, OL); else ctx.fillRect(-RAIL, at, OW, w);
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,214,188,.16)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.roundRect(-RAIL + 1.5, -RAIL + 1.5, OW - 3, OL - 3, 21); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    ctx.fillRect(-CUSH - 3, -CUSH - 3, PW + CUSH * 2 + 6, PL + CUSH * 2 + 6);
+
+    // felt
+    const felt = ctx.createRadialGradient(PW / 2, PL / 2, 60, PW / 2, PL / 2, PL * .6);
+    felt.addColorStop(0, '#23948d'); felt.addColorStop(1, '#1d847e');
     ctx.fillStyle = felt;
-    ctx.fillRect(0, 0, PW, PL);
-    ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 8;
-    ctx.strokeRect(4, 4, PW - 8, PL - 8);
+    ctx.fillRect(-CUSH, -CUSH, PW + CUSH * 2, PL + CUSH * 2);
 
-    ctx.strokeStyle = 'rgba(239,227,204,.12)';
-    ctx.lineWidth = 1.6;
+    // cushions: teal strips along each rail, angled off at every pocket
+    const cushion = pts => {
+      ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
+      const [[ax, ay], , , [dx2, dy2]] = pts;
+      const g = ctx.createLinearGradient(pts[1][0], pts[1][1], (ax + dx2) / 2, (ay + dy2) / 2);
+      g.addColorStop(0, '#0f5f5b'); g.addColorStop(1, '#1a8b85');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+      // the bright nose the balls actually bounce off
+      ctx.strokeStyle = 'rgba(160,240,232,.35)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(dx2, dy2); ctx.stroke();
+    };
+    const h = PL / 2, cg = CORNER_GAP, sg = SIDE_GAP;
+    for(const side of [-1, 1]){
+      const x0 = side < 0 ? 0 : PW, xb = side < 0 ? -CUSH : PW + CUSH;
+      cushion([[x0, cg], [xb, cg - CUSH], [xb, h - sg - CUSH * .35], [x0, h - sg]]);
+      cushion([[x0, h + sg], [xb, h + sg + CUSH * .35], [xb, PL - cg + CUSH], [x0, PL - cg]]);
+    }
+    for(const end of [-1, 1]){
+      const y0 = end < 0 ? 0 : PL, yb = end < 0 ? -CUSH : PL + CUSH;
+      cushion([[cg, y0], [cg - CUSH, yb], [PW - cg + CUSH, yb], [PW - cg, y0]]);
+    }
+    // a soft lip where the cushions meet the cloth
+    ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 3;
+    ctx.strokeRect(1.5, 1.5, PW - 3, PL - 3);
+
+    // cream caps round every pocket, then the holes themselves
+    const cap = (x, y, w, h2, r) => {
+      // r can be one radius or [tl, tr, br, bl], so the outer corner follows the rail's curve
+      const g = ctx.createLinearGradient(x, y, x + w, y + h2);
+      g.addColorStop(0, '#f1e9d6'); g.addColorStop(1, '#d9cdb2');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.roundRect(x, y, w, h2, r); ctx.fill();
+      ctx.strokeStyle = 'rgba(60,30,20,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
+    };
+    const cs = RAIL + 20;
+    cap(-RAIL + 2, -RAIL + 2, cs, cs, [20, 10, 12, 10]);
+    cap(PW + RAIL - 2 - cs, -RAIL + 2, cs, cs, [10, 20, 10, 12]);
+    cap(-RAIL + 2, PL + RAIL - 2 - cs, cs, cs, [10, 12, 10, 20]);
+    cap(PW + RAIL - 2 - cs, PL + RAIL - 2 - cs, cs, cs, [12, 10, 20, 10]);
+    cap(-RAIL + 2, h - sg - 16, WOOD - 2, (sg + 16) * 2, [6, 4, 4, 6]);
+    cap(PW + CUSH, h - sg - 16, WOOD - 2, (sg + 16) * 2, [4, 6, 6, 4]);
+
+    const hole = (x, y, w, h2, r) => {
+      const g = ctx.createRadialGradient(x + w / 2, y + h2 / 2, 2, x + w / 2, y + h2 / 2, Math.max(w, h2) * .6);
+      g.addColorStop(0, '#000'); g.addColorStop(.75, '#050505'); g.addColorStop(1, '#1d1d1d');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.roundRect(x, y, w, h2, r); ctx.fill();
+    };
+    const hs = 58;
+    hole(-hs / 2 - 9, -hs / 2 - 9, hs, hs, 25);
+    hole(PW - hs / 2 + 9, -hs / 2 - 9, hs, hs, 25);
+    hole(-hs / 2 - 9, PL - hs / 2 + 9, hs, hs, 25);
+    hole(PW - hs / 2 + 9, PL - hs / 2 + 9, hs, hs, 25);
+    hole(-CUSH - 26, h - sg - 3, 50, (sg + 3) * 2, 25);
+    hole(PW + CUSH - 24, h - sg - 3, 50, (sg + 3) * 2, 25);
+
+    // ivory diamonds set into the wood
+    const diamond = (x, y) => {
+      ctx.beginPath(); ctx.moveTo(x, y - 4.5); ctx.lineTo(x + 3, y); ctx.lineTo(x, y + 4.5); ctx.lineTo(x - 3, y); ctx.closePath();
+      ctx.fill();
+    };
+    ctx.fillStyle = '#f3ead6';
+    const mid = CUSH + WOOD / 2;
+    for(const f of [1, 2, 3]){ diamond(PW * f / 4, -mid); diamond(PW * f / 4, PL + mid); }
+    for(const f of [1, 2, 3, 5, 6, 7]){ diamond(-mid, PL * f / 8); diamond(PW + mid, PL * f / 8); }
+
+    ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(0, HEAD_Y); ctx.lineTo(PW, HEAD_Y); ctx.stroke();
-    ctx.fillStyle = 'rgba(239,227,204,.2)';
+    ctx.fillStyle = 'rgba(255,255,255,.22)';
     circle(ctx, PW / 2, FOOT_Y, 3); ctx.fill();
 
-    ctx.fillStyle = 'rgba(239,227,204,.6)';
-    for(const f of [1, 2, 3]){
-      circle(ctx, PW * f / 4, -RAIL / 2, 3); ctx.fill();
-      circle(ctx, PW * f / 4, PL + RAIL / 2, 3); ctx.fill();
-    }
-    for(const f of [1, 2, 3, 5, 6, 7]){
-      circle(ctx, -RAIL / 2, PL * f / 8, 3); ctx.fill();
-      circle(ctx, PW + RAIL / 2, PL * f / 8, 3); ctx.fill();
-    }
-
-    for(const [px, py] of POCKET_AT){
-      const corner = py !== PL / 2;
-      const sx = px === 0 ? -1 : 1, sy = py === 0 ? -1 : py === PL ? 1 : 0;
-      const cx = px + sx * (corner ? 7 : 9), cy = py + sy * 7;
-      ctx.fillStyle = '#060504';
-      circle(ctx, cx, cy, corner ? 26 : 23); ctx.fill();
-      ctx.strokeStyle = 'rgba(239,227,204,.07)'; ctx.lineWidth = 2;
-      circle(ctx, cx, cy, corner ? 26 : 23); ctx.stroke();
-    }
+    tableCache = c;
+    return c;
   }
 
   // ---- rolling balls ----
@@ -1582,7 +1669,7 @@
   // is shaded pixel by pixel into its own small sprite, redrawn only when it
   // turns or the table is resized.
   const BALL_RGB = BALL_COL.map(h => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16)));
-  const SHELL = [243, 238, 228];
+  const SHELL = [251, 251, 248];
   const LIGHT = (() => { const v = [-.42, -.55, .72], l = Math.hypot(...v); return v.map(c => c / l); })();
   const HALF = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], l = Math.hypot(...v); return v.map(c => c / l); })();
   const balls3d = Array.from({ length: 16 }, () => ({ m: [1, 0, 0, 0, 1, 0, 0, 0, 1], sprite: null, px: 0, dirty: true, last: null }));
@@ -1656,10 +1743,12 @@
         const bx = m[0] * x + m[3] * y + m[6] * z;
         const bz = m[2] * x + m[5] * y + m[8] * z;
         let col = base;
-        if(n === 0 || bz > .87 || (n >= 9 && (bx > .52 || bx < -.52))) col = SHELL;
+        if(n === 0 || bz > .9 || (n >= 9 && (bx > .5 || bx < -.5))) col = SHELL;
         const diff = Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2]);
-        const spec = Math.pow(Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]), 36) * 190;
-        const lit = .36 + .74 * diff;
+        // a crisp glint on top of a broad soft sheen, like a polished ball
+        const h = Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]);
+        const spec = Math.pow(h, 90) * 255 + Math.pow(h, 8) * 34;
+        const lit = (.42 + .68 * diff) * (.82 + .18 * z);
         const o = (py * size + px) * 4;
         d[o] = Math.min(255, col[0] * lit + spec);
         d[o + 1] = Math.min(255, col[1] * lit + spec);
@@ -1673,8 +1762,10 @@
   }
 
   function drawBall(ctx, n, x, y){
-    ctx.fillStyle = 'rgba(0,0,0,.35)';
-    circle(ctx, x + 2.4, y + 3.4, PR); ctx.fill();
+    const sh = ctx.createRadialGradient(x + 3, y + 4.5, PR * .3, x + 3, y + 4.5, PR * 1.35);
+    sh.addColorStop(0, 'rgba(0,0,0,.45)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh;
+    circle(ctx, x + 3, y + 4.5, PR * 1.35); ctx.fill();
     const spr = ballSprite(n), k = pv.scale * pv.dpr, half = spr.width / 2 / k;
     ctx.drawImage(spr, x - half, y - half, half * 2, half * 2);
 
@@ -1686,8 +1777,8 @@
     circle(ctx, x, y, PR * .98); ctx.clip();
     ctx.transform(m[0], m[3], m[1], m[4], x + m[2] * PR, y + m[5] * PR);
     ctx.globalAlpha = Math.min(1, (m[8] - .2) / .3);
-    ctx.fillStyle = '#1a1410';
-    ctx.font = '700 ' + (PR * .62).toFixed(1) + 'px system-ui, sans-serif';
+    ctx.fillStyle = '#111';
+    ctx.font = '700 ' + (PR * .56).toFixed(1) + 'px system-ui, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(String(n), 0, .5);
     ctx.restore();
@@ -1772,8 +1863,8 @@
     const k = pv.dpr * pv.scale;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, $('pCanvas').width, $('pCanvas').height);
+    ctx.drawImage(tableCanvas(), 0, 0);
     ctx.setTransform(k, 0, 0, k, RAIL * k, RAIL * k);
-    drawTable(ctx, T);
 
     const aiming = phase === 'aim' && !pv.anim;
     const meAim = aiming && poolMine() && !pv.sent;
