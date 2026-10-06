@@ -1074,7 +1074,7 @@
             <p class="pcard-note" id="pcNote"></p>
             <div class="row" id="pcOver" hidden>
               <button class="btn primary" id="pcAgain" hidden>Run it back</button>
-              <a class="btn" href="./">New opponent</a>
+              <a class="btn leavelink" href="./">New opponent</a>
             </div>
           </div>
           <div class="spinpad" id="spinPad" hidden>
@@ -1094,7 +1094,7 @@
       <p class="status" id="overSub"></p>
       <div class="row">
         <button class="btn primary" id="overAgain" hidden>Run it back</button>
-        <a class="btn" href="./">New opponent</a>
+        <a class="btn leavelink" href="./">New opponent</a>
       </div>
     </section>
 
@@ -2139,6 +2139,17 @@
     $('pcQ').classList.toggle('result', s.phase === 'over');
     $('pcNote').className = 'pcard-note';
 
+    if(s.phase === 'over' && s.over && s.over.left){
+      const who = s.over.left === myRole ? 'You' : ((s[s.over.left] || {}).name || 'They');
+      $('pcWho').textContent = 'Game over';
+      $('pcFuse').hidden = true;
+      $('pcQ').textContent = who + ' left';
+      $('pcChoices').innerHTML = '';
+      $('pcChoices').dataset.key = '';
+      $('pcNote').textContent = 'The game has ended.';
+      $('pcAgain').hidden = true;
+      return;
+    }
     if(s.phase === 'over'){
       const win = s.over && s.over.winner;
       const st = T.stats[myRole] || { asked: 0, right: 0 };
@@ -2361,6 +2372,17 @@
       $('qNote').textContent = s.q.text + ' = ' + s.q.choices[s.q.answer];
       judge.say(s.last.line, true);
       side.mine.lock.classList.remove('on'); side.theirs.lock.classList.remove('on');
+      return;
+    }
+
+    if(phase === 'over' && s.over && s.over.left){
+      show(['scArena','scOver']);
+      stopRecap();
+      const quitter = s.over.left === myRole ? 'You' : them;
+      $('overHd').textContent = quitter + ' left';
+      $('overSub').textContent = 'The game has ended.';
+      judge.say(quitter === 'You' ? 'You left the match.' : them + ' has left. That\'s the match.', true);
+      $('overAgain').hidden = true;
       return;
     }
 
@@ -2658,6 +2680,12 @@
     $('debNote').textContent = 'Filed.';
   });
 
+  // walking away from a finished match tells the room, so the other player
+  // isn't left looking at a rematch button for someone who's gone
+  document.querySelectorAll('.leavelink').forEach(l => l.addEventListener('click', () => {
+    try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
+  }));
+
   $('overAgain').addEventListener('click', () => {
     $('overAgain').disabled = true;
     ws.send(JSON.stringify({ t:'again' }));
@@ -2718,6 +2746,9 @@
     quitTimer = setTimeout(() => {
       quitTimer = null;
       if($('quitBtn').hidden) return;   // the match ended on its own mid-hold
+      // tell the room first, so the other player's game ends now rather
+      // than after the dropped-connection grace period
+      try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
       try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
       toIntro();
     }, QUIT_HOLD_MS);
