@@ -449,6 +449,7 @@
   .modes.cols3{ grid-template-columns:repeat(3,minmax(0,1fr)); }
   .modes.cols3 .mode{ padding:14px 7px; gap:5px; }
   .modes.cols3 .mode span{ font-size:.7rem; }
+  .modes.cols3 .mode b{ font-size:.84rem; }
 
   /* ---------- result ---------- */
   .verdict{ display:flex; align-items:baseline; justify-content:center; gap:14px; font-variant-numeric:lining-nums tabular-nums }
@@ -456,6 +457,71 @@
   .reveal .status{ animation:appear .6s .6s ease-out both }
   .reveal .row{ animation:appear .6s .85s ease-out both }
   @keyframes appear{ from{ opacity:0; transform:translateY(7px) } to{ opacity:1; transform:none } }
+
+  /* ---------- pool ---------- */
+  #scPool{ gap:8px; }
+  /* the table wants every pixel of height, so this screen sits at the top
+     instead of floating in the middle, which also lines the bar up with the X */
+  .app[data-screen="scPool"]{ margin-top:0; }
+  /* the quit button owns the top-left corner, so the bar starts after it */
+  .pbar{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding-left:46px; min-height:44px;
+  }
+  .pside{ display:flex; align-items:center; gap:8px; min-width:0; }
+  .pside.them{ text-align:right; }
+  .pside .pod{ width:34px; flex:0 0 auto; }
+  .pside .pod::after{ display:none; }
+  .pmeta{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .pside.them .pmeta{ align-items:flex-end; }
+  .pname{
+    font:500 .8rem/1.2 var(--sans); color:var(--ash);
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    display:flex; align-items:center; gap:5px; transition:color .2s ease;
+  }
+  .pside.turn .pname{ color:var(--tallow); }
+  .pside.turn .pname::before{
+    content:""; width:6px; height:6px; border-radius:50%; flex:0 0 auto;
+    background:var(--amber);
+  }
+  .pside.them.turn .pname::before{ order:2; }
+  .tray{ display:flex; gap:3px; }
+  .mball{ width:11px; height:11px; border-radius:50%; flex:0 0 auto; transition:opacity .3s ease; }
+  .mball.empty{ border:1px dashed rgba(239,227,204,.28); }
+  .mball.down{ opacity:.16; }
+  .pcall{ font:400 .84rem/1.35 var(--sans); color:var(--tallow); opacity:.85; min-height:2.7em; max-width:36ch; display:flex; align-items:center; justify-content:center; }
+  .pshot{ width:100%; height:2px; }
+  .pstage{ display:flex; gap:8px; justify-content:center; align-items:flex-start; width:100%; }
+
+  /* the cue, iMessage-style: pull it down the slot, let go to strike */
+  .cuebar{ position:relative; width:38px; flex:0 0 auto; touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none; }
+  .cuebar.off{ cursor:default; opacity:.3; }
+  .cuetrack{ position:absolute; inset:0; overflow:hidden; border:1px solid var(--hair); border-radius:19px; background:rgba(239,227,204,.03); }
+  .cuefill{ position:absolute; left:0; right:0; top:0; height:0; background:linear-gradient(to bottom, rgba(255,106,42,0), rgba(255,106,42,.4)); }
+  .cuestick{
+    position:absolute; left:50%; top:14px; height:68%; width:8px; margin-left:-4px; border-radius:4px;
+    background:linear-gradient(to bottom, #6cd4ff 0 7px, #efe3cc 7px 12px, #d8b98b 12px 58%, #3b2416 58% 100%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.25);
+  }
+  .cuebar:not(.off) .cuestick{ box-shadow:0 0 14px -2px rgba(255,179,71,.55), 0 0 0 1px rgba(0,0,0,.25); }
+
+  .ptable{ position:relative; flex:0 0 auto; }
+  #pCanvas{ display:block; touch-action:none; border-radius:16px; }
+  .pcard{
+    position:absolute; left:7%; right:7%; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
+    padding:14px 12px; border:1px solid var(--hair); border-radius:14px;
+    background:rgba(13,10,8,.93); box-shadow:0 18px 44px -12px rgba(0,0,0,.85);
+  }
+  .pcard-who{ font:500 .76rem/1.3 var(--sans); color:var(--ash); letter-spacing:.02em; }
+  .pcard .fuse{ width:100%; }
+  .pcard-q{ font:500 clamp(1.6rem,7vw,2.1rem)/1.15 var(--serif); color:var(--tallow); font-variant-numeric:lining-nums tabular-nums; }
+  .pcard-q.result{ font-size:clamp(1.5rem,6.4vw,1.9rem); }
+  .pcard-choices{ width:100%; }
+  .pcard-choices .choice{ min-height:46px; padding:9px 8px; font-size:1.2rem; }
+  .pcard-note{ font:400 .8rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
+  .pcard-note.good{ color:#7fd6a2; }
+  .pcard-note.bad{ color:var(--ember); }
 
   @media (max-width:360px){
     .choice{ font-size:1.15rem; min-height:52px }
@@ -535,6 +601,9 @@
       </symbol>
       <symbol id="i-close" viewBox="0 0 24 24">
         <path d="M12 9.9 5.3 3.2 3.2 5.3 9.9 12l-6.7 6.7 2.1 2.1L12 14.1l6.7 6.7 2.1-2.1L14.1 12l6.7-6.7-2.1-2.1z"/>
+      </symbol>
+      <symbol id="i-pool" viewBox="0 0 24 24">
+        <path fill-rule="evenodd" d="M12 1.8a10.2 10.2 0 1 1 0 20.4 10.2 10.2 0 0 1 0-20.4zm-.6 4.4a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2zm0 1.3a1.45 1.45 0 1 1 0 2.9 1.45 1.45 0 0 1 0-2.9zm0 3.8a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4z"/>
       </symbol>
 
       <symbol id="char-boy" viewBox="0 0 64 72">
@@ -758,7 +827,7 @@
         </div>
       </div>
       <p class="lead">Two players, one judge, every answer graded from 3 to 7.</p>
-      <div class="modes" id="modeGrid">
+      <div class="modes cols3" id="modeGrid">
         <button class="mode on" type="button" data-mode="judge">
           <svg><use href="#i-gavel"/></svg>
           <b>Judge Mode</b>
@@ -768,6 +837,11 @@
           <svg><use href="#i-debate"/></svg>
           <b>Debate Mode</b>
           <span>Three topics. Take a side and argue it.</span>
+        </button>
+        <button class="mode" type="button" data-mode="pool">
+          <svg><use href="#i-pool"/></svg>
+          <b>Pool</b>
+          <span>8-ball. Answer right to take your shot.</span>
         </button>
       </div>
       <button class="btn primary" id="introGo">Go</button>
@@ -925,6 +999,46 @@
       </div>
     </section>
 
+    <section class="panel" id="scPool" hidden>
+      <div class="pbar">
+        <div class="pside" id="pSideMine">
+          <div class="pod" id="pPodMine" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+          <div class="pmeta">
+            <div class="pname" id="pNameMine">You</div>
+            <div class="tray" id="pTrayMine"></div>
+          </div>
+        </div>
+        <div class="pside them" id="pSideTheirs">
+          <div class="pmeta">
+            <div class="pname" id="pNameTheirs">Them</div>
+            <div class="tray" id="pTrayTheirs"></div>
+          </div>
+          <div class="pod" id="pPodTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+        </div>
+      </div>
+      <p class="pcall" id="pCall" aria-live="polite"></p>
+      <div class="fuse pshot off" id="pShot"><i id="pShotBar"></i></div>
+      <div class="pstage" id="pStage">
+        <div class="cuebar off" id="cueBar" role="slider" aria-label="Shot power: pull down, let go to shoot" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="cuetrack"><div class="cuefill" id="cueFill"></div><div class="cuestick" id="cueStick"></div></div>
+        </div>
+        <div class="ptable" id="pTable">
+          <canvas id="pCanvas" aria-label="Pool table"></canvas>
+          <div class="pcard" id="pCard" hidden>
+            <p class="pcard-who" id="pcWho"></p>
+            <div class="fuse" id="pcFuse"><i id="pcBar"></i></div>
+            <div class="pcard-q" id="pcQ"></div>
+            <div class="choices pcard-choices" id="pcChoices"></div>
+            <p class="pcard-note" id="pcNote"></p>
+            <div class="row" id="pcOver" hidden>
+              <button class="btn primary" id="pcAgain" hidden>Run it back</button>
+              <a class="btn" href="./">New opponent</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="scOver" hidden>
       <h2 class="hd" id="overHd"></h2>
       <p class="status" id="overSub"></p>
@@ -947,7 +1061,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scOpponent','scBotDiff','scSetup','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scOver','scDead'];
+  const PANELS = ['scIntro','scOpponent','scBotDiff','scSetup','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scPool','scOver','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   // the grade scale everything hangs off: 3 fail, 7 high distinction
@@ -1035,11 +1149,11 @@
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
-    $('wordmark').hidden = ids.includes('scArena');
+    $('wordmark').hidden = ids.includes('scArena') || ids.includes('scPool');
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
     // scOver already has its own way out ("New opponent"), so the hold-to-quit
     // button only covers the phases where a match is actually in progress
-    const showQuit = ids.includes('scArena') && !ids.includes('scOver');
+    const showQuit = (ids.includes('scArena') || ids.includes('scPool')) && !ids.includes('scOver') && phase !== 'over';
     if(showQuit && $('quitBtn').hidden) resetQuitRing();
     $('quitBtn').hidden = !showQuit;
     if(ids.includes('scIntro')) demoStart(); else demoStop();
@@ -1282,10 +1396,570 @@
   }
 
   document.addEventListener('keydown', e => {
-    if(phase !== 'question') return;
     const n = Number(e.key);
-    if(n >= 1 && n <= 4) answer(n - 1);
+    if(phase === 'question' && n >= 1 && n <= 4) answer(n - 1);
+    else if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
+    else if(phase === 'aim' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) poolNudge(e);
   });
+
+  // ---------- pool ----------
+  // the room runs every shot and sends back frames to replay. this side only
+  // draws the table, lets the shooter aim and place, and plays frames back.
+  // table units match pool.js: 500 across, 1000 long, rack at the top.
+  const PW = 500, PL = 1000, PR = 13, RAIL = 34, HEAD_Y = 750, FOOT_Y = 250, CUE_SPOT = [250, 830];
+  const OW = PW + RAIL * 2, OL = PL + RAIL * 2;
+  const POOL_FPS = 30, AIM_MS = 30000;
+  const POCKET_AT = [[0, 0], [PW, 0], [0, PL / 2], [PW, PL / 2], [0, PL], [PW, PL]];
+  const BALL_COL = ['#f4efe4', '#f2c12e', '#2d5fcf', '#d63a2c', '#6a3fa3', '#ef8a22', '#2a8c4a', '#8c2a2a', '#17120f',
+                    '#f2c12e', '#2d5fcf', '#d63a2c', '#6a3fa3', '#ef8a22', '#2a8c4a', '#8c2a2a'];
+  const pv = {
+    s: null, balls: [], anim: null, played: 0, cardWanted: false,
+    aim: { x: 0, y: -1 }, power: 0, cue: null, drag: null, pull: null,
+    remote: null, sent: false, picked: null, qKey: '', lastAimSent: 0, aimTimer: null,
+    w: 0, h: 0, scale: 1, dpr: 1,
+  };
+  const poolClamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+  const groupNums = g => g === 'solids' ? [1, 2, 3, 4, 5, 6, 7] : g === 'stripes' ? [9, 10, 11, 12, 13, 14, 15] : null;
+  const groupOfBall = n => n >= 1 && n <= 7 ? 'solids' : n >= 9 ? 'stripes' : null;
+  const poolMine = () => !!pv.s && pv.s.table.turn === myRole;
+  const canAim = () => phase === 'aim' && poolMine() && !pv.sent && !pv.anim;
+
+  function placeValid(x, y){
+    const T = pv.s.table;
+    if(x < PR || x > PW - PR || y < PR || y > PL - PR) return false;
+    if(T.kitchen && y < HEAD_Y) return false;
+    for(let n = 1; n < 16; n++){
+      const b = pv.balls[n];
+      if(b && (b[0] - x) * (b[0] - x) + (b[1] - y) * (b[1] - y) < 4 * PR * PR) return false;
+    }
+    return true;
+  }
+
+  function defaultCue(){
+    const c = pv.balls[0];
+    if(c && placeValid(c[0], c[1])) return { x: c[0], y: c[1] };
+    for(let r = 0; r < 600; r += 12){
+      for(const [ox, oy] of [[0, r], [0, -r], [r, 0], [-r, 0], [r, r], [-r, -r], [r, -r], [-r, r]]){
+        if(placeValid(CUE_SPOT[0] + ox, CUE_SPOT[1] + oy)) return { x: CUE_SPOT[0] + ox, y: CUE_SPOT[1] + oy };
+      }
+    }
+    return { x: CUE_SPOT[0], y: CUE_SPOT[1] };
+  }
+
+  // where the cue ball is right now, from whoever is allowed to move it
+  function cuePos(){
+    const T = pv.s.table;
+    if(T.ballInHand && poolMine() && pv.cue) return pv.cue;
+    if(T.ballInHand && !poolMine() && pv.remote) return { x: pv.remote.cx, y: pv.remote.cy };
+    const c = pv.balls[0];
+    return c ? { x: c[0], y: c[1] } : null;
+  }
+
+  // is n a ball the shooter is allowed to hit first?
+  function legalFirst(n){
+    const T = pv.s.table, g = T.groups[T.turn];
+    if(!T.kitchen && !g) return n !== 8;
+    if(!g) return true;
+    const left = groupNums(g).filter(m => pv.balls[m]).length;
+    return left === 0 ? n === 8 : groupOfBall(n) === g;
+  }
+
+  function poolResize(){
+    const stage = $('pStage');
+    const availW = Math.min(stage.clientWidth || 360, 540) - 46;
+    const availH = window.innerHeight - 160;
+    const w = Math.max(200, Math.floor(Math.min(availW, availH * OW / OL)));
+    const h = Math.round(w * OL / OW);
+    if(w === pv.w && h === pv.h) return;
+    const c = $('pCanvas'), dpr = Math.min(window.devicePixelRatio || 1, 3);
+    pv.w = w; pv.h = h; pv.scale = w / OW; pv.dpr = dpr;
+    c.style.width = w + 'px'; c.style.height = h + 'px';
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    $('cueBar').style.height = h + 'px';
+    updateCueBar();
+  }
+  window.addEventListener('resize', () => { if(!$('scPool').hidden) poolResize(); });
+
+  function circle(ctx, x, y, r){ ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
+
+  function drawTable(ctx, T){
+    // walnut rails
+    const wood = ctx.createLinearGradient(-RAIL, 0, PW + RAIL, 0);
+    wood.addColorStop(0, '#3a2216'); wood.addColorStop(.5, '#4b2d1d'); wood.addColorStop(1, '#3a2216');
+    ctx.fillStyle = wood;
+    ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, OW, OL, 30); ctx.fill();
+    ctx.fillStyle = '#21140d';
+    ctx.beginPath(); ctx.roundRect(-9, -9, PW + 18, PL + 18, 8); ctx.fill();
+
+    const felt = ctx.createRadialGradient(PW / 2, PL / 2, 40, PW / 2, PL / 2, PL * .62);
+    felt.addColorStop(0, '#27695d'); felt.addColorStop(1, '#153d36');
+    ctx.fillStyle = felt;
+    ctx.fillRect(0, 0, PW, PL);
+    ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 8;
+    ctx.strokeRect(4, 4, PW - 8, PL - 8);
+
+    if(T.kitchen && T.ballInHand && phase === 'aim'){
+      ctx.fillStyle = 'rgba(239,227,204,.045)';
+      ctx.fillRect(0, HEAD_Y, PW, PL - HEAD_Y);
+    }
+    ctx.strokeStyle = T.kitchen ? 'rgba(239,227,204,.22)' : 'rgba(239,227,204,.12)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(0, HEAD_Y); ctx.lineTo(PW, HEAD_Y); ctx.stroke();
+    ctx.fillStyle = 'rgba(239,227,204,.2)';
+    circle(ctx, PW / 2, FOOT_Y, 3); ctx.fill();
+
+    ctx.fillStyle = 'rgba(239,227,204,.6)';
+    for(const f of [1, 2, 3]){
+      circle(ctx, PW * f / 4, -RAIL / 2, 3); ctx.fill();
+      circle(ctx, PW * f / 4, PL + RAIL / 2, 3); ctx.fill();
+    }
+    for(const f of [1, 2, 3, 5, 6, 7]){
+      circle(ctx, -RAIL / 2, PL * f / 8, 3); ctx.fill();
+      circle(ctx, PW + RAIL / 2, PL * f / 8, 3); ctx.fill();
+    }
+
+    for(const [px, py] of POCKET_AT){
+      const corner = py !== PL / 2;
+      const sx = px === 0 ? -1 : 1, sy = py === 0 ? -1 : py === PL ? 1 : 0;
+      const cx = px + sx * (corner ? 7 : 9), cy = py + sy * 7;
+      ctx.fillStyle = '#060504';
+      circle(ctx, cx, cy, corner ? 26 : 23); ctx.fill();
+      ctx.strokeStyle = 'rgba(239,227,204,.07)'; ctx.lineWidth = 2;
+      circle(ctx, cx, cy, corner ? 26 : 23); ctx.stroke();
+    }
+  }
+
+  function drawBall(ctx, n, x, y){
+    ctx.fillStyle = 'rgba(0,0,0,.35)';
+    circle(ctx, x + 2.4, y + 3.4, PR); ctx.fill();
+    ctx.save();
+    circle(ctx, x, y, PR); ctx.clip();
+    if(n >= 9){
+      ctx.fillStyle = '#f2ede3'; ctx.fillRect(x - PR, y - PR, PR * 2, PR * 2);
+      ctx.fillStyle = BALL_COL[n]; ctx.fillRect(x - PR, y - PR * .56, PR * 2, PR * 1.12);
+    }else{
+      ctx.fillStyle = BALL_COL[n]; ctx.fillRect(x - PR, y - PR, PR * 2, PR * 2);
+    }
+    if(n > 0){
+      ctx.fillStyle = '#f7f2e8';
+      circle(ctx, x, y, PR * .52); ctx.fill();
+      if(PR * pv.scale >= 6){
+        ctx.fillStyle = '#1a1410';
+        ctx.font = '700 ' + (PR * .74).toFixed(1) + 'px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(n), x, y + .6);
+      }
+    }
+    const shine = ctx.createRadialGradient(x - PR * .4, y - PR * .45, 0, x, y, PR * 1.05);
+    shine.addColorStop(0, 'rgba(255,255,255,.5)');
+    shine.addColorStop(.35, 'rgba(255,255,255,0)');
+    shine.addColorStop(1, 'rgba(0,0,0,.28)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(x - PR, y - PR, PR * 2, PR * 2);
+    ctx.restore();
+  }
+
+  // first thing the cue ball would touch going (dx, dy) from (cx, cy)
+  function trace(cx, cy, dx, dy, pos){
+    let best = Infinity, hit = -1;
+    for(let n = 1; n < 16; n++){
+      const b = pos[n];
+      if(!b) continue;
+      const ox = cx - b[0], oy = cy - b[1];
+      const bq = ox * dx + oy * dy, cq = ox * ox + oy * oy - 4 * PR * PR;
+      const disc = bq * bq - cq;
+      if(disc < 0) continue;
+      const t = -bq - Math.sqrt(disc);
+      if(t > 0 && t < best){ best = t; hit = n; }
+    }
+    const tx = dx > 0 ? (PW - PR - cx) / dx : dx < 0 ? (PR - cx) / dx : Infinity;
+    const ty = dy > 0 ? (PL - PR - cy) / dy : dy < 0 ? (PR - cy) / dy : Infinity;
+    const wall = Math.min(tx, ty);
+    if(hit >= 0 && best <= wall){
+      const gx = cx + dx * best, gy = cy + dy * best, b = pos[hit];
+      const l = Math.hypot(b[0] - gx, b[1] - gy) || 1;
+      return { gx, gy, hit, nx: (b[0] - gx) / l, ny: (b[1] - gy) / l };
+    }
+    return { gx: cx + dx * Math.max(0, wall), gy: cy + dy * Math.max(0, wall), hit: -1 };
+  }
+
+  function drawGuide(ctx, c, d, pos){
+    const t = trace(c.x, c.y, d.x, d.y, pos);
+    const px = 1 / pv.scale;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(244,239,228,.8)';
+    ctx.lineWidth = 1.6 * px;
+    ctx.beginPath();
+    ctx.moveTo(c.x + d.x * PR, c.y + d.y * PR);
+    ctx.lineTo(t.gx - d.x * PR, t.gy - d.y * PR);
+    ctx.stroke();
+    const bad = t.hit >= 0 && !legalFirst(t.hit);
+    ctx.strokeStyle = bad ? 'rgba(255,106,42,.95)' : 'rgba(244,239,228,.85)';
+    circle(ctx, t.gx, t.gy, PR); ctx.stroke();
+    if(t.hit >= 0 && !bad){
+      const b = pos[t.hit];
+      ctx.strokeStyle = 'rgba(244,239,228,.6)';
+      ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(b[0] + t.nx * 70, b[1] + t.ny * 70); ctx.stroke();
+      const dot = d.x * t.nx + d.y * t.ny;
+      const tx = d.x - dot * t.nx, ty = d.y - dot * t.ny, tl = Math.hypot(tx, ty);
+      if(tl > .05){
+        ctx.strokeStyle = 'rgba(244,239,228,.3)';
+        ctx.beginPath(); ctx.moveTo(t.gx, t.gy); ctx.lineTo(t.gx + tx / tl * 40 * tl, t.gy + ty / tl * 40 * tl); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawStick(ctx, c, d, power){
+    const start = PR + 5 + power * 90, len = 560;
+    const width = t => 6 + (t - start) / len * 6;
+    const seg = (a, b, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-a, -width(a) / 2); ctx.lineTo(-b, -width(b) / 2);
+      ctx.lineTo(-b, width(b) / 2); ctx.lineTo(-a, width(a) / 2);
+      ctx.closePath(); ctx.fill();
+    };
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(Math.atan2(d.y, d.x));
+    ctx.save(); ctx.translate(0, 5); ctx.globalAlpha = .3; seg(start, start + len, '#000'); ctx.restore();
+    seg(start, start + 6, '#6cd4ff');
+    seg(start + 6, start + 14, '#efe3cc');
+    seg(start + 14, start + len * .62, '#d8b98b');
+    seg(start + len * .62, start + len * .64, '#efe3cc');
+    seg(start + len * .64, start + len, '#3b2416');
+    ctx.restore();
+  }
+
+  function poolDraw(pos){
+    const ctx = $('pCanvas').getContext('2d'), T = pv.s.table;
+    const k = pv.dpr * pv.scale;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, $('pCanvas').width, $('pCanvas').height);
+    ctx.setTransform(k, 0, 0, k, RAIL * k, RAIL * k);
+    drawTable(ctx, T);
+
+    const aiming = phase === 'aim' && !pv.anim;
+    const meAim = aiming && poolMine() && !pv.sent;
+    const theyAim = aiming && !poolMine() && pv.remote;
+    const c = aiming ? cuePos() : null;
+    if(c && T.ballInHand && (meAim || theyAim)){ pos = pos.slice(); pos[0] = [c.x, c.y]; }
+
+    for(let n = 1; n < 16; n++) if(pos[n]) drawBall(ctx, n, pos[n][0], pos[n][1]);
+    if(pos[0]) drawBall(ctx, 0, pos[0][0], pos[0][1]);
+
+    if(c && T.ballInHand && meAim){
+      ctx.strokeStyle = placeValid(c.x, c.y) ? 'rgba(244,239,228,.55)' : 'rgba(255,106,42,.95)';
+      ctx.lineWidth = 1.6 / pv.scale;
+      ctx.setLineDash([4 / pv.scale, 4 / pv.scale]);
+      circle(ctx, c.x, c.y, PR * 2.1); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if(c && meAim){ drawGuide(ctx, c, pv.aim, pos); drawStick(ctx, c, pv.aim, pv.power); }
+    else if(c && theyAim){
+      const d = { x: pv.remote.dx, y: pv.remote.dy };
+      if(Math.hypot(d.x, d.y) > .5){ drawGuide(ctx, c, d, pos); drawStick(ctx, c, d, pv.remote.p || 0); }
+    }
+  }
+
+  function poolFrame(now){
+    requestAnimationFrame(poolFrame);
+    if(!pv.s || $('scPool').hidden || !pv.w) return;
+    let pos = pv.balls;
+    if(pv.anim){
+      const f = pv.anim.frames, t = Math.max(0, (now - pv.anim.t0) * POOL_FPS / 1000), i = Math.floor(t);
+      if(i >= f.length - 1){ pv.anim = null; poolCall(pv.s); }
+      else{
+        const a = f[i], b = f[i + 1], k = t - i;
+        pos = new Array(16);
+        for(let n = 0; n < 16; n++){
+          const ax = a[n * 2], ay = a[n * 2 + 1];
+          if(ax < 0){ pos[n] = null; continue; }
+          const bx = b[n * 2], by = b[n * 2 + 1];
+          pos[n] = bx < 0 ? [ax, ay] : [ax + (bx - ax) * k, ay + (by - ay) * k];
+        }
+      }
+    }
+    poolDraw(pos);
+
+    $('pCard').hidden = !(pv.cardWanted && !pv.anim);
+    const left = Math.max(0, deadlineAt - now);
+    if(phase === 'pq'){
+      $('pcBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
+      $('pcFuse').classList.toggle('low', left < 3000);
+    }
+    $('pShot').classList.toggle('off', phase !== 'aim' || !!pv.anim);
+    if(phase === 'aim'){
+      $('pShotBar').style.width = (left / AIM_MS * 100).toFixed(1) + '%';
+      $('pShot').classList.toggle('low', left < 8000);
+    }
+    $('cueBar').classList.toggle('off', !canAim());
+  }
+  requestAnimationFrame(poolFrame);
+
+  function updateCueBar(){
+    const h = $('cueBar').clientHeight || 0;
+    $('cueFill').style.height = (pv.power * 100).toFixed(1) + '%';
+    $('cueStick').style.transform = 'translateY(' + (pv.power * h * .28).toFixed(1) + 'px)';
+    $('cueBar').setAttribute('aria-valuenow', String(Math.round(pv.power * 100)));
+  }
+
+  // the other phone sees the shooter line up, so it isn't just a still table
+  function sendAim(){
+    if(!ws || !canAim()) return;
+    const now = performance.now();
+    if(now - pv.lastAimSent < 80){
+      if(!pv.aimTimer) pv.aimTimer = setTimeout(() => { pv.aimTimer = null; sendAim(); }, 85);
+      return;
+    }
+    pv.lastAimSent = now;
+    const c = cuePos() || { x: 0, y: 0 };
+    ws.send(JSON.stringify({ t:'aim', dx: pv.aim.x, dy: pv.aim.y, p: pv.power, cx: c.x, cy: c.y }));
+  }
+
+  function poolRemoteAim(m){
+    if(!pv.s || poolMine() || phase !== 'aim') return;
+    pv.remote = { dx: m.dx, dy: m.dy, p: m.p, cx: m.cx, cy: m.cy };
+  }
+
+  function poolShoot(){
+    const c = cuePos();
+    if(!c || !ws || (pv.s.table.ballInHand && !placeValid(c.x, c.y))) return;
+    ws.send(JSON.stringify({ t:'shoot', dx: pv.aim.x, dy: pv.aim.y, power: pv.power, cx: c.x, cy: c.y }));
+    pv.sent = true;
+    pv.power = 0;
+    updateCueBar();
+  }
+
+  function poolPick(i){
+    if(phase !== 'pq' || !poolMine() || pv.picked != null || !ws) return;
+    pv.picked = i;
+    ws.send(JSON.stringify({ t:'pans', choice:i }));
+    poolCard(pv.s);
+  }
+
+  function poolNudge(e){
+    if(!canAim()) return;
+    e.preventDefault();
+    const a = (e.shiftKey ? 2 : .35) * Math.PI / 180 * (e.key === 'ArrowLeft' ? -1 : 1);
+    const cs = Math.cos(a), sn = Math.sin(a);
+    pv.aim = { x: pv.aim.x * cs - pv.aim.y * sn, y: pv.aim.x * sn + pv.aim.y * cs };
+    sendAim();
+  }
+
+  function aimAt(p){
+    const c = cuePos();
+    if(!c) return;
+    const dx = p.x - c.x, dy = p.y - c.y, l = Math.hypot(dx, dy);
+    if(l > PR) pv.aim = { x: dx / l, y: dy / l };
+  }
+
+  (function poolInput(){
+    const cv = $('pCanvas'), bar = $('cueBar');
+    const tablePoint = e => {
+      const r = cv.getBoundingClientRect();
+      return { x: (e.clientX - r.left) / pv.scale - RAIL, y: (e.clientY - r.top) / pv.scale - RAIL };
+    };
+    cv.addEventListener('pointerdown', e => {
+      if(!canAim()) return;
+      e.preventDefault();
+      try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+      const p = tablePoint(e), c = cuePos();
+      if(pv.s.table.ballInHand && c && Math.hypot(p.x - c.x, p.y - c.y) < PR * 2.6) pv.drag = 'cue';
+      else{ pv.drag = 'aim'; aimAt(p); }
+      sendAim();
+    });
+    cv.addEventListener('pointermove', e => {
+      if(!pv.drag || !canAim()) return;
+      const p = tablePoint(e);
+      if(pv.drag === 'cue'){
+        const T = pv.s.table;
+        pv.cue = { x: poolClamp(p.x, PR, PW - PR), y: poolClamp(p.y, T.kitchen ? HEAD_Y : PR, PL - PR) };
+      }else aimAt(p);
+      sendAim();
+    });
+    const endDrag = () => { pv.drag = null; };
+    cv.addEventListener('pointerup', endDrag);
+    cv.addEventListener('pointercancel', endDrag);
+
+    const ready = () => {
+      const c = canAim() && cuePos();
+      return !!c && (!pv.s.table.ballInHand || placeValid(c.x, c.y));
+    };
+    bar.tabIndex = 0;
+    bar.addEventListener('pointerdown', e => {
+      if(!ready()) return;
+      e.preventDefault();
+      try{ bar.setPointerCapture(e.pointerId); }catch(err){}
+      pv.pull = { y0: e.clientY, h: bar.clientHeight || 300 };
+    });
+    bar.addEventListener('pointermove', e => {
+      if(!pv.pull) return;
+      pv.power = poolClamp((e.clientY - pv.pull.y0) / (pv.pull.h * .45), 0, 1);
+      updateCueBar();
+      sendAim();
+    });
+    bar.addEventListener('pointerup', () => {
+      if(!pv.pull) return;
+      pv.pull = null;
+      if(pv.power >= .03 && ready()) poolShoot();
+      else{ pv.power = 0; updateCueBar(); sendAim(); }
+    });
+    bar.addEventListener('pointercancel', () => { pv.pull = null; pv.power = 0; updateCueBar(); });
+    bar.addEventListener('keydown', e => {
+      if(!ready()) return;
+      if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        pv.power = poolClamp(pv.power + (e.key === 'ArrowDown' ? .05 : -.05), 0, 1);
+        updateCueBar(); sendAim();
+      }else if((e.key === 'Enter' || e.key === ' ') && pv.power >= .03){
+        e.preventDefault(); poolShoot();
+      }
+    });
+
+    $('pcAgain').addEventListener('click', () => {
+      $('pcAgain').disabled = true;
+      ws.send(JSON.stringify({ t:'again' }));
+      setTimeout(() => { $('pcAgain').disabled = false; }, 1200);
+    });
+  })();
+
+  function tray(el, group, balls){
+    const nums = groupNums(group);
+    el.innerHTML = '';
+    const ball = (n, cls) => {
+      const b = document.createElement('i');
+      b.className = 'mball' + (cls ? ' ' + cls : '');
+      if(n != null){
+        const c = BALL_COL[n];
+        b.style.background = n >= 9
+          ? 'linear-gradient(to bottom, #f2ede3 0 26%, ' + c + ' 26% 74%, #f2ede3 74%)'
+          : 'radial-gradient(circle at 35% 30%, rgba(255,255,255,.45), transparent 50%), ' + c;
+      }
+      el.appendChild(b);
+    };
+    if(!nums){ for(let i = 0; i < 7; i++) ball(null, 'empty'); return; }
+    let left = 0;
+    for(const n of nums){ if(balls[n]) left++; ball(n, balls[n] ? '' : 'down'); }
+    if(left === 0) ball(8, balls[8] ? '' : 'down');
+  }
+
+  function poolBar(s){
+    const T = s.table, op = myRole === 'host' ? 'guest' : 'host';
+    for(const [key, role] of [['Mine', myRole], ['Theirs', op]]){
+      const p = s[role] || {};
+      $('pName' + key).textContent = p.name || (key === 'Mine' ? 'You' : 'Them');
+      wearChar($('pPod' + key), p.char);
+      $('pSide' + key).classList.toggle('turn', T.turn === role && s.phase !== 'over');
+      tray($('pTray' + key), T.groups[role], T.balls);
+    }
+  }
+
+  function poolCall(s){
+    const T = s.table;
+    let text = T.call || '';
+    if(pv.anim) text = (s[T.turn] || {}).name + ' shoots.';
+    else if(s.phase === 'aim' && T.turn === myRole){
+      text = T.kitchen
+        ? 'Your break. Drag the white ball anywhere behind the line, aim, then pull the cue down.'
+        : T.ballInHand
+        ? 'Ball in hand. Drag the white ball to place it, aim, then pull the cue down.'
+        : 'Your shot. Drag on the table to aim, then pull the cue down to shoot.';
+    }
+    $('pCall').textContent = text;
+  }
+
+  function poolCard(s){
+    const T = s.table, mine = T.turn === myRole, who = (s[T.turn] || {}).name || 'They';
+    pv.cardWanted = s.phase === 'pq' || s.phase === 'pqres' || s.phase === 'over';
+    $('pcOver').hidden = s.phase !== 'over';
+    $('pcQ').classList.toggle('result', s.phase === 'over');
+    $('pcNote').className = 'pcard-note';
+
+    if(s.phase === 'over'){
+      const win = s.over && s.over.winner;
+      const st = T.stats[myRole] || { asked: 0, right: 0 };
+      $('pcWho').textContent = 'Game over';
+      $('pcFuse').hidden = true;
+      $('pcQ').textContent = win === myRole ? 'You win' : ((s[win] || {}).name || 'They') + ' wins';
+      $('pcChoices').innerHTML = '';
+      $('pcChoices').dataset.key = '';
+      $('pcNote').textContent = ((s.over && s.over.why) || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
+      $('pcAgain').hidden = myRole !== 'host';
+      $('pcAgain').disabled = false;
+      return;
+    }
+    if(!s.q) return;
+
+    $('pcFuse').hidden = s.phase !== 'pq';
+    $('pcWho').textContent = mine ? 'Answer right to take your shot' : who + ' is answering for a shot';
+    $('pcQ').textContent = s.q.text;
+    const box = $('pcChoices');
+    if(box.dataset.key !== pv.qKey){
+      box.innerHTML = '';
+      s.q.choices.forEach((n, i) => {
+        const b = document.createElement('button');
+        b.className = 'choice'; b.type = 'button';
+        const k = document.createElement('kbd'); k.textContent = i + 1;
+        b.append(k, document.createTextNode(String(n)));
+        b.addEventListener('click', () => poolPick(i));
+        box.appendChild(b);
+      });
+      box.dataset.key = pv.qKey;
+    }
+    const r = s.phase === 'pqres' ? T.pqResult : null;
+    const picked = r ? r.choice : pv.picked;
+    [...box.children].forEach((b, i) => {
+      b.disabled = !(mine && s.phase === 'pq' && pv.picked == null);
+      b.classList.toggle('picked', !r && picked === i);
+      b.classList.remove('right', 'wrong', 'dim');
+      if(r){
+        if(i === s.q.answer) b.classList.add('right');
+        else if(i === picked) b.classList.add('wrong');
+        else b.classList.add('dim');
+      }
+    });
+
+    if(r){
+      $('pcNote').classList.add(r.right ? 'good' : 'bad');
+      $('pcNote').textContent = r.right
+        ? (mine ? 'Correct. Take your shot.' : who + ' got it and shoots next.')
+        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '.';
+    }else{
+      $('pcNote').textContent = mine && pv.picked != null ? 'Locked in.' : '';
+    }
+  }
+
+  function applyPool(s){
+    const T = s.table, prev = pv.s;
+    if(s.phase === 'countdown' && (!prev || prev.phase !== 'countdown')){
+      pv.played = 0; pv.anim = null; revealed = false;
+    }
+    pv.s = s;
+    if(s.ms != null) deadlineAt = performance.now() + s.ms;
+    if(T.shot && T.shot.id !== pv.played){
+      pv.played = T.shot.id;
+      pv.anim = { frames: T.shot.frames, t0: performance.now() };
+    }
+    pv.balls = T.balls;
+    if(s.phase !== 'aim') pv.remote = null;
+    if(s.phase === 'aim' && (!prev || prev.phase !== 'aim')){
+      pv.sent = false; pv.power = 0; pv.drag = null; pv.pull = null;
+      pv.cue = T.ballInHand && T.turn === myRole ? defaultCue() : null;
+    }
+    const qKey = s.q ? s.q.text + '|' + s.q.choices.join(',') : '';
+    if(qKey !== pv.qKey){ pv.qKey = qKey; pv.picked = null; }
+
+    show(['scPool']);
+    poolResize();
+    poolBar(s);
+    poolCall(s);
+    poolCard(s);
+    updateCueBar();
+    if(s.phase === 'aim' && T.turn === myRole) sendAim();
+  }
 
   function applyState(s){
     phase = s.phase;
@@ -1312,6 +1986,7 @@
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
         $('guestMode').querySelector('span').textContent = s.modeName || 'Judge Mode';
+        $('guestMode').querySelector('use').setAttribute('href', { debate:'#i-debate', pool:'#i-pool' }[s.mode] || '#i-gavel');
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
           setLobbyCard('glGuest', { char: s.guest.char, name: s.guest.name || 'You', ready: true, statusText: 'Ready' });
@@ -1325,6 +2000,8 @@
       }
       return;
     }
+
+    if(s.mode === 'pool'){ applyPool(s); return; }
 
     const mine = myRole === 'host' ? s.host : s.guest;
     const theirs = myRole === 'host' ? s.guest : s.host;
@@ -1553,6 +2230,7 @@
         return;
       }
       if(m.t === 'state') applyState(m);
+      else if(m.t === 'aim') poolRemoteAim(m);
     });
 
     ws.addEventListener('close', () => {
@@ -1588,11 +2266,19 @@
     demoStart();
   });
 
-  $('introGo').addEventListener('click', () => { show(['scOpponent']); });
+  $('introGo').addEventListener('click', () => {
+    const bot = $('opponentGrid').querySelector('[data-opp="bot"]');
+    const noBot = pickedMode === 'pool';
+    bot.disabled = noBot;
+    bot.querySelector('span').textContent = noBot
+      ? 'Not for pool yet. Invite a friend to play.'
+      : 'No waiting around — pick a difficulty and go.';
+    show(['scOpponent']);
+  });
 
   $('opponentGrid').addEventListener('click', e => {
     const card = e.target.closest('.mode');
-    if(!card) return;
+    if(!card || card.disabled) return;
     opponentType = card.dataset.opp;
     if(opponentType === 'bot') show(['scBotDiff']);
     else{
@@ -1728,7 +2414,7 @@
       $('introName').value = localStorage.getItem('sd-name') || '';
       savedMode = localStorage.getItem('sd-mode') || '';
     }catch(e){}
-    if(savedMode === 'judge' || savedMode === 'debate') pickedMode = savedMode;
+    if(savedMode === 'judge' || savedMode === 'debate' || savedMode === 'pool') pickedMode = savedMode;
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
     opponentType = 'friend';
     botDifficulty = 'medium';

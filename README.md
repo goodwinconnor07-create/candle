@@ -69,7 +69,8 @@ npx wrangler deploy     # push it live
 ```
 
 There's no build step. `public/index.html` is the whole front end and
-`worker.js` is the whole backend.
+`worker.js` is the backend, with pool's table physics and 8-ball rules split
+out into `pool.js`.
 
 ## Tuning
 
@@ -116,3 +117,22 @@ For local work, put the same key in a `.dev.vars` file (gitignored):
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+## Pool
+
+8-ball on a portrait table, styled after iMessage pool. The catch: every shot
+has to be earned. Before each shot the shooter gets a question, and only a
+right answer unlocks the cue. A wrong answer, or running out the 10 seconds,
+hands the table to the other player without a shot being taken. Sink one of
+your own and you keep the turn, but the next shot needs another right answer.
+
+Standard 8-ball otherwise: break from behind the line, the table stays open
+until someone legally pots a ball, then it's solids against stripes. A scratch,
+missing everything, or hitting the wrong group first is a foul and gives the
+other player ball in hand. Clear your group, then sink the 8. Sink it early, or
+scratch on it, and you lose. There's a 30 second shot clock once you've
+answered right.
+
+The room simulates every shot itself (`simulate()` in `pool.js`) and sends both
+phones the frames to replay, so the two screens can't disagree about whether a
+ball dropped. Pool is friends-only for now; the bot option is greyed out.
