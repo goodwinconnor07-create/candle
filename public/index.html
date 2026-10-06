@@ -1415,7 +1415,7 @@
   const pv = {
     s: null, balls: [], anim: null, played: 0, cardWanted: false,
     aim: { x: 0, y: -1 }, power: 0, cue: null, drag: null, pull: null,
-    remote: null, sent: false, picked: null, qKey: '', lastAimSent: 0, aimTimer: null,
+    sent: false, picked: null, qKey: '',
     w: 0, h: 0, scale: 1, dpr: 1,
   };
   const poolClamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -1425,9 +1425,7 @@
   const canAim = () => phase === 'aim' && poolMine() && !pv.sent && !pv.anim;
 
   function placeValid(x, y){
-    const T = pv.s.table;
     if(x < PR || x > PW - PR || y < PR || y > PL - PR) return false;
-    if(T.kitchen && y < HEAD_Y) return false;
     for(let n = 1; n < 16; n++){
       const b = pv.balls[n];
       if(b && (b[0] - x) * (b[0] - x) + (b[1] - y) * (b[1] - y) < 4 * PR * PR) return false;
@@ -1450,7 +1448,6 @@
   function cuePos(){
     const T = pv.s.table;
     if(T.ballInHand && poolMine() && pv.cue) return pv.cue;
-    if(T.ballInHand && !poolMine() && pv.remote) return { x: pv.remote.cx, y: pv.remote.cy };
     const c = pv.balls[0];
     return c ? { x: c[0], y: c[1] } : null;
   }
@@ -1458,7 +1455,7 @@
   // is n a ball the shooter is allowed to hit first?
   function legalFirst(n){
     const T = pv.s.table, g = T.groups[T.turn];
-    if(!T.kitchen && !g) return n !== 8;
+    if(T.broken && !g) return n !== 8;
     if(!g) return true;
     const left = groupNums(g).filter(m => pv.balls[m]).length;
     return left === 0 ? n === 8 : groupOfBall(n) === g;
@@ -1498,11 +1495,7 @@
     ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 8;
     ctx.strokeRect(4, 4, PW - 8, PL - 8);
 
-    if(T.kitchen && T.ballInHand && phase === 'aim'){
-      ctx.fillStyle = 'rgba(239,227,204,.045)';
-      ctx.fillRect(0, HEAD_Y, PW, PL - HEAD_Y);
-    }
-    ctx.strokeStyle = T.kitchen ? 'rgba(239,227,204,.22)' : 'rgba(239,227,204,.12)';
+    ctx.strokeStyle = 'rgba(239,227,204,.12)';
     ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(0, HEAD_Y); ctx.lineTo(PW, HEAD_Y); ctx.stroke();
     ctx.fillStyle = 'rgba(239,227,204,.2)';
@@ -1643,9 +1636,8 @@
 
     const aiming = phase === 'aim' && !pv.anim;
     const meAim = aiming && poolMine() && !pv.sent;
-    const theyAim = aiming && !poolMine() && pv.remote;
-    const c = aiming ? cuePos() : null;
-    if(c && T.ballInHand && (meAim || theyAim)){ pos = pos.slice(); pos[0] = [c.x, c.y]; }
+    const c = meAim ? cuePos() : null;
+    if(c && T.ballInHand){ pos = pos.slice(); pos[0] = [c.x, c.y]; }
 
     for(let n = 1; n < 16; n++) if(pos[n]) drawBall(ctx, n, pos[n][0], pos[n][1]);
     if(pos[0]) drawBall(ctx, 0, pos[0][0], pos[0][1]);
@@ -1657,11 +1649,7 @@
       circle(ctx, c.x, c.y, PR * 2.1); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if(c && meAim){ drawGuide(ctx, c, pv.aim, pos); drawStick(ctx, c, pv.aim, pv.power); }
-    else if(c && theyAim){
-      const d = { x: pv.remote.dx, y: pv.remote.dy };
-      if(Math.hypot(d.x, d.y) > .5){ drawGuide(ctx, c, d, pos); drawStick(ctx, c, d, pv.remote.p || 0); }
-    }
+    if(c){ drawGuide(ctx, c, pv.aim, pos); drawStick(ctx, c, pv.aim, pv.power); }
   }
 
   function poolFrame(now){
@@ -1706,24 +1694,6 @@
     $('cueBar').setAttribute('aria-valuenow', String(Math.round(pv.power * 100)));
   }
 
-  // the other phone sees the shooter line up, so it isn't just a still table
-  function sendAim(){
-    if(!ws || !canAim()) return;
-    const now = performance.now();
-    if(now - pv.lastAimSent < 80){
-      if(!pv.aimTimer) pv.aimTimer = setTimeout(() => { pv.aimTimer = null; sendAim(); }, 85);
-      return;
-    }
-    pv.lastAimSent = now;
-    const c = cuePos() || { x: 0, y: 0 };
-    ws.send(JSON.stringify({ t:'aim', dx: pv.aim.x, dy: pv.aim.y, p: pv.power, cx: c.x, cy: c.y }));
-  }
-
-  function poolRemoteAim(m){
-    if(!pv.s || poolMine() || phase !== 'aim') return;
-    pv.remote = { dx: m.dx, dy: m.dy, p: m.p, cx: m.cx, cy: m.cy };
-  }
-
   function poolShoot(){
     const c = cuePos();
     if(!c || !ws || (pv.s.table.ballInHand && !placeValid(c.x, c.y))) return;
@@ -1746,7 +1716,6 @@
     const a = (e.shiftKey ? 2 : .35) * Math.PI / 180 * (e.key === 'ArrowLeft' ? -1 : 1);
     const cs = Math.cos(a), sn = Math.sin(a);
     pv.aim = { x: pv.aim.x * cs - pv.aim.y * sn, y: pv.aim.x * sn + pv.aim.y * cs };
-    sendAim();
   }
 
   function aimAt(p){
@@ -1769,16 +1738,13 @@
       const p = tablePoint(e), c = cuePos();
       if(pv.s.table.ballInHand && c && Math.hypot(p.x - c.x, p.y - c.y) < PR * 2.6) pv.drag = 'cue';
       else{ pv.drag = 'aim'; aimAt(p); }
-      sendAim();
     });
     cv.addEventListener('pointermove', e => {
       if(!pv.drag || !canAim()) return;
       const p = tablePoint(e);
       if(pv.drag === 'cue'){
-        const T = pv.s.table;
-        pv.cue = { x: poolClamp(p.x, PR, PW - PR), y: poolClamp(p.y, T.kitchen ? HEAD_Y : PR, PL - PR) };
+        pv.cue = { x: poolClamp(p.x, PR, PW - PR), y: poolClamp(p.y, PR, PL - PR) };
       }else aimAt(p);
-      sendAim();
     });
     const endDrag = () => { pv.drag = null; };
     cv.addEventListener('pointerup', endDrag);
@@ -1799,13 +1765,12 @@
       if(!pv.pull) return;
       pv.power = poolClamp((e.clientY - pv.pull.y0) / (pv.pull.h * .45), 0, 1);
       updateCueBar();
-      sendAim();
     });
     bar.addEventListener('pointerup', () => {
       if(!pv.pull) return;
       pv.pull = null;
       if(pv.power >= .03 && ready()) poolShoot();
-      else{ pv.power = 0; updateCueBar(); sendAim(); }
+      else{ pv.power = 0; updateCueBar(); }
     });
     bar.addEventListener('pointercancel', () => { pv.pull = null; pv.power = 0; updateCueBar(); });
     bar.addEventListener('keydown', e => {
@@ -1813,7 +1778,7 @@
       if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
         e.preventDefault();
         pv.power = poolClamp(pv.power + (e.key === 'ArrowDown' ? .05 : -.05), 0, 1);
-        updateCueBar(); sendAim();
+        updateCueBar();
       }else if((e.key === 'Enter' || e.key === ' ') && pv.power >= .03){
         e.preventDefault(); poolShoot();
       }
@@ -1862,8 +1827,8 @@
     let text = T.call || '';
     if(pv.anim) text = (s[T.turn] || {}).name + ' shoots.';
     else if(s.phase === 'aim' && T.turn === myRole){
-      text = T.kitchen
-        ? 'Your break. Drag the white ball anywhere behind the line, aim, then pull the cue down.'
+      text = !T.broken
+        ? 'Your break. Drag on the table to aim, then pull the cue down.'
         : T.ballInHand
         ? 'Ball in hand. Drag the white ball to place it, aim, then pull the cue down.'
         : 'Your shot. Drag on the table to aim, then pull the cue down to shoot.';
@@ -1944,7 +1909,6 @@
       pv.anim = { frames: T.shot.frames, t0: performance.now() };
     }
     pv.balls = T.balls;
-    if(s.phase !== 'aim') pv.remote = null;
     if(s.phase === 'aim' && (!prev || prev.phase !== 'aim')){
       pv.sent = false; pv.power = 0; pv.drag = null; pv.pull = null;
       pv.cue = T.ballInHand && T.turn === myRole ? defaultCue() : null;
@@ -1958,7 +1922,6 @@
     poolCall(s);
     poolCard(s);
     updateCueBar();
-    if(s.phase === 'aim' && T.turn === myRole) sendAim();
   }
 
   function applyState(s){
@@ -2230,7 +2193,7 @@
         return;
       }
       if(m.t === 'state') applyState(m);
-      else if(m.t === 'aim') poolRemoteAim(m);
+
     });
 
     ws.addEventListener('close', () => {

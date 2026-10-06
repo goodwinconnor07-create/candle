@@ -560,7 +560,6 @@ export class GameRoom {
     }
 
     if (msg.t === 'pans') { this.poolAnswer(role, msg.choice); return; }
-    if (msg.t === 'aim') { this.poolAim(role, msg); return; }
     if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
 
     if (msg.t === 'again' && this.game && this.game.phase === 'over') {
@@ -607,8 +606,9 @@ export class GameRoom {
         balls: Pool.rack(),
         turn: breaker,
         groups: { host: null, guest: null },
-        ballInHand: true,               // the break is placed anywhere behind the head string
-        kitchen: true,
+        // the cue ball only comes into your hand after it's been potted;
+        // the break, and every other foul, plays it from where it lies
+        ballInHand: false,
         broken: false,
         shotId: 0,
         shot: null,
@@ -649,24 +649,14 @@ export class GameRoom {
     this.broadcast(this.snapshot());
   }
 
-  // hand the table to the other player. ball in hand follows a foul, and it
-  // also has to follow whenever the cue ball is sitting in a pocket
-  poolPass(foul, call) {
+  // hand the table to the other player. the cue ball can only be in hand if
+  // it's sitting in a pocket, so that's the one thing that carries over
+  poolPass(call) {
     const T = this.game.table;
     T.turn = T.turn === 'host' ? 'guest' : 'host';
-    T.ballInHand = foul || T.balls[0].in;
-    T.kitchen = !T.broken;
+    T.ballInHand = T.balls[0].in;
     T.call = call;
     this.poolAsk();
-  }
-
-  // the shooter's cue direction, relayed so the other player can watch them
-  // line it up. it's cosmetic, so it isn't stored and isn't trusted for anything
-  poolAim(role, msg) {
-    const g = this.game;
-    if (!g || g.mode !== 'pool' || g.phase !== 'aim' || role !== g.table.turn) return;
-    const num = (v) => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 1000) / 1000 : 0);
-    this.broadcast({ t: 'aim', dx: num(msg.dx), dy: num(msg.dy), p: num(msg.p), cx: num(msg.cx), cy: num(msg.cy) });
   }
 
   poolShoot(role, msg) {
@@ -682,7 +672,7 @@ export class GameRoom {
     const before = T.balls.map((b) => ({ ...b }));
     if (T.ballInHand) {
       const cx = Number(msg.cx), cy = Number(msg.cy);
-      if (!Pool.placeOk(before, cx, cy, T.kitchen)) return;
+      if (!Pool.placeOk(before, cx, cy, false)) return;
       before[0] = { x: cx, y: cy, in: false };
     }
 
@@ -705,7 +695,7 @@ export class GameRoom {
     if (rule.win) {
       call = rule.win === shooter ? me + ' ' + rule.winWhy + '.' : me + ' ' + rule.winWhy + '. ' + them + ' wins.';
     } else if (rule.foul) {
-      call = 'Foul, ' + rule.foul + '. ' + them + ' has ball in hand.';
+      call = 'Foul, ' + rule.foul + '. ' + (T.balls[0].in ? them + ' has ball in hand.' : 'Over to ' + them + '.');
     } else if (rule.next === 'same') {
       call = wasBreak
         ? (sank ? me + ' sinks ' + sank + ' on the break and goes again.' : me + ' goes again.')
@@ -719,7 +709,7 @@ export class GameRoom {
       win: rule.win,
       winWhy: rule.win ? call : '',
       turn: rule.next === 'same' ? shooter : other,
-      ballInHand: !!rule.foul || T.balls[0].in,
+      ballInHand: T.balls[0].in,
       call,
     };
     g.phase = 'rolling';
@@ -736,17 +726,17 @@ export class GameRoom {
       if (T.pqResult && T.pqResult.right) {
         g.phase = 'aim';
         g.deadline = Date.now() + AIM_MS;
-        T.call = g[T.turn].name + (!T.broken ? ' to break.' : T.ballInHand ? ' has ball in hand.' : ' to shoot.');
+        T.call = g[T.turn].name + (!T.broken ? ' is breaking.' : ' is taking their shot.');
         this.broadcast(this.snapshot());
       } else {
         const them = g[T.turn === 'host' ? 'guest' : 'host'].name;
-        this.poolPass(false, (T.pqResult && T.pqResult.choice != null ? 'Wrong answer. ' : 'No answer. ') + 'Over to ' + them + '.');
+        this.poolPass((T.pqResult && T.pqResult.choice != null ? 'Wrong answer. ' : 'No answer. ') + 'Over to ' + them + '.');
       }
       return;
     }
     if (g.phase === 'aim') {
       const them = g[T.turn === 'host' ? 'guest' : 'host'].name;
-      this.poolPass(true, 'Out of time. ' + them + ' has ball in hand.');
+      this.poolPass('Out of time. Over to ' + them + '.');
       return;
     }
     if (g.phase === 'rolling') {
@@ -763,7 +753,6 @@ export class GameRoom {
       }
       T.turn = a.turn;
       T.ballInHand = a.ballInHand;
-      T.kitchen = false;
       T.call = a.call;
       this.poolAsk();
     }
@@ -1052,7 +1041,7 @@ export class GameRoom {
         turn: T.turn,
         groups: T.groups,
         ballInHand: T.ballInHand,
-        kitchen: T.kitchen,
+        broken: T.broken,
         call: T.call,
         stats: T.stats,
         pqResult: T.pqResult,
