@@ -48,6 +48,16 @@ export const FPS = 30;
 const FRAME_EVERY = SIM_HZ / FPS;
 const SIM_MAX_S = 14;
 
+// spin is set by where the cue strikes the ball: x is side spin (+ = right),
+// y is top/back (+ = top). Kept to a simple, readable model:
+//   top/back  → on the cue ball's first hit it follows through or draws back
+//   side      → each cushion it touches nudges it sideways, fading as it goes
+// and all of it wears off the longer the ball rolls before it gets used.
+const FOLLOW = 0.7;                     // share of impact speed added along the line of travel
+const ENGLISH = 0.3;                    // share of speed added along a cushion per unit of side spin
+const SPIN_FADE = 0.7;                  // per second
+export const SPIN_MAX = 0.85;           // past this the cue would miss the ball
+
 export function groupOf(n) {
   if (n >= 1 && n <= 7) return 'solids';
   if (n >= 9 && n <= 15) return 'stripes';
@@ -148,8 +158,9 @@ function frameOf(b) {
  * replay, every ball that dropped in the order it dropped, and the first
  * object ball the cue ball touched (null if it touched nothing).
  */
-export function simulate(start, dx, dy, speed) {
+export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }) {
   const b = start.map((o) => ({ x: o.x, y: o.y, vx: 0, vy: 0, in: o.in }));
+  let side = spin.x || 0, top = spin.y || 0;
   b[0].vx = dx * speed;
   b[0].vy = dy * speed;
   const dt = 1 / SIM_HZ;
@@ -159,6 +170,8 @@ export function simulate(start, dx, dy, speed) {
   let firstHit = null;
 
   for (let step = 1; step <= SIM_HZ * SIM_MAX_S; step++) {
+    const fade = 1 - SPIN_FADE * dt;
+    side *= fade; top *= fade;
     for (const p of b) {
       if (p.in || (p.vx === 0 && p.vy === 0)) continue;
       const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
@@ -187,10 +200,19 @@ export function simulate(start, dx, dy, speed) {
         c.x += nx * push; c.y += ny * push;
         const closing = (a.vx - c.vx) * nx + (a.vy - c.vy) * ny;
         if (closing <= 0) continue;
+        const cueFirst = firstHit === null && i === 0;
+        const ux = a.vx, uy = a.vy;
         const j2 = closing * (1 + BALL_E) / 2;
         a.vx -= j2 * nx; a.vy -= j2 * ny;
         c.vx += j2 * nx; c.vy += j2 * ny;
-        if (firstHit === null && i === 0) firstHit = j;
+        if (cueFirst) {
+          firstHit = j;
+          // follow or draw: push the cue ball on (or back) along the line it
+          // was travelling, scaled by how fast it arrived
+          a.vx += ux * top * FOLLOW;
+          a.vy += uy * top * FOLLOW;
+          top = 0;
+        }
       }
     }
 
@@ -198,10 +220,21 @@ export function simulate(start, dx, dy, speed) {
       const p = b[n];
       if (p.in) continue;
 
-      if (p.x < BALL_R && inSideRail(p.y)) { p.x = BALL_R; if (p.vx < 0) p.vx = -p.vx * RAIL_E; }
-      if (p.x > PW - BALL_R && inSideRail(p.y)) { p.x = PW - BALL_R; if (p.vx > 0) p.vx = -p.vx * RAIL_E; }
-      if (p.y < BALL_R && inEndRail(p.x)) { p.y = BALL_R; if (p.vy < 0) p.vy = -p.vy * RAIL_E; }
-      if (p.y > PL - BALL_R && inEndRail(p.x)) { p.y = PL - BALL_R; if (p.vy > 0) p.vy = -p.vy * RAIL_E; }
+      // rn = the cushion's normal pointing back into the table, if one was hit
+      let rnx = 0, rny = 0;
+      if (p.x < BALL_R && inSideRail(p.y)) { p.x = BALL_R; if (p.vx < 0) { p.vx = -p.vx * RAIL_E; rnx = 1; } }
+      if (p.x > PW - BALL_R && inSideRail(p.y)) { p.x = PW - BALL_R; if (p.vx > 0) { p.vx = -p.vx * RAIL_E; rnx = -1; } }
+      if (p.y < BALL_R && inEndRail(p.x)) { p.y = BALL_R; if (p.vy < 0) { p.vy = -p.vy * RAIL_E; rny = 1; } }
+      if (p.y > PL - BALL_R && inEndRail(p.x)) { p.y = PL - BALL_R; if (p.vy > 0) { p.vy = -p.vy * RAIL_E; rny = -1; } }
+      if (n === 0 && side !== 0 && (rnx || rny)) {
+        // side spin grips the cushion and throws the ball along it. right
+        // spin turns the same way whichever way it's travelling, so the
+        // push is fixed to the cushion, not to the shot
+        const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        p.vx += rny * side * ENGLISH * sp;
+        p.vy += -rnx * side * ENGLISH * sp;
+        side *= 0.5;
+      }
 
       for (const [jx, jy] of JAWS) {
         const ox = p.x - jx, oy = p.y - jy;

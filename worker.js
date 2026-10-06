@@ -676,7 +676,13 @@ export class GameRoom {
       before[0] = { x: cx, y: cy, in: false };
     }
 
-    const sim = Pool.simulate(before, dx, dy, power * Pool.MAX_SPEED);
+    // where on the cue ball they struck it, kept inside the edge of the ball
+    let sx = Number(msg.sx) || 0, sy = Number(msg.sy) || 0;
+    const sl = Math.sqrt(sx * sx + sy * sy);
+    if (!Number.isFinite(sl)) { sx = 0; sy = 0; }
+    else if (sl > Pool.SPIN_MAX) { sx *= Pool.SPIN_MAX / sl; sy *= Pool.SPIN_MAX / sl; }
+
+    const sim = Pool.simulate(before, dx, dy, power * Pool.MAX_SPEED, { x: sx, y: sy });
     const rule = Pool.judgeShot({ balls: before, groups: T.groups, broken: T.broken }, sim, role);
     const shooter = role, other = role === 'host' ? 'guest' : 'host';
     const me = g[shooter].name, them = g[other].name;

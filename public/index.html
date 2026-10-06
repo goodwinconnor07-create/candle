@@ -505,6 +505,45 @@
   }
   .cuebar:not(.off) .cuestick{ box-shadow:0 0 14px -2px rgba(255,179,71,.55), 0 0 0 1px rgba(0,0,0,.25); }
 
+  .pleft{ display:flex; flex-direction:column; gap:8px; flex:0 0 auto; width:38px; }
+
+  /* spin, iMessage-style: a cue ball with a red dot for where the tip lands */
+  .spinbtn{
+    position:relative; width:38px; height:38px; padding:0; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(239,227,204,.35);
+    background:radial-gradient(circle at 34% 30%, #fffdf6, #f1ebdf 45%, #c7bda9);
+    box-shadow:0 3px 8px rgba(0,0,0,.55);
+    transition:opacity .2s ease, box-shadow .2s ease;
+  }
+  .spinbtn:not(:disabled){ box-shadow:0 3px 8px rgba(0,0,0,.55), 0 0 14px -3px rgba(255,179,71,.6); }
+  .spinbtn:disabled{ opacity:.3; cursor:default; }
+  .spinbtn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .spinbtn i{
+    position:absolute; left:50%; top:50%; width:8px; height:8px; margin:-4px 0 0 -4px;
+    border-radius:50%; background:#d63a2c;
+  }
+  .spinpad{
+    position:absolute; inset:0; border-radius:16px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background:rgba(13,10,8,.84);
+  }
+  .spinpad-hint{ font:400 .84rem/1.4 var(--sans); color:var(--tallow); opacity:.85; text-align:center; padding:0 16px; }
+  .spinball{
+    position:relative; width:min(66%, 220px); aspect-ratio:1; border-radius:50%;
+    touch-action:none; cursor:crosshair;
+    background:radial-gradient(circle at 34% 30%, #fffdf6, #f1ebdf 45%, #c4baa6);
+    box-shadow:0 16px 34px -10px rgba(0,0,0,.85);
+  }
+  .spinball:focus-visible{ outline:2px solid var(--amber); outline-offset:4px; }
+  .spinball::before, .spinball::after{ content:""; position:absolute; background:rgba(26,20,16,.14); }
+  .spinball::before{ left:12%; right:12%; top:50%; height:1px; }
+  .spinball::after{ top:12%; bottom:12%; left:50%; width:1px; }
+  .spinball i{
+    position:absolute; width:13%; height:13%; border-radius:50%; transform:translate(-50%,-50%);
+    left:50%; top:50%; z-index:1;
+    background:#d63a2c; box-shadow:0 0 0 4px rgba(214,58,44,.22);
+  }
+
   .ptable{ position:relative; flex:0 0 auto; }
   #pCanvas{ display:block; touch-action:none; border-radius:16px; }
   .pcard{
@@ -1019,8 +1058,11 @@
       <p class="pcall" id="pCall" aria-live="polite"></p>
       <div class="fuse pshot off" id="pShot"><i id="pShotBar"></i></div>
       <div class="pstage" id="pStage">
-        <div class="cuebar off" id="cueBar" role="slider" aria-label="Shot power: pull down, let go to shoot" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-          <div class="cuetrack"><div class="cuefill" id="cueFill"></div><div class="cuestick" id="cueStick"></div></div>
+        <div class="pleft">
+          <div class="cuebar off" id="cueBar" role="slider" aria-label="Shot power: pull down, let go to shoot" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="cuetrack"><div class="cuefill" id="cueFill"></div><div class="cuestick" id="cueStick"></div></div>
+          </div>
+          <button class="spinbtn" id="spinBtn" type="button" aria-label="Spin: choose where the cue hits the ball" disabled><i id="spinDot"></i></button>
         </div>
         <div class="ptable" id="pTable">
           <canvas id="pCanvas" aria-label="Pool table"></canvas>
@@ -1033,6 +1075,14 @@
             <div class="row" id="pcOver" hidden>
               <button class="btn primary" id="pcAgain" hidden>Run it back</button>
               <a class="btn" href="./">New opponent</a>
+            </div>
+          </div>
+          <div class="spinpad" id="spinPad" hidden>
+            <p class="spinpad-hint" id="spinHint">Drag the dot to where the cue should hit</p>
+            <div class="spinball" id="spinBall" role="slider" aria-label="Spin" tabindex="0"><i id="spinBallDot"></i></div>
+            <div class="row">
+              <button class="btn" id="spinReset" type="button">Centre</button>
+              <button class="btn primary" id="spinDone" type="button">Done</button>
             </div>
           </div>
         </div>
@@ -1415,7 +1465,7 @@
   const pv = {
     s: null, balls: [], anim: null, played: 0, cardWanted: false,
     aim: { x: 0, y: -1 }, power: 0, cue: null, drag: null, pull: null,
-    sent: false, picked: null, qKey: '',
+    sent: false, picked: null, qKey: '', spin: { x: 0, y: 0 },
     w: 0, h: 0, scale: 1, dpr: 1,
   };
   const poolClamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -1472,7 +1522,7 @@
     pv.w = w; pv.h = h; pv.scale = w / OW; pv.dpr = dpr;
     c.style.width = w + 'px'; c.style.height = h + 'px';
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
-    $('cueBar').style.height = h + 'px';
+    $('cueBar').style.height = (h - 46) + 'px';
     updateCueBar();
   }
   window.addEventListener('resize', () => { if(!$('scPool').hidden) poolResize(); });
@@ -1684,6 +1734,8 @@
       $('pShot').classList.toggle('low', left < 8000);
     }
     $('cueBar').classList.toggle('off', !canAim());
+    $('spinBtn').disabled = !canAim();
+    if(!canAim() && !$('spinPad').hidden) spinClose();
   }
   requestAnimationFrame(poolFrame);
 
@@ -1694,10 +1746,29 @@
     $('cueBar').setAttribute('aria-valuenow', String(Math.round(pv.power * 100)));
   }
 
+  function spinShow(){
+    const { x, y } = pv.spin;
+    $('spinDot').style.transform = 'translate(' + (x * 15).toFixed(1) + 'px,' + (-y * 15).toFixed(1) + 'px)';
+    $('spinBallDot').style.left = (50 + x * 50).toFixed(1) + '%';
+    $('spinBallDot').style.top = (50 - y * 50).toFixed(1) + '%';
+    const words = [];
+    if(y > .15) words.push('topspin'); else if(y < -.15) words.push('backspin');
+    if(x > .15) words.push('right spin'); else if(x < -.15) words.push('left spin');
+    $('spinHint').textContent = words.length
+      ? 'Spin: ' + words.join(' and ') + '.'
+      : 'Drag the dot to where the cue should hit';
+    $('spinBall').setAttribute('aria-valuetext', words.length ? words.join(' and ') : 'centre');
+  }
+
+  function spinClose(){
+    $('spinPad').hidden = true;
+    pv.spinDrag = false;
+  }
+
   function poolShoot(){
     const c = cuePos();
     if(!c || !ws || (pv.s.table.ballInHand && !placeValid(c.x, c.y))) return;
-    ws.send(JSON.stringify({ t:'shoot', dx: pv.aim.x, dy: pv.aim.y, power: pv.power, cx: c.x, cy: c.y }));
+    ws.send(JSON.stringify({ t:'shoot', dx: pv.aim.x, dy: pv.aim.y, power: pv.power, cx: c.x, cy: c.y, sx: pv.spin.x, sy: pv.spin.y }));
     pv.sent = true;
     pv.power = 0;
     updateCueBar();
@@ -1759,6 +1830,7 @@
       if(!ready()) return;
       e.preventDefault();
       try{ bar.setPointerCapture(e.pointerId); }catch(err){}
+      spinClose();
       pv.pull = { y0: e.clientY, h: bar.clientHeight || 300 };
     });
     bar.addEventListener('pointermove', e => {
@@ -1783,6 +1855,47 @@
         e.preventDefault(); poolShoot();
       }
     });
+
+    // spin: drag the red dot on a big cue ball to pick where the tip lands.
+    // up is topspin, down is backspin, left and right are side spin
+    const SPIN_MAX = .85;
+    const ball = $('spinBall');
+    const setSpin = e => {
+      const r = ball.getBoundingClientRect();
+      let x = (e.clientX - r.left - r.width / 2) / (r.width / 2);
+      let y = -(e.clientY - r.top - r.height / 2) / (r.height / 2);
+      const l = Math.hypot(x, y);
+      if(l > SPIN_MAX){ x *= SPIN_MAX / l; y *= SPIN_MAX / l; }
+      pv.spin = { x, y };
+      spinShow();
+    };
+    $('spinBtn').addEventListener('click', () => {
+      if(!canAim()) return;
+      $('spinPad').hidden = false;
+      ball.focus({ preventScroll: true });
+    });
+    ball.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      try{ ball.setPointerCapture(e.pointerId); }catch(err){}
+      pv.spinDrag = true;
+      setSpin(e);
+    });
+    ball.addEventListener('pointermove', e => { if(pv.spinDrag) setSpin(e); });
+    ball.addEventListener('pointerup', () => { pv.spinDrag = false; });
+    ball.addEventListener('pointercancel', () => { pv.spinDrag = false; });
+    ball.addEventListener('keydown', e => {
+      const step = { ArrowLeft: [-.1, 0], ArrowRight: [.1, 0], ArrowUp: [0, .1], ArrowDown: [0, -.1] }[e.key];
+      if(step){
+        e.preventDefault(); e.stopPropagation();
+        let x = pv.spin.x + step[0], y = pv.spin.y + step[1];
+        const l = Math.hypot(x, y);
+        if(l > SPIN_MAX){ x *= SPIN_MAX / l; y *= SPIN_MAX / l; }
+        pv.spin = { x, y }; spinShow();
+      }else if(e.key === 'Enter' || e.key === 'Escape'){ e.preventDefault(); spinClose(); }
+    });
+    $('spinPad').addEventListener('pointerdown', e => { if(e.target === $('spinPad')) spinClose(); });
+    $('spinReset').addEventListener('click', () => { pv.spin = { x: 0, y: 0 }; spinShow(); });
+    $('spinDone').addEventListener('click', spinClose);
 
     $('pcAgain').addEventListener('click', () => {
       $('pcAgain').disabled = true;
@@ -1911,6 +2024,7 @@
     pv.balls = T.balls;
     if(s.phase === 'aim' && (!prev || prev.phase !== 'aim')){
       pv.sent = false; pv.power = 0; pv.drag = null; pv.pull = null;
+      pv.spin = { x: 0, y: 0 }; spinShow();
       pv.cue = T.ballInHand && T.turn === myRole ? defaultCue() : null;
     }
     const qKey = s.q ? s.q.text + '|' + s.q.choices.join(',') : '';
