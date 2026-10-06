@@ -1520,6 +1520,7 @@
     if(w === pv.w && h === pv.h) return;
     const c = $('pCanvas'), dpr = Math.min(window.devicePixelRatio || 1, 3);
     pv.w = w; pv.h = h; pv.scale = w / OW; pv.dpr = dpr;
+    for(const b of balls3d) b.dirty = true;
     c.style.width = w + 'px'; c.style.height = h + 'px';
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     $('cueBar').style.height = (h - 46) + 'px';
@@ -1572,33 +1573,123 @@
     }
   }
 
+  // ---- rolling balls ----
+  // each ball carries its own 3D orientation, a rotation matrix from the
+  // ball's body to the view (x right, y down, z towards the viewer). moving
+  // a distance d turns it d / radius about the axis lying flat on the table
+  // at right angles to the travel, so the number and stripe roll over the
+  // top and disappear round the edge the way a real ball's would. each ball
+  // is shaded pixel by pixel into its own small sprite, redrawn only when it
+  // turns or the table is resized.
+  const BALL_RGB = BALL_COL.map(h => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16)));
+  const SHELL = [243, 238, 228];
+  const LIGHT = (() => { const v = [-.42, -.55, .72], l = Math.hypot(...v); return v.map(c => c / l); })();
+  const HALF = (() => { const v = [LIGHT[0], LIGHT[1], LIGHT[2] + 1], l = Math.hypot(...v); return v.map(c => c / l); })();
+  const balls3d = Array.from({ length: 16 }, () => ({ m: [1, 0, 0, 0, 1, 0, 0, 0, 1], sprite: null, px: 0, dirty: true, last: null }));
+
+  function matMul(a, b){
+    const r = new Array(9);
+    for(let i = 0; i < 3; i++) for(let j = 0; j < 3; j++)
+      r[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j];
+    return r;
+  }
+  function rotation(ax, ay, az, t){
+    const c = Math.cos(t), s = Math.sin(t), k = 1 - c;
+    return [
+      c + ax * ax * k,      ax * ay * k - az * s, ax * az * k + ay * s,
+      ay * ax * k + az * s, c + ay * ay * k,      ay * az * k - ax * s,
+      az * ax * k - ay * s, az * ay * k + ax * s, c + az * az * k,
+    ];
+  }
+  // rounding drifts a matrix off true over thousands of turns; pull it back
+  function tidy(m){
+    let ax = [m[0], m[3], m[6]], l = Math.hypot(...ax); ax = ax.map(v => v / l);
+    let ay = [m[1], m[4], m[7]];
+    const d = ax[0] * ay[0] + ax[1] * ay[1] + ax[2] * ay[2];
+    ay = ay.map((v, i) => v - d * ax[i]); l = Math.hypot(...ay); ay = ay.map(v => v / l);
+    const az = [ax[1] * ay[2] - ax[2] * ay[1], ax[2] * ay[0] - ax[0] * ay[2], ax[0] * ay[1] - ax[1] * ay[0]];
+    return [ax[0], ay[0], az[0], ax[1], ay[1], az[1], ax[2], ay[2], az[2]];
+  }
+
+  // a fresh rack: numbers mostly facing up, each turned and tipped a little
+  function resetBalls3d(){
+    for(const b of balls3d){
+      const spin = rotation(0, 0, 1, Math.random() * Math.PI * 2);
+      const tilt = rotation(1, 0, 0, (Math.random() - .5) * .9);
+      b.m = matMul(spin, tilt); b.dirty = true; b.last = null;
+    }
+  }
+  resetBalls3d();
+
+  // turn every ball by however far it moved since the last frame
+  function rollBalls(pos){
+    for(let n = 0; n < 16; n++){
+      const b = balls3d[n], p = pos[n];
+      if(!p){ b.last = null; continue; }
+      if(b.last){
+        const dx = p[0] - b.last[0], dy = p[1] - b.last[1], d = Math.hypot(dx, dy);
+        // a big jump is a placement or a respot, not rolling
+        if(d > .01 && d < 150){
+          b.m = tidy(matMul(rotation(-dy / d, dx / d, 0, d / PR), b.m));
+          b.dirty = true;
+        }
+      }
+      b.last = [p[0], p[1]];
+    }
+  }
+
+  function ballSprite(n){
+    const b = balls3d[n], rp = PR * pv.scale * pv.dpr;
+    const size = Math.ceil(rp * 2) + 2;
+    if(!b.sprite || b.px !== size){ b.sprite = document.createElement('canvas'); b.sprite.width = b.sprite.height = size; b.px = size; b.dirty = true; }
+    if(!b.dirty) return b.sprite;
+    const g = b.sprite.getContext('2d'), img = g.createImageData(size, size), d = img.data, m = b.m;
+    const base = BALL_RGB[n], c = size / 2;
+    for(let py = 0; py < size; py++){
+      const y = (py + .5 - c) / rp;
+      for(let px = 0; px < size; px++){
+        const x = (px + .5 - c) / rp, r2 = x * x + y * y;
+        const edge = (1 - Math.sqrt(r2)) * rp + .5;
+        if(edge <= 0) continue;
+        const z = Math.sqrt(Math.max(0, 1 - r2));
+        // the same point in the ball's own frame
+        const bx = m[0] * x + m[3] * y + m[6] * z;
+        const bz = m[2] * x + m[5] * y + m[8] * z;
+        let col = base;
+        if(n === 0 || bz > .87 || (n >= 9 && (bx > .52 || bx < -.52))) col = SHELL;
+        const diff = Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2]);
+        const spec = Math.pow(Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]), 36) * 190;
+        const lit = .36 + .74 * diff;
+        const o = (py * size + px) * 4;
+        d[o] = Math.min(255, col[0] * lit + spec);
+        d[o + 1] = Math.min(255, col[1] * lit + spec);
+        d[o + 2] = Math.min(255, col[2] * lit + spec);
+        d[o + 3] = Math.min(1, edge) * 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    b.dirty = false;
+    return b.sprite;
+  }
+
   function drawBall(ctx, n, x, y){
     ctx.fillStyle = 'rgba(0,0,0,.35)';
     circle(ctx, x + 2.4, y + 3.4, PR); ctx.fill();
+    const spr = ballSprite(n), k = pv.scale * pv.dpr, half = spr.width / 2 / k;
+    ctx.drawImage(spr, x - half, y - half, half * 2, half * 2);
+
+    // the number is painted on the disc's own tangent plane, so it tilts,
+    // squashes and fades with the ball and goes over the edge with it
+    const m = balls3d[n].m;
+    if(n === 0 || m[8] < .2 || PR * pv.scale < 6) return;
     ctx.save();
-    circle(ctx, x, y, PR); ctx.clip();
-    if(n >= 9){
-      ctx.fillStyle = '#f2ede3'; ctx.fillRect(x - PR, y - PR, PR * 2, PR * 2);
-      ctx.fillStyle = BALL_COL[n]; ctx.fillRect(x - PR, y - PR * .56, PR * 2, PR * 1.12);
-    }else{
-      ctx.fillStyle = BALL_COL[n]; ctx.fillRect(x - PR, y - PR, PR * 2, PR * 2);
-    }
-    if(n > 0){
-      ctx.fillStyle = '#f7f2e8';
-      circle(ctx, x, y, PR * .52); ctx.fill();
-      if(PR * pv.scale >= 6){
-        ctx.fillStyle = '#1a1410';
-        ctx.font = '700 ' + (PR * .74).toFixed(1) + 'px system-ui, sans-serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(n), x, y + .6);
-      }
-    }
-    const shine = ctx.createRadialGradient(x - PR * .4, y - PR * .45, 0, x, y, PR * 1.05);
-    shine.addColorStop(0, 'rgba(255,255,255,.5)');
-    shine.addColorStop(.35, 'rgba(255,255,255,0)');
-    shine.addColorStop(1, 'rgba(0,0,0,.28)');
-    ctx.fillStyle = shine;
-    ctx.fillRect(x - PR, y - PR, PR * 2, PR * 2);
+    circle(ctx, x, y, PR * .98); ctx.clip();
+    ctx.transform(m[0], m[3], m[1], m[4], x + m[2] * PR, y + m[5] * PR);
+    ctx.globalAlpha = Math.min(1, (m[8] - .2) / .3);
+    ctx.fillStyle = '#1a1410';
+    ctx.font = '700 ' + (PR * .62).toFixed(1) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), 0, .5);
     ctx.restore();
   }
 
@@ -1720,6 +1811,7 @@
         }
       }
     }
+    rollBalls(pos);
     poolDraw(pos);
 
     $('pCard').hidden = !(pv.cardWanted && !pv.anim);
@@ -2014,6 +2106,7 @@
     const T = s.table, prev = pv.s;
     if(s.phase === 'countdown' && (!prev || prev.phase !== 'countdown')){
       pv.played = 0; pv.anim = null; revealed = false;
+      resetBalls3d();
     }
     pv.s = s;
     if(s.ms != null) deadlineAt = performance.now() + s.ms;
