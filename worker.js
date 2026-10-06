@@ -46,6 +46,10 @@ const MODES        = { judge: 'Judge Mode', debate: 'Debate Mode', pool: 'Pool' 
 const POOL_RESULT_MS = 1500;   // pause on right/wrong before the shot or handover
 const AIM_MS         = 30000;  // shot clock once a question is answered right
 const ROLL_PAD_MS    = 700;    // breathing room after the replay before the next question
+
+// a dropped connection mid-match might just be a refresh or a locked phone,
+// so the seat is held this long before the match is called off
+const LEAVE_GRACE_MS = 15000;
 const CHARS        = ['boy', 'girl', 'dino', 'shades', 'ponytail', 'nerd', 'vampire', 'astronaut'];
 
 // ---- Debate Mode ----
@@ -501,13 +505,21 @@ export class GameRoom {
 
     const conn = { ws, role };
     this.sockets.add(conn);
+    if (this.game && this.game.gone) delete this.game.gone[role];   // back in time
 
     ws.addEventListener('message', (ev) => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch (e) { return; }
       this.onMessage(role, msg).catch(() => {});
     });
-    const drop = () => this.sockets.delete(conn);
+    const drop = () => {
+      if (!this.sockets.delete(conn)) return;
+      const g = this.game;
+      if (!g || g.phase === 'over') return;
+      for (const c of this.sockets) if (c.role === role) return;   // still here on another tab
+      g.gone = g.gone || {};
+      g.gone[role] = Date.now();
+    };
     ws.addEventListener('close', drop);
     ws.addEventListener('error', drop);
 
@@ -562,7 +574,9 @@ export class GameRoom {
     if (msg.t === 'pans') { this.poolAnswer(role, msg.choice); return; }
     if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
 
-    if (msg.t === 'again' && this.game && this.game.phase === 'over') {
+    if (msg.t === 'leave') { this.playerLeft(role); return; }
+
+    if (msg.t === 'again' && this.game && this.game.phase === 'over' && !this.game.over.left) {
       this.startGame();
     }
   }
@@ -777,9 +791,32 @@ export class GameRoom {
 
   // the room only has to enforce its own deadlines; each browser runs the
   // visible countdown off the "ms left" it was handed with the question
+  // one player walked out: the match is over for both of them. after a match
+  // has already finished it just stops a rematch being offered to nobody
+  playerLeft(role) {
+    const g = this.game;
+    if (!g) return;
+    const other = role === 'host' ? 'guest' : 'host';
+    if (g.phase === 'over') {
+      if (g.over && !g.over.left) { g.over.left = role; this.broadcast(this.snapshot()); }
+      return;
+    }
+    g.phase = 'over';
+    g.over = { winner: other, left: role, draw: false, why: g[role].name + ' left the game.' };
+    g.q = null;
+    if (g.table) { g.table.shot = null; g.table.after = null; g.table.call = g.over.why; }
+    this.stopLoop();
+    this.broadcast(this.snapshot());
+  }
+
   tick() {
     const g = this.game;
     if (!g || g.phase === 'over') { this.stopLoop(); return; }
+    if (g.gone) {
+      for (const role of Object.keys(g.gone)) {
+        if (Date.now() - g.gone[role] > LEAVE_GRACE_MS) { this.playerLeft(role); return; }
+      }
+    }
     if (g.mode === 'pool') { this.poolTick(g); return; }
     if (g.vsBot) this.botTick(g);
     if (Date.now() < g.deadline) return;
