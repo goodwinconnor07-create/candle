@@ -409,6 +409,22 @@ async function judgeDebate(env, topic, sideA, sideB, nameA, nameB, argA, argB) {
   return { a: side(v.a), b: side(v.b), round: clean(v.round, 300) };
 }
 
+// the stand-in judge for test matches: no API call, no tokens. it grades on
+// length and on whether the case has a figure in it, which is crude, but
+// enough to exercise the whole round, recap and meters
+function testVerdict(argA, argB) {
+  const grade = (t) => {
+    const n = words(t).length;
+    return round1(clamp(3 + n / 50 * 2.6 + (/\d/.test(t) ? .8 : 0), SCORE_WRONG, SCORE_RIGHT));
+  };
+  const side = (t) => ({
+    praise: words(t).length ? 'Test judge: you got ' + words(t).length + ' words down.' : 'Test judge: nothing to praise yet.',
+    critique: /\d/.test(t) ? 'Test judge: there is a figure in there, which helps.' : 'Test judge: no figures, so that costs you.',
+    score: grade(t),
+  });
+  return { a: side(argA), b: side(argB), round: 'Test judge, no AI used. Grades here only reflect length and figures.' };
+}
+
 export class GameRoom {
   constructor(state, env) {
     this.state = state;
@@ -439,16 +455,19 @@ export class GameRoom {
 
     if (url.pathname === '/create') {
       const body = await request.json().catch(() => ({}));
-      // there's no pool-playing bot yet, so a pool room is always two people
-      const vsBot = !!body.vsBot && body.mode !== 'pool';
-      const botDifficulty = vsBot ? cleanDifficulty(body.botDifficulty) : '';
+      // a test match fills the other seat with a stand-in that plays every
+      // mode (pool included) and is judged without calling the API. a normal
+      // pool room has no bot, so it's always two people
+      const test = !!body.test;
+      const vsBot = test || (!!body.vsBot && body.mode !== 'pool');
+      const botDifficulty = vsBot ? (test ? 'medium' : cleanDifficulty(body.botDifficulty)) : '';
       this.lobby = {
         hostName: clean(body.name, NAME_MAX) || 'Someone',
         hostToken: randomId(18),
         // a bot opponent fills the guest seat immediately — ready, named,
         // and costumed — so the host lands straight on a lobby that already
         // shows a ready opponent instead of an empty one to share a link for
-        guestName: vsBot ? (BOT_NAMES[botDifficulty] || 'Bot') : '',
+        guestName: test ? 'Tester' : vsBot ? (BOT_NAMES[botDifficulty] || 'Bot') : '',
         guestToken: vsBot ? 'bot' : '',
         guestReady: vsBot,
         hostChar: cleanChar(body.char),
@@ -456,6 +475,7 @@ export class GameRoom {
         mode: MODES[body.mode] ? body.mode : 'judge',
         vsBot,
         botDifficulty,
+        test,
       };
       await this.saveLobby();
       return json({ token: this.lobby.hostToken });
@@ -606,6 +626,7 @@ export class GameRoom {
       last: null,
       over: null,
       vsBot: !!this.lobby.vsBot,
+      test: !!this.lobby.test,
       botDifficulty: this.lobby.botDifficulty || 'medium',
       botDueAt: 0,
       botChoice: null,
@@ -646,6 +667,10 @@ export class GameRoom {
     g.table.pqResult = null;
     g.phase = 'pq';
     g.deadline = Date.now() + QUESTION_MS;
+    if (g.vsBot && g.table.turn === 'guest') {
+      g.botDueAt = Date.now() + 1500 + rnd(1500);
+      g.botChoice = Math.random() < .75 ? g.q.answer : (g.q.answer + 1 + rnd(3)) % 4;
+    }
     this.broadcast(this.snapshot());
   }
 
@@ -738,14 +763,25 @@ export class GameRoom {
   }
 
   poolTick(g) {
-    if (Date.now() < g.deadline) return;
     const T = g.table;
+    // the stand-in opponent's turns: answer after a moment, then shoot
+    if (g.vsBot && T.turn === 'guest' && g.botDueAt && Date.now() >= g.botDueAt) {
+      if (g.phase === 'pq') { g.botDueAt = 0; this.poolAnswer('guest', g.botChoice); return; }
+      if (g.phase === 'aim') {
+        g.botDueAt = 0;
+        const shot = Pool.botShot(T.balls, T.groups, 'guest', T.broken, T.ballInHand);
+        this.poolShoot('guest', shot);
+        return;
+      }
+    }
+    if (Date.now() < g.deadline) return;
     if (g.phase === 'countdown') { this.poolAsk(); return; }
     if (g.phase === 'pq') { this.poolAnswer(T.turn, null); return; }
     if (g.phase === 'pqres') {
       if (T.pqResult && T.pqResult.right) {
         g.phase = 'aim';
         g.deadline = Date.now() + AIM_MS;
+        if (g.vsBot && T.turn === 'guest') g.botDueAt = Date.now() + 1200 + rnd(1300);
         T.call = g[T.turn].name + (!T.broken ? ' is breaking.' : ' is taking their shot.');
         this.broadcast(this.snapshot());
       } else {
@@ -852,7 +888,7 @@ export class GameRoom {
 
   armBotArgument(g, now) {
     const diff = BOT_DIFFICULTY[g.botDifficulty] || BOT_DIFFICULTY.medium;
-    const [lo, hi] = diff.debateThinkMs;
+    const [lo, hi] = g.test ? [3000, 6000] : diff.debateThinkMs;
     g.botDueAt = now + lo + rnd(hi - lo + 1);
     g.botArgText = null;
     const round = g.round;
@@ -929,10 +965,13 @@ export class GameRoom {
     this.broadcast(this.snapshot());
 
     const round = g.round;
-    judgeDebate(
-      this.env, g.topic, g.sides.host, g.sides.guest,
-      g.host.name, g.guest.name, g.args.host || '', g.args.guest || '',
-    ).then(
+    const verdict = g.test
+      ? Promise.resolve(testVerdict(g.args.host || '', g.args.guest || ''))
+      : judgeDebate(
+        this.env, g.topic, g.sides.host, g.sides.guest,
+        g.host.name, g.guest.name, g.args.host || '', g.args.guest || '',
+      );
+    verdict.then(
       (v) => { if (this.game === g && g.round === round) this.finishDebate(v, ''); },
       (e) => {
         if (this.game !== g || g.round !== round) return;
@@ -1054,6 +1093,7 @@ export class GameRoom {
         mode,
         modeName: MODES[mode],
         vsBot: !!(lobby && lobby.vsBot),
+        test: !!(lobby && lobby.test),
         host: { name: lobby ? lobby.hostName : '', ready: true, char: lobby ? lobby.hostChar : '' },
         guest: {
           name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady),
@@ -1068,6 +1108,7 @@ export class GameRoom {
       phase: g.phase,
       mode,
       modeName: MODES[mode],
+      test: !!g.test,
       round: g.round,
       total: g.mode === 'debate' ? DEBATE_ROUNDS : TOTAL_Q,
       ms: Math.max(0, g.deadline - now),
@@ -1144,7 +1185,7 @@ async function api(request, env) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         name: body.name, mode: body.mode, char: body.char,
-        vsBot: body.vsBot, botDifficulty: body.botDifficulty,
+        vsBot: body.vsBot, botDifficulty: body.botDifficulty, test: body.test,
       }),
     });
     const created = await res.json();

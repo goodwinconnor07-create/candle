@@ -141,3 +141,12 @@ left or right off the cushions.
 The room simulates every shot itself (`simulate()` in `pool.js`) and sends both
 phones the frames to replay, so the two screens can't disagree about whether a
 ball dropped. Pool is friends-only for now; the bot option is greyed out.
+
+## Test Mode
+
+For trying a mode out on your own. Pick any mode, hit Go, then **Test Mode**:
+you skip setup and the lobby and go straight into a match against "Tester",
+a stand-in that plays every mode, Pool included. Debate rounds are graded by
+a stand-in judge instead of Claude (it scores on length and whether there's a
+figure), so a test match never calls the API or spends tokens. A dashed
+"Test mode" tag stays on screen so it's never mistaken for a real match.
