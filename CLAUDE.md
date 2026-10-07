@@ -67,6 +67,11 @@ PR to the default branch, merge, deploy, then check the live site.
   the move (two moves in a row decides most games). Don't use `Date.now()`
   for time limits on searches inside the Worker, because it doesn't advance
   while code runs. Pass a node budget instead, like `botMove()` does.
+- The page never scrolls (`html, body` are `overflow:hidden`, body is
+  `100dvh`). Every screen has to fit, down to a 360x640 phone. Pool sizes its
+  table in `poolResize()` and chess sizes its board in `chessResize()` from
+  the space left over, so anything added above or below them is accounted
+  for automatically. Check new screens at 360x640 and 1280x720.
 - Match the existing style: dark "soot" background, tallow text, amber accent,
   Fraunces serif for headings, the iMessage-inspired pool table.
 
