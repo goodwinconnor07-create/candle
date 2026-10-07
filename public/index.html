@@ -1619,7 +1619,7 @@
     <filter id="cardSmear" x="-25%" y="0" width="150%" height="100%" color-interpolation-filters="sRGB">
       <feGaussianBlur id="smearBlur" in="SourceGraphic" stdDeviation="0 0" result="b"/>
       <feOffset id="smearOff" in="b" dx="0" dy="0" result="o"/>
-      <feComponentTransfer in="o" result="t"><feFuncA type="linear" slope=".55"/></feComponentTransfer>
+      <feComponentTransfer in="o" result="t"><feFuncA type="linear" slope=".4"/></feComponentTransfer>
       <feMerge><feMergeNode in="t"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </svg>
@@ -7533,12 +7533,12 @@
       box.style.removeProperty('--lean'); box.style.removeProperty('--stretch');
       return;
     }
-    const trail = Math.min(7, a * 4.2);
+    const trail = Math.min(3.5, a * 2.2);
     box.classList.add('moving');
-    box.style.setProperty('--lean', (dir * Math.min(4.5, a * 3)).toFixed(2) + 'deg');
-    box.style.setProperty('--stretch', (1 + Math.min(.03, a * .02)).toFixed(4));
+    box.style.setProperty('--lean', (dir * Math.min(2.2, a * 1.5)).toFixed(2) + 'deg');
+    box.style.setProperty('--stretch', (1 + Math.min(.015, a * .01)).toFixed(4));
     smearBlur.setAttribute('stdDeviation', trail.toFixed(2) + ' 0');
-    smearOff.setAttribute('dx', (dir * trail * 1.4).toFixed(2));
+    smearOff.setAttribute('dx', (dir * trail * 1.2).toFixed(2));
     smRaf = requestAnimationFrame(smearMotion);
   }
   $('games').addEventListener('scroll', () => {
