@@ -2425,8 +2425,8 @@
       <input class="field" id="setName" type="text" maxlength="60" placeholder="Name, like Biology chapter 3" autocomplete="off" aria-label="Study set name">
       <textarea class="field" id="setText" placeholder="Paste your notes here" aria-label="Your notes"></textarea>
       <div class="filerow">
-        <button class="btn" id="setPick" type="button">Add a file</button>
-        <input type="file" id="setFile" accept=".pdf,.docx,.pptx,.txt,.md" hidden>
+        <button class="btn" id="setPick" type="button">Add files</button>
+        <input type="file" id="setFile" accept=".pdf,.docx,.pptx,.txt,.md" multiple hidden>
         <span id="setInfo">PDF, Word, slides or text</span>
       </div>
       <p class="note" id="setNote" aria-live="polite"></p>
@@ -7733,7 +7733,8 @@
 
   function openNewSet(){
     $('setName').value = ''; $('setText').value = ''; $('setNote').textContent = '';
-    $('setInfo').textContent = 'PDF, Word, slides or text';
+    setFiles = [];
+    filesInfo();
     setReady();
     if($('scNewSet').hidden) pushSub('scNewSet');
     show(['scNewSet']);
@@ -7744,25 +7745,43 @@
   $('setName').addEventListener('input', setReady);
   $('setText').addEventListener('input', setReady);
   $('setPick').addEventListener('click', () => $('setFile').click());
+  // any number of files at once, or one at a time over several taps: each
+  // one's text is added to the box, and a file that can't be read is skipped
+  // with a note while the rest go in
+  let setFiles = [];
+  const INFO_IDLE = 'PDF, Word, slides or text';
+  function filesInfo(){
+    $('setInfo').textContent = !setFiles.length ? INFO_IDLE
+      : setFiles.length === 1 ? setFiles[0] : setFiles.length + ' files added';
+  }
   $('setFile').addEventListener('change', async () => {
-    const f = $('setFile').files[0];
+    const picked = [...$('setFile').files];
     $('setFile').value = '';
-    if(!f) return;
+    if(!picked.length) return;
     $('setNote').textContent = '';
-    $('setInfo').textContent = 'Reading ' + f.name + '…';
     $('setPick').disabled = true;
-    try{
-      const { extractText } = await import('/extract.js');
-      const { text, truncated } = await extractText(f);
+    const problems = [];
+    let cut = false;
+    const { extractText, MAX_CHARS } = await import('/extract.js');
+    for(let i = 0; i < picked.length; i++){
+      const f = picked[i];
+      $('setInfo').textContent = 'Reading ' + f.name + (picked.length > 1 ? ' (' + (i + 1) + ' of ' + picked.length + ')' : '') + '…';
       const box = $('setText');
-      box.value = (box.value.trim() ? box.value.trim() + '\n\n' : '') + text;
-      if(!$('setName').value.trim()) $('setName').value = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
-      $('setInfo').textContent = f.name;
-      if(truncated) $('setNote').textContent = 'That file was long, so only the first part was kept.';
-    }catch(e){
-      $('setInfo').textContent = 'PDF, Word, slides or text';
-      $('setNote').textContent = (e && e.message) || "We couldn't read that file.";
+      if(box.value.length >= MAX_CHARS){ problems.push('Stopped at the size limit, so ' + f.name + ' and the files after it were skipped.'); break; }
+      try{
+        const { text, truncated } = await extractText(f);
+        box.value = (box.value.trim() ? box.value.trim() + '\n\n' : '') + text;
+        if(box.value.length > MAX_CHARS){ box.value = box.value.slice(0, MAX_CHARS); cut = true; }
+        if(truncated) cut = true;
+        setFiles.push(f.name);
+        if(!$('setName').value.trim()) $('setName').value = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
+      }catch(e){
+        problems.push(f.name + ': ' + ((e && e.message) || "couldn't read it."));
+      }
     }
+    if(cut) problems.push('That was a lot of text, so only the first part was kept.');
+    $('setNote').textContent = problems.join(' ');
+    filesInfo();
     $('setPick').disabled = false;
     setReady();
   });
