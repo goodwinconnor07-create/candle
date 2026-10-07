@@ -1,7 +1,8 @@
 # Study Duel — notes for Claude
 
 Two-player study mini games: a familiar game where every move is earned by
-answering a question right. Pool (8-ball), chess and battleships so far. Live at
+answering a question right. Pool (8-ball), chess, battleships and Towers (a Clash
+Royale-style tower battle) so far. Live at
 https://candle-timer.candle-timer.workers.dev. See README.md for how the game
 plays and DEPLOY.md for deploy details.
 
@@ -28,8 +29,14 @@ plays and DEPLOY.md for deploy details.
   server. If it fails to load, `public/hint-worker.js` runs the small engine
   instead. The full Stockfish build is ~99 MB, over Cloudflare's 25 MB asset
   limit, so stick with lite.
+- `towers.js`: the Towers battle, run by the room ten times a second
+  (`step()`), plus `world()` for the compact picture both browsers get, and
+  Tester's card picker (`botPlay()`).
+- `public/towers-cards.js`: Towers cards, arena geometry, tower stats and the
+  drop rules (`placeOk()`), shared by the room and the browser.
 - `public/index.html`: the whole front end in one file (styles, SVG characters,
-  script). No build step, no framework.
+  script). No build step, no framework. Towers card art is the `ART` table
+  in the script, drawn in the same style as the player characters.
 - Nothing else to install for the Worker; `wrangler` is the only dev dependency.
 
 ## Branches
@@ -77,6 +84,13 @@ PR to the default branch, merge, deploy, then check the live site.
   the move (two moves in a row decides most games). Don't use `Date.now()`
   for time limits on searches inside the Worker, because it doesn't advance
   while code runs. Pass a node budget instead, like `botMove()` does.
+- Towers is real time, not turn based: both players answer their own
+  questions at once and right answers are the only source of elixir. Each
+  player's question, hand and elixir are sent only to them (`towersSend()`).
+  The battle steps on a fixed 100ms tick; keep `step()` cheap (it runs in
+  well under a millisecond with ~40 troops). For balance changes, run bots
+  against each other in Node with `newBattle()`, `botPlay()` and `step()`
+  before trying it in the browser.
 - The page never scrolls (`html, body` are `overflow:hidden`, body is
   `100dvh`). Every screen has to fit, down to a 360x640 phone. Pool sizes its
   table in `poolResize()`, chess its board in `chessResize()` and battleships
