@@ -26,6 +26,12 @@ plays and DEPLOY.md for deploy details.
   browser keeps (`POST /api/device`), stored only as a SHA-256. Schema changes
   go in a new numbered file in `migrations/`, applied with
   `npx wrangler d1 migrations apply study-duel --remote` before deploying.
+- `public/extract.js` and `public/pdfjs/`: pulls text out of a PDF, .docx,
+  .pptx or text file in the player's browser, so only plain text reaches the
+  server. docx/pptx are read with a small zip reader plus `DecompressionStream`;
+  PDFs use pdf.js (Apache-2.0, vendored, license beside it). Photos and scans
+  aren't read. The study set screens are `#scSets` and `#scNewSet`; the
+  routes are `/api/sets` (list, create, delete) and need the device secret.
 - `public/pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`),
   the shot-message check both sides use (`shotFrom()`), and the test
   stand-in's shot picker (`botShot()`). The room decides every shot and sends

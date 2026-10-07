@@ -1555,6 +1555,26 @@
   @media (prefers-reduced-motion: reduce){
     .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint{ animation:none; }
   }
+
+  /* ---------- study sets ---------- */
+  .setsrow{ display:flex; justify-content:center; }
+  .setlist{ width:min(380px, 100%); display:flex; flex-direction:column; gap:var(--s2); max-height:44dvh; overflow-y:auto; overscroll-behavior:contain; }
+  .setitem{
+    display:flex; align-items:center; justify-content:space-between; gap:var(--s3); text-align:left;
+    padding:var(--s3) var(--s4); min-height:var(--tap); border-radius:var(--r-md);
+    border:1px solid var(--hair); background:rgba(239,227,204,.04);
+  }
+  .setitem b{ display:block; font:600 .98rem/1.25 var(--sans); overflow-wrap:anywhere; }
+  .setitem small{ display:block; margin-top:2px; font:400 .76rem/1.3 var(--sans); color:var(--ash); }
+  .setitem .btn{ flex:0 0 auto; min-height:var(--tap); padding:8px 14px; font:600 .84rem/1 var(--sans); }
+  .setempty{ font:400 .9rem/1.5 var(--sans); color:var(--ash); max-width:30ch; padding:var(--s4) 0; }
+  textarea.field{ width:min(380px, 100%); min-height:0; flex:1 1 120px; max-height:34dvh; resize:none; font:400 .95rem/1.45 var(--sans); text-align:left; }
+  #scNewSet .field{ width:min(380px, 100%); }
+  .filerow{ width:min(380px, 100%); display:flex; align-items:center; gap:var(--s3); }
+  .filerow .btn{ min-height:var(--tap); padding:8px 16px; font:600 .9rem/1 var(--sans); }
+  .filerow span{ font:400 .8rem/1.3 var(--sans); color:var(--ash); text-align:left; }
+  #scNewSet{ gap:var(--s3); }
+  #scNewSet, #scSets{ min-height:0; }
 </style>
 </head>
 <body>
@@ -2098,6 +2118,7 @@
         </article>
       </div>
       <div class="dots" id="gameDots"></div>
+      <div class="setsrow"><button class="pillbtn" id="introSets" type="button">Your study sets</button></div>
       <div class="dock">
         <button class="btn" id="introPractice" type="button">Practice</button>
         <button class="btn primary" id="introGo" type="button">Invite a friend</button>
@@ -2391,6 +2412,27 @@
       </div>
     </section>
 
+    <section class="panel" id="scSets" hidden>
+      <h2 class="hd">Study sets</h2>
+      <p class="lead">Add your notes here and your games ask questions from them.</p>
+      <div class="setlist" id="setList"></div>
+      <p class="note" id="setsNote" aria-live="polite"></p>
+      <div class="dock"><button class="btn primary" id="setsNew" type="button">New study set</button></div>
+    </section>
+
+    <section class="panel" id="scNewSet" hidden>
+      <h2 class="hd">New study set</h2>
+      <input class="field" id="setName" type="text" maxlength="60" placeholder="Name, like Biology chapter 3" autocomplete="off" aria-label="Study set name">
+      <textarea class="field" id="setText" placeholder="Paste your notes here" aria-label="Your notes"></textarea>
+      <div class="filerow">
+        <button class="btn" id="setPick" type="button">Add a file</button>
+        <input type="file" id="setFile" accept=".pdf,.docx,.pptx,.txt,.md" hidden>
+        <span id="setInfo">PDF, Word, slides or text</span>
+      </div>
+      <p class="note" id="setNote" aria-live="polite"></p>
+      <div class="dock"><button class="btn primary" id="setSave" type="button" disabled>Save set</button></div>
+    </section>
+
     <section class="panel" id="scDeck" hidden>
       <h2 class="hd">Your deck</h2>
       <p class="deck-sub">Pick 8 cards. Tap a card to read about it, then add it or take it out.</p>
@@ -2522,7 +2564,7 @@
     fire.set = v => { on = !!v; try{ localStorage.setItem('sd-haptics', v ? '1' : '0'); }catch(e){} };
     return fire;
   })();
-  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scDead'];
+  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scSets','scNewSet','scDead'];
   const GAME_NAMES = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers', golf: 'Mini Golf' };
   const GAME_ICON = { pool: 'pool', chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' };
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
@@ -2665,12 +2707,12 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running or the link's already dead there's nothing sane to back out to,
   // so it stays hidden
-  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scDead']);
+  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scSets', 'scNewSet', 'scDead']);
 
   // how deep each screen sits, so moving deeper slides in from the right and
   // backing out slides in from the left. games just fade up, since they
   // measure their own layout as they appear
-  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2 };
+  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2, scSets: 1, scNewSet: 2 };
   let shownKey = '';
   app.addEventListener('animationend', e => {
     if(e.target.classList && e.target.classList.contains('panel')) e.target.classList.remove('enter', 'enter-back', 'enter-fade');
@@ -7614,6 +7656,140 @@
     else try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
   }
 
+  // ---------- study sets ----------
+  // no account yet: the browser holds a secret the server minted for it
+  // (POST /api/device) and sends it with every set request. it's made the
+  // first time someone opens their sets, not on every visit
+  let memDevice = null;
+  function readDevice(){
+    try{ const d = JSON.parse(localStorage.getItem('sd-device') || 'null'); if(d && d.secret) return d; }catch(e){}
+    return memDevice;
+  }
+  async function makeDevice(){
+    const r = await fetch('/api/device', { method:'POST' });
+    if(!r.ok) throw new Error('device');
+    const d = await r.json();
+    memDevice = d;
+    try{ localStorage.setItem('sd-device', JSON.stringify(d)); }catch(e){}
+    return d;
+  }
+  async function setsApi(path, opts){
+    opts = opts || {};
+    for(let attempt = 0; attempt < 2; attempt++){
+      const d = readDevice() || await makeDevice();
+      const r = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), authorization: 'Bearer ' + d.secret } });
+      if(r.status === 401 && attempt === 0){ memDevice = null; try{ localStorage.removeItem('sd-device'); }catch(e){} continue; }
+      return r;
+    }
+  }
+
+  function openSets(){
+    if($('scSets').hidden) pushSub('scSets');
+    show(['scSets']);
+    loadSets();
+  }
+
+  async function loadSets(){
+    const list = $('setList'), note = $('setsNote');
+    note.textContent = '';
+    try{
+      const r = await setsApi('/api/sets');
+      const { sets } = await r.json();
+      list.textContent = '';
+      if(!sets.length){
+        const p = document.createElement('p');
+        p.className = 'setempty';
+        p.textContent = 'No study sets yet. Make one from your notes to play with them.';
+        list.append(p);
+      }
+      for(const s of sets){
+        const row = document.createElement('div');
+        row.className = 'setitem';
+        const txt = document.createElement('div');
+        const b = document.createElement('b'); b.textContent = s.name;
+        const small = document.createElement('small');
+        small.textContent = Math.max(1, Math.round(s.chars / 6)).toLocaleString() + ' words saved';
+        txt.append(b, small);
+        const del = document.createElement('button');
+        del.type = 'button'; del.className = 'btn'; del.textContent = 'Delete';
+        del.addEventListener('click', async () => {
+          if(del.dataset.sure !== '1'){ del.dataset.sure = '1'; del.textContent = 'Sure?'; setTimeout(() => { del.dataset.sure = ''; del.textContent = 'Delete'; }, 3000); return; }
+          del.disabled = true;
+          try{ await setsApi('/api/sets/' + s.id, { method:'DELETE' }); }catch(e){}
+          loadSets();
+        });
+        row.append(txt, del);
+        list.append(row);
+      }
+    }catch(e){
+      note.textContent = "Couldn't load your sets. Check your connection.";
+    }
+  }
+
+  function setReady(){
+    const n = $('setText').value.trim().length;
+    $('setSave').disabled = !($('setName').value.trim() && n >= 20);
+  }
+
+  function openNewSet(){
+    $('setName').value = ''; $('setText').value = ''; $('setNote').textContent = '';
+    $('setInfo').textContent = 'PDF, Word, slides or text';
+    setReady();
+    if($('scNewSet').hidden) pushSub('scNewSet');
+    show(['scNewSet']);
+  }
+
+  $('introSets').addEventListener('click', openSets);
+  $('setsNew').addEventListener('click', openNewSet);
+  $('setName').addEventListener('input', setReady);
+  $('setText').addEventListener('input', setReady);
+  $('setPick').addEventListener('click', () => $('setFile').click());
+  $('setFile').addEventListener('change', async () => {
+    const f = $('setFile').files[0];
+    $('setFile').value = '';
+    if(!f) return;
+    $('setNote').textContent = '';
+    $('setInfo').textContent = 'Reading ' + f.name + '…';
+    $('setPick').disabled = true;
+    try{
+      const { extractText } = await import('/extract.js');
+      const { text, truncated } = await extractText(f);
+      const box = $('setText');
+      box.value = (box.value.trim() ? box.value.trim() + '\n\n' : '') + text;
+      if(!$('setName').value.trim()) $('setName').value = f.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 60);
+      $('setInfo').textContent = f.name;
+      if(truncated) $('setNote').textContent = 'That file was long, so only the first part was kept.';
+    }catch(e){
+      $('setInfo').textContent = 'PDF, Word, slides or text';
+      $('setNote').textContent = (e && e.message) || "We couldn't read that file.";
+    }
+    $('setPick').disabled = false;
+    setReady();
+  });
+
+  $('setSave').addEventListener('click', async () => {
+    const text = $('setText').value.trim();
+    if(text.length > 200000){ $('setNote').textContent = 'That is too much text for one set. Trim it a little.'; return; }
+    $('setSave').disabled = true;
+    $('setNote').textContent = 'Saving…';
+    try{
+      const r = await setsApi('/api/sets', {
+        method:'POST', headers:{ 'content-type':'application/json' },
+        body: JSON.stringify({ name: $('setName').value.trim(), text }),
+      });
+      if(r.ok){
+        // back to the list; popstate shows it and reloads it
+        if(subEntry('scNewSet')) history.back(); else openSets();
+        return;
+      }
+      const j = await r.json().catch(() => ({}));
+      $('setNote').textContent = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : "Couldn't save that. Try again.";
+    }catch(e){
+      $('setNote').textContent = "Couldn't save that. Check your connection.";
+    }
+    setReady();
+  });
+
   // ---------- the phone's back gesture ----------
   // screens opened inside the app get a history entry of their own, so back
   // closes them instead of leaving the site. a match in progress ignores
@@ -7629,6 +7805,8 @@
       return;
     }
     if(!$('scDeck').hidden){ show([deckFrom]); deckRows(); return; }
+    if(!$('scNewSet').hidden){ show(['scSets']); loadSets(); return; }
+    if(!$('scSets').hidden){ toIntro(); return; }
     const linked = /[#&]g=/.test(location.hash);
     if((!$('scCode').hidden || !$('scSetup').hidden) && !linked) toIntro();
   });
@@ -7666,6 +7844,7 @@
   // depend on it succeeding
   $('backBtn').addEventListener('click', () => {
     if(!$('scDeck').hidden){ closeDeck(); return; }   // back throws away deck changes
+    if((!$('scSets').hidden && subEntry('scSets')) || (!$('scNewSet').hidden && subEntry('scNewSet'))){ history.back(); return; }
     if((!$('scCode').hidden && subEntry('scCode')) || (!$('scSetup').hidden && subEntry('scSetup'))){ history.back(); return; }
     goHome();
   });

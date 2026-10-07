@@ -1781,6 +1781,29 @@ async function api(request, env) {
     return json({ id, sets: await Library.listSets(env.DB, id) });
   }
 
+  if (parts[1] === 'sets') {
+    const me = await Library.deviceFrom(env.DB, request);
+    if (!me) return err(401, 'unknown device');
+    if (parts.length === 2 && request.method === 'GET') return json({ sets: await Library.listSets(env.DB, me) });
+    if (parts.length === 2 && request.method === 'POST') {
+      const raw = await request.text();
+      if (raw.length > Library.MAX_TEXT * 3 + 1000) return err(413, 'too much text');
+      let body;
+      try { body = JSON.parse(raw); } catch (e) { return err(400, 'bad request'); }
+      const name = String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, Library.MAX_NAME);
+      const text = String(body.text || '').trim();
+      if (!name) return err(400, 'give the set a name');
+      if (text.length < 20) return err(400, 'add some text first');
+      if (text.length > Library.MAX_TEXT) return err(413, 'too much text');
+      if (await Library.countSets(env.DB, me) >= Library.MAX_SETS) return err(409, 'you have the most sets allowed');
+      return json(await Library.createSet(env.DB, me, name, text), { status: 201 });
+    }
+    if (parts.length === 3 && request.method === 'DELETE') {
+      return (await Library.deleteSet(env.DB, me, parts[2])) ? json({ ok: true }) : err(404, 'no such set');
+    }
+    return err(404, 'not found');
+  }
+
   if (parts[1] !== 'games') return err(404, 'not found');
 
   if (parts.length === 2 && request.method === 'POST') {
