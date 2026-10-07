@@ -7484,16 +7484,54 @@
     document.documentElement.dataset.game = mode;
   }
 
+  // our own glide for arrows, dots, keys and taps: slower and softer than the
+  // browser's smooth scroll, so you can watch one card hand over to the next.
+  // snapping is off while it runs (it would fight each step) and anything you
+  // do to the strip yourself takes over straight away
+  const GLIDE_MS = 720;
+  let glide = null;
+  function glideStrip(to){
+    const box = $('games');
+    to = Math.max(0, Math.min(box.scrollWidth - box.clientWidth, to));
+    const from = box.scrollLeft;
+    glideStop();
+    if(Math.abs(to - from) < 1) return;
+    // a second tap mid-glide keeps going from where it is, a bit quicker
+    const ms = GLIDE_MS * Math.min(1, .55 + Math.abs(to - from) / (box.clientWidth * 1.6));
+    box.style.scrollSnapType = 'none';
+    const t0 = performance.now();
+    const g = glide = { raf: 0 };
+    const step = now => {
+      if(glide !== g) return;
+      if($('scIntro').hidden){ glideStop(); return; }   // left home mid-glide
+      const t = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - t, 4);   // ease-out quart
+      box.scrollLeft = from + (to - from) * e;
+      if(t < 1) g.raf = requestAnimationFrame(step);
+      else glideStop();
+    };
+    g.raf = requestAnimationFrame(step);
+  }
+  function glideStop(){
+    if(!glide) return;
+    cancelAnimationFrame(glide.raf); glide = null;
+    $('games').style.scrollSnapType = '';
+  }
+  ['wheel', 'touchstart', 'pointerdown'].forEach(ev => $('games').addEventListener(ev, e => {
+    if(glide && !(ev === 'pointerdown' && e.pointerType !== 'mouse')){ glideStop(); gameLock = null; }
+  }, { passive: true }));
+
   function scrollToGame(mode, smooth){
     const c = gameCards.find(g => g.dataset.mode === mode);
     if(!c) return;
-    const box = $('games');
-    box.scrollTo({ left: c.offsetLeft - (box.clientWidth - c.offsetWidth) / 2, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
+    const box = $('games'), to = c.offsetLeft - (box.clientWidth - c.offsetWidth) / 2;
+    if(smooth && !reduceMotion()) glideStrip(to);
+    else { glideStop(); box.scrollLeft = to; }
     pickGame(mode);
     // a tapped card stays picked while the strip glides to it, even as it
     // passes over others, so tapping Practice straight away gets that game
-    gameLock = { mode, until: performance.now() + 900 };
+    gameLock = { mode, until: performance.now() + GLIDE_MS + 200 };
   }
+
   let gameLock = null;
 
   let gameScrollRaf = 0;
@@ -7501,6 +7539,7 @@
     if(gameScrollRaf) return;
     gameScrollRaf = requestAnimationFrame(() => {
       gameScrollRaf = 0;
+      if($('scIntro').hidden) return;   // a hidden strip resets its scroll; that isn't a pick
       const box = $('games'), mid = box.scrollLeft + box.clientWidth / 2;
       cardDepth(); blendTint(mid);
       let best = null, bd = Infinity;
