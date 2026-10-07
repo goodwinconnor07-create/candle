@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d0a08">
 <title>Study Duel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d0a08'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23ffb347'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap" rel="stylesheet">
@@ -372,6 +373,95 @@
   .mball.empty{ border:1px dashed rgba(239,227,204,.28); }
   .mball.down{ opacity:.16; }
   .pcall{ font:400 .84rem/1.35 var(--sans); color:var(--tallow); opacity:.85; min-height:2.7em; max-width:36ch; display:flex; align-items:center; justify-content:center; }
+
+  /* whose turn it is, said loudly: one banner over each game. amber and lit
+     when it's yours, quiet when it's theirs */
+  .turnbar{
+    width:100%; display:flex; align-items:center; gap:10px; min-height:50px;
+    padding:6px 12px 6px 7px; border-radius:14px; text-align:left;
+    border:1px solid var(--hair); background:rgba(239,227,204,.03);
+    transition:background .25s ease, border-color .25s ease, box-shadow .25s ease;
+  }
+  .turnbar .pod{ width:32px; flex:0 0 auto; transition:transform .25s ease; }
+  .turnbar .pod::after{ display:none; }
+  .turnbar-txt{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .turnbar-who{ font:650 .74rem/1.25 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ash); }
+  .turnbar .pcall{ display:block; min-height:0; max-width:none; font-size:.84rem; text-align:left; }
+  .turnbar.mine{
+    border-color:rgba(255,179,71,.65); background:rgba(255,179,71,.11);
+    box-shadow:0 0 24px -8px rgba(255,179,71,.6);
+  }
+  .turnbar.mine .turnbar-who{ color:var(--amber); }
+  .turnbar.mine .pod{ transform:scale(1.08); }
+  .turnbar.theirs .turnbar-who::after{
+    content:""; display:inline-block; width:1.2em; text-align:left;
+    animation:dots 1.2s steps(4,end) infinite;
+  }
+  @keyframes dots{ 0%{ content:"" } 25%{ content:"." } 50%{ content:".." } 75%{ content:"..." } }
+
+  /* the question card knows whose it is. theirs is greyed out and blurred
+     under a "waiting" tag until they answer, then it's revealed */
+  .qhead{ display:flex; align-items:center; justify-content:center; gap:8px; }
+  .qhead .pod{ width:26px; flex:0 0 auto; }
+  .qhead .pod::after{ display:none; }
+  .qcard-mine{ border-color:rgba(255,179,71,.55) !important; box-shadow:0 0 0 1px rgba(255,179,71,.18), 0 18px 44px -12px rgba(0,0,0,.85) !important; }
+  .qcard-mine .pcard-who{ color:var(--amber); font-weight:600; }
+  .qbox{ position:relative; width:100%; display:flex; justify-content:center; }
+  .qwait{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    display:flex; align-items:center; gap:7px; padding:7px 13px 7px 8px; border-radius:999px;
+    background:rgba(13,10,8,.88); border:1px solid var(--hair);
+    font:500 .8rem/1.2 var(--sans); color:var(--tallow); white-space:nowrap; pointer-events:none;
+  }
+  .qwait .pod{ width:22px; }
+  .qwait .pod::after{ display:none; }
+  .qwait.shake{ animation:shake .4s ease; }
+  @keyframes shake{ 20%,60%{ transform:translate(calc(-50% - 6px),-50%) } 40%,80%{ transform:translate(calc(-50% + 6px),-50%) } }
+  .qcard-theirs .pcard-q, .qcard-theirs .pcard-choices{
+    filter:blur(2.5px) brightness(.5) saturate(.6); transition:filter .35s ease;
+  }
+  /* disabled buttons swallow taps, so let them fall through to the card,
+     which answers with a nudge */
+  .qcard-theirs .pcard-choices{ pointer-events:none; }
+  .qcard-theirs{ cursor:not-allowed; }
+  .qcard-theirs.reveal .pcard-q, .qcard-theirs.reveal .pcard-choices{ filter:none; }
+
+  /* "your turn": a quick flash in the middle of the screen when the turn
+     comes to you, and a nudge when you tap during someone else's */
+  .yourturn{
+    position:fixed; left:50%; top:42%; z-index:30; transform:translate(-50%,-50%) scale(.9);
+    padding:12px 26px; border-radius:999px; pointer-events:none; opacity:0;
+    font:500 1.6rem/1.2 var(--serif); color:var(--soot); background:var(--amber);
+    box-shadow:0 0 40px -6px rgba(255,179,71,.8), 0 18px 40px -12px rgba(0,0,0,.8);
+  }
+  .yourturn.go{ animation:yourturn 1.1s ease forwards; }
+  @keyframes yourturn{
+    0%  { opacity:0; transform:translate(-50%,-50%) scale(.85); }
+    18% { opacity:1; transform:translate(-50%,-50%) scale(1.04); }
+    30% { transform:translate(-50%,-50%) scale(1); }
+    75% { opacity:1; }
+    100%{ opacity:0; transform:translate(-50%,-50%) scale(1); }
+  }
+  .nudge{
+    position:fixed; left:50%; bottom:max(52px, calc(env(safe-area-inset-bottom) + 40px)); z-index:30;
+    transform:translate(-50%,12px); opacity:0; pointer-events:none;
+    padding:9px 16px; border-radius:999px; max-width:calc(100% - 32px);
+    background:rgba(30,24,19,.96); border:1px solid rgba(239,227,204,.25);
+    font:500 .86rem/1.3 var(--sans); color:var(--tallow); text-align:center;
+    box-shadow:0 12px 30px -10px rgba(0,0,0,.8); transition:opacity .2s ease, transform .2s ease;
+  }
+  .nudge.show{ opacity:1; transform:translate(-50%,0); }
+  .nudge[data-at="scChess"]{ bottom:auto; top:40%; }
+  /* the start button, once there's someone to start with */
+  .btn.primary.ready{ animation:readyglow 1.8s ease-in-out infinite; }
+  @keyframes readyglow{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,179,71,0) } 50%{ box-shadow:0 0 0 6px rgba(255,179,71,.22), 0 0 28px -4px rgba(255,179,71,.55) } }
+  @media (prefers-reduced-motion: reduce){ .btn.primary.ready{ animation:none; box-shadow:0 0 0 3px rgba(255,179,71,.35); } }
+  .countnum{ font:500 3rem/1 var(--serif) !important; color:var(--amber) !important; }
+  @media (prefers-reduced-motion: reduce){
+    .yourturn.go{ animation-duration:1.4s; }
+    .qwait.shake{ animation:none; }
+    .turnbar.theirs .turnbar-who::after{ animation:none; content:"..."; }
+  }
   .pshot{ width:100%; height:2px; }
   .pstage{ display:flex; gap:8px; justify-content:center; align-items:flex-start; width:100%; }
 
@@ -486,7 +576,7 @@
   }
 
   :root{ --chesspc:"Segoe UI Symbol","Noto Sans Symbols 2","Apple Symbols","DejaVu Sans",serif; }
-  .cwrap{ position:relative; width:min(100%, max(248px, calc(100dvh - 380px))); aspect-ratio:1; }
+  .cwrap{ position:relative; width:min(100%, max(248px, calc(100dvh - 396px))); aspect-ratio:1; }
   .cboard{
     position:absolute; inset:0; display:grid; grid-template:repeat(8,1fr) / repeat(8,1fr);
     border-radius:10px; overflow:hidden; container-type:inline-size;
@@ -563,6 +653,8 @@
 <body>
   <div class="vignette" aria-hidden="true"></div>
   <div class="testchip" id="testChip" hidden>Test mode</div>
+  <div class="yourturn" id="yourTurn" aria-hidden="true">Your turn</div>
+  <div class="nudge" id="nudge" role="status" aria-live="polite"></div>
   <button class="backbtn" id="backBtn" type="button" aria-label="Back to menu" hidden>
     <svg><use href="#i-back"/></svg>
   </button>
@@ -924,7 +1016,13 @@
           <div class="pod" id="pPodTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
         </div>
       </div>
-      <p class="pcall" id="pCall" aria-live="polite"></p>
+      <div class="turnbar" id="pTurn">
+        <div class="pod" id="pTurnPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+        <div class="turnbar-txt">
+          <span class="turnbar-who" id="pTurnWho"></span>
+          <span class="pcall" id="pCall" aria-live="polite"></span>
+        </div>
+      </div>
       <div class="fuse pshot off" id="pShot"><i id="pShotBar"></i></div>
       <div class="pstage" id="pStage">
         <div class="pleft">
@@ -936,10 +1034,13 @@
         <div class="ptable" id="pTable">
           <canvas id="pCanvas" aria-label="Pool table"></canvas>
           <div class="pcard" id="pCard" hidden>
-            <p class="pcard-who" id="pcWho"></p>
+            <div class="qhead"><div class="pod" id="pcPod" data-char="boy" hidden><svg class="head"><use href="#char-boy"/></svg></div><p class="pcard-who" id="pcWho"></p></div>
             <div class="fuse" id="pcFuse"><i id="pcBar"></i></div>
             <div class="pcard-q" id="pcQ"></div>
-            <div class="choices pcard-choices" id="pcChoices"></div>
+            <div class="qbox">
+              <div class="choices pcard-choices" id="pcChoices"></div>
+              <div class="qwait" id="pcWait" hidden><div class="pod" id="pcWaitPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div><span id="pcWaitTxt"></span></div>
+            </div>
             <p class="pcard-note" id="pcNote"></p>
             <div class="row" id="pcOver" hidden>
               <button class="btn primary" id="pcAgain" hidden>Run it back</button>
@@ -968,6 +1069,13 @@
         <div class="cstreak" id="cStreakTheirs" hidden></div>
         <div class="cclock" id="cClockTheirs"><span id="cTimeTheirs">5:00</span><b class="cpen" id="cPenTheirs"></b></div>
       </div>
+      <div class="turnbar" id="cTurn">
+        <div class="pod" id="cTurnPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+        <div class="turnbar-txt">
+          <span class="turnbar-who" id="cTurnWho"></span>
+          <span class="pcall" id="cCall" aria-live="polite"></span>
+        </div>
+      </div>
       <div class="cwrap" id="cWrap">
         <div class="cboard" id="cBoard" aria-label="Chess board"></div>
         <svg class="carrow" id="cArrow" viewBox="0 0 8 8" aria-hidden="true" hidden>
@@ -988,12 +1096,14 @@
         <div class="cstreak" id="cStreakMine" hidden></div>
         <div class="cclock" id="cClockMine"><span id="cTimeMine">5:00</span><b class="cpen" id="cPenMine"></b></div>
       </div>
-      <p class="pcall" id="cCall" aria-live="polite"></p>
       <div class="ccard" id="cCard">
-        <p class="pcard-who" id="ccWho"></p>
+        <div class="qhead"><div class="pod" id="ccPod" data-char="boy" hidden><svg class="head"><use href="#char-boy"/></svg></div><p class="pcard-who" id="ccWho"></p></div>
         <div class="fuse" id="ccFuse"><i id="ccBar"></i></div>
         <div class="pcard-q" id="ccQ"></div>
-        <div class="choices pcard-choices" id="ccChoices"></div>
+        <div class="qbox">
+          <div class="choices pcard-choices" id="ccChoices"></div>
+          <div class="qwait" id="ccWait" hidden><div class="pod" id="ccWaitPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div><span id="ccWaitTxt"></span></div>
+        </div>
         <p class="pcard-note" id="ccNote"></p>
         <div class="row" id="ccOver" hidden>
           <button class="btn primary" id="ccAgain" hidden>Run it back</button>
@@ -1030,6 +1140,73 @@
     if(u) u.setAttribute('href', '#char-' + id);
   }
 
+  // ---------- turn cues, shared by every game ----------
+  // the banner over the game says whose turn it is; the turn coming back to
+  // you flashes "Your turn" (and buzzes a phone); tapping during someone
+  // else's turn gets a gentle nudge instead of silently doing nothing
+  function turnBar(prefix, s, turn){
+    const bar = $(prefix + 'Turn'), pod = $(prefix + 'TurnPod');
+    const mine = turn === myRole, name = (s[turn] || {}).name || 'They';
+    let who;
+    if(s.phase === 'over'){
+      const w = s.over && s.over.winner;
+      wearChar(pod, (s[w] || s[myRole] || {}).char);
+      who = !w ? 'Game over' : w === myRole ? 'You win' : ((s[w] || {}).name || 'They') + ' wins';
+      bar.className = 'turnbar';
+    }else{
+      wearChar(pod, (s[turn] || {}).char);
+      who = s.phase === 'countdown'
+        ? (mine ? 'You go first' : name + ' goes first')
+        : (mine ? 'Your turn' : name + "'s turn");
+      bar.className = 'turnbar ' + (mine ? 'mine' : 'theirs');
+    }
+    $(prefix + 'TurnWho').textContent = who;
+  }
+
+  let lastTurn = null;
+  function turnCue(s, turn){
+    if(s.phase === 'countdown'){ lastTurn = null; return; }
+    if(s.phase === 'over') return;
+    if(turn === myRole && lastTurn !== myRole){
+      const el = $('yourTurn');
+      el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+      try{ if(navigator.vibrate) navigator.vibrate(35); }catch(e){}
+    }
+    lastTurn = turn;
+  }
+
+  let nudgeTimer = 0;
+  function nudge(text, waitId){
+    const el = $('nudge');
+    el.dataset.at = app.dataset.screen || '';
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(() => el.classList.remove('show'), 1900);
+    const w = waitId && $(waitId);
+    if(w && !w.hidden){ w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
+  }
+
+  // the question card, as its owner or as the one waiting
+  function questionLook(prefix, cardEl, s, turn, live, reveal){
+    const mine = turn === myRole, p = s[turn] || {};
+    cardEl.classList.toggle('qcard-mine', live && mine);
+    cardEl.classList.toggle('qcard-theirs', live && !mine);
+    cardEl.classList.toggle('reveal', !!reveal);
+    $(prefix + 'Pod').hidden = !(live && !mine);
+    $(prefix + 'Wait').hidden = !(live && !mine && !reveal);
+    if(live && !mine){
+      wearChar($(prefix + 'Pod'), p.char);
+      wearChar($(prefix + 'WaitPod'), p.char);
+      $(prefix + 'WaitTxt').textContent = (p.name || 'They') + ' is answering';
+    }
+  }
+
+  const theirName = () => {
+    const st = pv.s || cv.s, op = myRole === 'host' ? 'guest' : 'host';
+    return (st && st[op] && st[op].name) || 'They';
+  };
+
   // one lobby seat: a pod (real character or the instagram-style empty
   // silhouette), a name, and a status dot that's grey/amber/green
   function setLobbyCard(prefix, opts){
@@ -1051,6 +1228,7 @@
       char: pickedChar, name: name || 'You', ready: false,
       statusText: pickedChar ? 'Not ready yet' : 'Choose a character',
     });
+    $('guestStatus').textContent = pickedChar ? "Add your name, then tap I'm ready." : 'Pick a character to continue.';
   }
 
   function buildPicker(gridId, onPick){
@@ -1525,7 +1703,10 @@
   }
   document.addEventListener('keydown', e => {
     const n = Number(e.key);
-    if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
+    if(n >= 1 && n <= 4 && ((phase === 'pq' && !poolMine()) || (phase === 'cq' && !chessMine()))){
+      nudge("It's " + theirName() + "'s question. Yours is next.", phase === 'pq' ? 'pcWait' : 'ccWait');
+    }
+    else if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
     else if(phase === 'cq' && n >= 1 && n <= 4) chessPick(n - 1);
     else if(e.key === 'Escape' && !$('cPromo').hidden) chessPromoClose();
     else if(phase === 'aim' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) poolNudge(e);
@@ -1596,7 +1777,7 @@
   function poolResize(){
     const stage = $('pStage');
     const availW = Math.min(stage.clientWidth || 360, 540) - 46;
-    const availH = window.innerHeight - 160;
+    const availH = window.innerHeight - 176;
     const w = Math.max(200, Math.floor(Math.min(availW, availH * OW / OL)));
     const h = Math.round(w * OL / OW);
     if(w === pv.w && h === pv.h) return;
@@ -2030,6 +2211,7 @@
 
     $('pCard').hidden = !(pv.cardWanted && !pv.anim);
     const left = Math.max(0, deadlineAt - now);
+    if(phase === 'countdown') $('pcQ').textContent = String(Math.min(3, Math.max(1, Math.ceil(left / 1000))));
     if(phase === 'pq'){
       $('pcBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
       $('pcFuse').classList.toggle('low', left < 3000);
@@ -2080,6 +2262,10 @@
     updateCueBar();
   }
 
+  $('pCard').addEventListener('pointerdown', () => {
+    if(phase === 'pq' && !poolMine()) nudge("It's " + theirName() + "'s question. Yours is next.", 'pcWait');
+  });
+
   function poolPick(i){
     if(phase !== 'pq' || !poolMine() || pv.picked != null || !ws) return;
     pv.picked = i;
@@ -2109,7 +2295,10 @@
       return { x: (e.clientX - r.left) / pv.scale - RAIL, y: (e.clientY - r.top) / pv.scale - RAIL };
     };
     cv.addEventListener('pointerdown', e => {
-      if(!canAim()) return;
+      if(!canAim()){
+        if((phase === 'aim' || phase === 'rolling') && !poolMine()) nudge(theirName() + ' is taking their shot.');
+        return;
+      }
       e.preventDefault();
       try{ cv.setPointerCapture(e.pointerId); }catch(err){}
       const p = tablePoint(e), c = cuePos();
@@ -2257,10 +2446,21 @@
 
   function poolCard(s){
     const T = s.table, mine = T.turn === myRole, who = (s[T.turn] || {}).name || 'They';
-    pv.cardWanted = s.phase === 'pq' || s.phase === 'pqres' || s.phase === 'over';
+    pv.cardWanted = s.phase === 'pq' || s.phase === 'pqres' || s.phase === 'over' || s.phase === 'countdown';
     $('pcOver').hidden = s.phase !== 'over';
     $('pcQ').classList.toggle('result', s.phase === 'over');
+    $('pcQ').classList.toggle('countnum', s.phase === 'countdown');
     $('pcNote').className = 'pcard-note';
+    questionLook('pc', $('pCard'), s, T.turn, s.phase === 'pq' || s.phase === 'pqres', s.phase === 'pqres');
+
+    if(s.phase === 'countdown'){
+      $('pcWho').textContent = 'Get ready';
+      $('pcFuse').hidden = true;
+      $('pcChoices').innerHTML = '';
+      $('pcChoices').dataset.key = '';
+      $('pcNote').textContent = mine ? 'You break first. Answer right to take the shot.' : who + ' breaks first.';
+      return;
+    }
 
     if(s.phase === 'over' && s.over && s.over.left){
       const who = s.over.left === myRole ? 'You' : ((s[s.over.left] || {}).name || 'They');
@@ -2289,7 +2489,7 @@
     if(!s.q) return;
 
     $('pcFuse').hidden = s.phase !== 'pq';
-    $('pcWho').textContent = mine ? 'Answer right to take your shot' : who + ' is answering for a shot';
+    $('pcWho').textContent = mine ? 'Your question. Answer right to shoot' : who + "'s question";
     $('pcQ').textContent = s.q.text;
     const box = $('pcChoices');
     if(box.dataset.key !== pv.qKey){
@@ -2320,7 +2520,7 @@
     if(r){
       $('pcNote').classList.add(r.right ? 'good' : 'bad');
       $('pcNote').textContent = r.right
-        ? (mine ? 'Correct. Take your shot.' : who + ' got it and shoots next.')
+        ? (mine ? 'Correct. Take your shot.' : who + ' got it right and shoots next.')
         : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '.';
     }else{
       $('pcNote').textContent = mine && pv.picked != null ? 'Locked in.' : '';
@@ -2352,6 +2552,8 @@
     poolResize();
     poolBar(s);
     poolCall(s);
+    turnBar('p', s, T.turn);
+    turnCue(s, T.turn);
     poolCard(s);
     updateCueBar();
   }
@@ -2429,7 +2631,13 @@
   }
 
   function chessTap(sq){
-    if(!canMove()) return;
+    if(!canMove()){
+      if(cv.s && (phase === 'cq' || phase === 'cqres' || phase === 'move')){
+        if(!chessMine()) nudge(theirName() + (phase === 'move' ? ' is moving.' : ' is answering.') + ' Your turn is next.', 'ccWait');
+        else if(phase !== 'move') nudge('Answer your question first, then move.');
+      }
+      return;
+    }
     const p = cv.pos.b[sq];
     const hits = cv.targets.filter(m => m.to === sq);
     if(cv.sel != null && hits.length){
@@ -2475,10 +2683,87 @@
     cv.promo = null;
     $('cPromo').hidden = true;
   }
+  $('cCard').addEventListener('pointerdown', () => {
+    if(phase === 'cq' && !chessMine()) nudge("It's " + theirName() + "'s question. Yours is next.", 'ccWait');
+  });
   $('cPromo').addEventListener('pointerdown', e => { if(e.target === $('cPromo')) chessPromoClose(); });
 
-  // the best move is searched in a worker so the clocks keep ticking. the
-  // room only says when it's been earned
+  // the best move comes from Stockfish: the lite build, run right here in
+  // the player's browser, so it never costs the server anything. it starts
+  // up when a chess match opens, so it's warm by the time a streak earns a
+  // hint. the room only says when the hint has been earned
+  const SF_URL = '/stockfish/stockfish-19-lite-single.js', SF_MS = 1000;
+  const sf = { w: null, ready: false, failed: false, busy: false, job: null, next: null, timer: 0 };
+
+  function sfStart(){
+    if(sf.w || sf.failed) return;
+    try{ sf.w = new Worker(SF_URL); }catch(e){ sfFail(); return; }
+    sf.w.onmessage = e => sfLine(String(e.data));
+    sf.w.onerror = sfFail;
+    sf.w.postMessage('uci');
+    sf.w.postMessage('isready');
+    // a phone that can't load it in time gets the small engine instead
+    sf.timer = setTimeout(() => { if(!sf.ready) sfFail(); }, 20000);
+  }
+
+  function sfFail(){
+    if(sf.failed) return;
+    sf.failed = true;
+    clearTimeout(sf.timer);
+    try{ if(sf.w) sf.w.terminate(); }catch(e){}
+    sf.w = null;
+    const j = sf.next || (sf.busy ? sf.job : null);
+    sf.job = sf.next = null; sf.busy = false;
+    if(j) smallHint(j.fen, j.done);
+  }
+
+  function sfGo(job){
+    sf.job = job; sf.busy = true; job.mate = 0;
+    sf.w.postMessage('position fen ' + job.fen);
+    sf.w.postMessage('go movetime ' + SF_MS);
+  }
+
+  function sfLine(line){
+    if(line === 'readyok'){
+      sf.ready = true;
+      clearTimeout(sf.timer);
+      if(sf.next){ const j = sf.next; sf.next = null; sfGo(j); }
+      return;
+    }
+    const j = sf.job;
+    if(!j) return;
+    if(line.startsWith('info ')){
+      const m = / score (cp|mate) (-?\d+)/.exec(line);
+      if(m) j.mate = m[1] === 'mate' ? Number(m[2]) : 0;
+      return;
+    }
+    if(!line.startsWith('bestmove')) return;
+    sf.job = null; sf.busy = false;
+    // a newer position is waiting, so this answer is already stale
+    if(sf.next){ const n = sf.next; sf.next = null; sfGo(n); return; }
+    const u = line.split(' ')[1], pos = Chess.fromFen(j.fen), all = Chess.moves(pos);
+    const m = all.find(x => Chess.uci(x) === u);
+    if(m) j.done({ fen: j.fen, from: m.from, to: m.to, promo: m.promo, san: Chess.san(pos, m, all), mate: j.mate });
+  }
+
+  // the small engine from chess.js, for when Stockfish can't run here
+  function smallHint(fen, done){
+    try{
+      if(!cv.worker){
+        cv.worker = new Worker('/hint-worker.js', { type: 'module' });
+        cv.worker.onmessage = e => cv.workerDone && cv.workerDone(e.data);
+      }
+      cv.workerDone = done;
+      cv.worker.postMessage({ fen, ms: 1200 });
+    }catch(e){
+      // no module workers either: think on the page, a bit shorter
+      setTimeout(() => {
+        const r = Chess.bestMove(Chess.fromFen(fen), { ms: 700 });
+        if(r) done({ fen, from: r.move.from, to: r.move.to, promo: r.move.promo, san: r.san, mate: r.mate });
+      }, 30);
+    }
+  }
+
   function chessHint(){
     const C = cv.s.chess;
     if(!C.hint || !chessMine() || !Chess || cv.hintFen === C.fen) return;
@@ -2489,19 +2774,11 @@
       renderBoard();
       chessCard(cv.s);
     };
-    try{
-      if(!cv.worker){
-        cv.worker = new Worker('/hint-worker.js', { type: 'module' });
-        cv.worker.onmessage = e => done(e.data);
-      }
-      cv.worker.postMessage({ fen: C.fen, ms: 1200 });
-    }catch(e){
-      // no module workers here: think on the page instead, a bit shorter
-      setTimeout(() => {
-        const r = Chess.bestMove(Chess.fromFen(C.fen), { ms: 700 });
-        if(r) done({ fen: C.fen, from: r.move.from, to: r.move.to, promo: r.move.promo, san: r.san, mate: r.mate });
-      }, 30);
-    }
+    sfStart();
+    if(sf.failed){ smallHint(C.fen, done); return; }
+    const job = { fen: C.fen, done };
+    if(sf.ready && !sf.busy) sfGo(job);
+    else{ sf.next = job; if(sf.busy) sf.w.postMessage('stop'); }
   }
 
   // what each side has taken, shown under their name, plus who's ahead
@@ -2561,6 +2838,8 @@
     $('ccQ').className = 'pcard-q';
     $('ccNote').className = 'pcard-note';
     $('ccFuse').classList.toggle('gone', s.phase !== 'cq');
+    $('ccQ').classList.toggle('countnum', s.phase === 'countdown');
+    questionLook('cc', $('cCard'), s, C.turn, s.phase === 'cq' || s.phase === 'cqres', s.phase === 'cqres');
     const box = $('ccChoices');
     const noChoices = () => { box.innerHTML = ''; box.dataset.key = ''; };
 
@@ -2583,9 +2862,7 @@
     }
     if(s.phase === 'countdown'){
       const white = C.colors.host === 'w' ? 'host' : 'guest';
-      $('ccWho').textContent = 'Get ready';
-      $('ccQ').classList.add('result');
-      $('ccQ').textContent = white === myRole ? 'You have white' : ((s[white] || {}).name || 'They') + ' has white';
+      $('ccWho').textContent = white === myRole ? 'Get ready. You have white' : 'Get ready. ' + ((s[white] || {}).name || 'They') + ' has white';
       noChoices();
       $('ccNote').textContent = 'Every move needs a right answer. A wrong one costs ' + Math.round(C.penaltyMs / 1000) + ' seconds.';
       return;
@@ -2614,7 +2891,7 @@
     }
     if(!s.q) return;
 
-    $('ccWho').textContent = mine ? 'Answer right to make your move' : who + ' is answering to move';
+    $('ccWho').textContent = mine ? 'Your question. Answer right to move' : who + "'s question";
     $('ccQ').textContent = s.q.text;
     if(box.dataset.key !== cv.qKey){
       box.innerHTML = '';
@@ -2676,6 +2953,9 @@
 
     show(['scChess']);
     $('cCall').textContent = s.chess.call || '';
+    turnBar('c', s, s.chess.turn);
+    turnCue(s, s.chess.turn);
+    sfStart();
     if(!Chess) return;   // the rules are still loading; this runs again once they're in
     cv.pos = Chess.fromFen(s.chess.fen);
     chessBar(s);
@@ -2697,6 +2977,7 @@
       $('cClock' + key).classList.toggle('on', C.running === role);
       $('cClock' + key).classList.toggle('low', left < 30000 && s.phase !== 'over');
     }
+    if(phase === 'countdown') $('ccQ').textContent = String(Math.min(3, Math.max(1, Math.ceil((deadlineAt - now) / 1000))));
     if(phase === 'cq'){
       const left = Math.max(0, deadlineAt - now);
       $('ccBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
@@ -2723,7 +3004,8 @@
       const hostName = s.host.name || 'Someone';
       if(myRole === 'host'){
         show(['scHost']);
-        $('hostHd').textContent = s.vsBot ? 'Ready when you are' : 'Send this to your opponent';
+        $('hostHd').textContent = s.vsBot ? 'Ready when you are'
+          : s.guest.ready ? (s.guest.name || 'They') + ' is ready' : 'Send this to your opponent';
         $('hostLink').hidden = !!s.vsBot;
         $('hostShareRow').hidden = !!s.vsBot;
         setLobbyCard('lbHost', { char: s.host.char, name: s.host.name || 'You', ready: true, statusText: 'Ready' });
@@ -2736,6 +3018,7 @@
           setLobbyCard('lbGuest', { char: '', name: 'Nobody yet', statusText: 'Waiting to join' });
         }
         $('hostStart').disabled = !(s.guest.ready && s.host.char && s.guest.char);
+        $('hostStart').classList.toggle('ready', !$('hostStart').disabled);
       }else{
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
@@ -2848,6 +3131,7 @@
     }
     $('setupGo').textContent = 'Create a match';
     show(['scSetup']);
+    if(!pickedChar){ $('setupNote').className = 'note'; $('setupNote').textContent = 'Pick a character to continue.'; }
   });
 
   $('setupGo').addEventListener('click', () => {
@@ -2934,6 +3218,7 @@
 
   $('hostStart').addEventListener('click', () => {
     $('hostStart').disabled = true;
+    $('hostStart').classList.remove('ready');
     ws.send(JSON.stringify({ t:'start' }));
   });
 

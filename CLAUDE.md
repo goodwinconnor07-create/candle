@@ -13,10 +13,14 @@ plays and DEPLOY.md for deploy details.
 - `pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`), and the
   test stand-in's shot picker (`botShot()`). The server runs every shot and
   sends frames for the browsers to replay.
-- `public/chess.js`: chess rules, plus a small alpha-beta engine for the
-  streak hint and the test stand-in. Both the room and the browser import it,
-  which is why it lives in `public/`. `public/hint-worker.js` runs the hint
-  search off the main thread.
+- `public/chess.js`: chess rules, plus a small alpha-beta engine for the test
+  stand-in and as a backup hint. Both the room and the browser import it,
+  which is why it lives in `public/`.
+- `public/stockfish/`: Stockfish 19 lite single-threaded (GPLv3, license
+  alongside). The streak hint runs it in the player's browser, never on the
+  server. If it fails to load, `public/hint-worker.js` runs the small engine
+  instead. The full Stockfish build is ~99 MB, over Cloudflare's 25 MB asset
+  limit, so stick with lite.
 - `public/index.html`: the whole front end in one file (styles, SVG characters,
   script). No build step, no framework.
 - Nothing else to install for the Worker; `wrangler` is the only dev dependency.
