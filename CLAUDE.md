@@ -1,7 +1,7 @@
 # Study Duel — notes for Claude
 
 Two-player study mini games: a familiar game where every move is earned by
-answering a question right. Pool (8-ball) and chess so far. Live at
+answering a question right. Pool (8-ball), chess and battleships so far. Live at
 https://candle-timer.candle-timer.workers.dev. See README.md for how the game
 plays and DEPLOY.md for deploy details.
 
@@ -9,13 +9,17 @@ plays and DEPLOY.md for deploy details.
 
 - `worker.js`: Cloudflare Worker plus the `GameRoom` Durable Object. One room
   per match holds the only real game state; both players talk to it over a
-  WebSocket. `MODES` lists the games.
+  WebSocket. `MODES` lists the games. `sendState()` builds a separate
+  snapshot for each seat, so `snapshot(role)` can hide things from one player.
 - `pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`), and the
   test stand-in's shot picker (`botShot()`). The server runs every shot and
   sends frames for the browsers to replay.
 - `public/chess.js`: chess rules, plus a small alpha-beta engine for the test
   stand-in and as a backup hint. Both the room and the browser import it,
   which is why it lives in `public/`.
+- `public/battleships.js`: battleships rules (fleet, placement checks, random
+  layouts) and Tester's shot picker. Shared by the room and the browser, like
+  `chess.js`.
 - `public/stockfish/`: Stockfish 19 lite single-threaded (GPLv3, license
   alongside). The streak hint runs it in the player's browser, never on the
   server. If it fails to load, `public/hint-worker.js` runs the small engine
@@ -63,14 +67,17 @@ PR to the default branch, merge, deploy, then check the live site.
   ready message. `bot` is server-assigned only, for the test stand-in.
 - Never send a live question's answer index to the browsers; it only goes out
   once the question is resolved.
+- Battleships: never put the other player's fleet in a snapshot. Their ships
+  only go out once sunk, or when the match is over. A wrong answer gives away
+  one of your empty squares and asks again; it never costs the shot.
 - Chess: a wrong answer costs clock time and asks again, it never hands over
   the move (two moves in a row decides most games). Don't use `Date.now()`
   for time limits on searches inside the Worker, because it doesn't advance
   while code runs. Pass a node budget instead, like `botMove()` does.
 - The page never scrolls (`html, body` are `overflow:hidden`, body is
   `100dvh`). Every screen has to fit, down to a 360x640 phone. Pool sizes its
-  table in `poolResize()` and chess sizes its board in `chessResize()` from
-  the space left over, so anything added above or below them is accounted
+  table in `poolResize()`, chess its board in `chessResize()` and battleships
+  its sea in `seaResize()`, from the space left over, so anything added above or below them is accounted
   for automatically. Check new screens at 360x640 and 1280x720.
 - Match the existing style: dark "soot" background, tallow text, amber accent,
   Fraunces serif for headings, the iMessage-inspired pool table.

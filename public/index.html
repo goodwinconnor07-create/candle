@@ -455,7 +455,7 @@
     box-shadow:0 12px 30px -10px rgba(0,0,0,.8); transition:opacity .2s ease, transform .2s ease;
   }
   .nudge.show{ opacity:1; transform:translate(-50%,0); }
-  .nudge[data-at="scChess"]{ bottom:auto; top:40%; }
+  .nudge[data-at="scChess"], .nudge[data-at="scSea"]{ bottom:auto; top:40%; }
   /* the start button, once there's someone to start with */
   .btn.primary.ready{ animation:readyglow 1.8s ease-in-out infinite; }
   @keyframes readyglow{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,179,71,0) } 50%{ box-shadow:0 0 0 6px rgba(255,179,71,.22), 0 0 28px -4px rgba(255,179,71,.55) } }
@@ -637,6 +637,161 @@
   .ccard .fuse.gone{ visibility:hidden; }
   .ccard .pcard-q.hint{ color:var(--cold); }
 
+  /* ---------- battleships ---------- */
+  #scSea{ gap:8px; }
+  .app[data-screen="scSea"]{ margin-top:0; }
+  /* two tabs, one per sea. they double as each fleet's scoreboard, and the
+     row starts after the quit button's corner */
+  .srow{ width:100%; display:flex; gap:8px; padding-left:46px; min-height:44px; }
+  .stab{
+    flex:1 1 0; min-width:0; display:flex; align-items:center; gap:7px;
+    padding:4px 10px 4px 5px; border-radius:12px; text-align:left; cursor:pointer;
+    font:inherit; color:var(--ash); background:transparent; border:1px solid var(--hair);
+    transition:border-color .2s ease, background .2s ease, color .2s ease;
+  }
+  .stab:hover{ border-color:rgba(239,227,204,.36); }
+  .stab:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .stab.on{ color:var(--tallow); border-color:rgba(239,227,204,.5); background:rgba(239,227,204,.07); }
+  .stab .pod{ width:28px; flex:0 0 auto; }
+  .stab .pod::after{ display:none; }
+  .stab-txt{ display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .stab-name{ font:500 .76rem/1.2 var(--sans); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sfleet{ display:flex; align-items:center; gap:3px; min-height:6px; font:600 .66rem/1 var(--sans); letter-spacing:.02em; }
+  .sfleet i{
+    display:block; height:6px; width:calc(var(--len) * 3.6px); border-radius:3px;
+    background:rgba(239,227,204,.72); transition:background .3s ease, opacity .3s ease;
+  }
+  .sfleet i.sunk{ background:var(--ember); opacity:.4; }
+  .sfleet .wait{ color:var(--ash); font-weight:500; }
+  .sfleet .rdy{ color:#7fd6a2; }
+
+  .swrap{ position:relative; width:min(100%, 300px); aspect-ratio:1; flex:0 0 auto; touch-action:none; }
+  .swrap.rattle{ animation:rattle .38s ease; }
+  @keyframes rattle{ 20%{ transform:translate(-4px,1px) } 40%{ transform:translate(4px,-1px) } 60%{ transform:translate(-3px,0) } 80%{ transform:translate(2px,1px) } }
+  .slab{
+    position:absolute; display:grid; pointer-events:none;
+    font:600 .62rem/1 var(--sans); color:var(--ash); font-variant-numeric:tabular-nums;
+  }
+  .slab span{ display:flex; align-items:center; justify-content:center; }
+  .slab.x{ left:16px; right:0; top:0; height:16px; grid-template-columns:repeat(10,1fr); }
+  .slab.y{ top:16px; bottom:0; left:0; width:16px; grid-template-rows:repeat(10,1fr); }
+  /* your own waters are the teal of the pool cloth; theirs are a deeper blue,
+     so you can tell at a glance which sea you're looking at */
+  .sboard{
+    --cell:28px;
+    position:absolute; left:16px; top:16px; right:0; bottom:0; border-radius:10px; overflow:hidden;
+    background:
+      linear-gradient(to right, rgba(239,227,204,.09) 1px, transparent 1px) 0 0 / 10% 10%,
+      linear-gradient(to bottom, rgba(239,227,204,.09) 1px, transparent 1px) 0 0 / 10% 10%,
+      radial-gradient(120% 120% at 30% 18%, #20837d 0%, #17635f 55%, #114a48 100%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.5), 0 22px 44px -16px rgba(0,0,0,.9);
+  }
+  .sboard[data-view="theirs"]{
+    background:
+      linear-gradient(to right, rgba(239,227,204,.09) 1px, transparent 1px) 0 0 / 10% 10%,
+      linear-gradient(to bottom, rgba(239,227,204,.09) 1px, transparent 1px) 0 0 / 10% 10%,
+      radial-gradient(120% 120% at 30% 18%, #1f5374 0%, #163d58 55%, #0f2b40 100%);
+  }
+  .sboard.swap{ animation:sswap .3s ease; }
+  @keyframes sswap{ from{ opacity:.15 } to{ opacity:1 } }
+  .sships{ position:absolute; inset:0; pointer-events:none; }
+  .ship{ position:absolute; transition:left .16s ease, top .16s ease, width .16s ease, height .16s ease; animation:shipin .35s ease; }
+  @keyframes shipin{ from{ opacity:0 } to{ opacity:1 } }
+  /* a hull with one gun turret per square, lined up with the grid */
+  .ship i{
+    position:absolute; inset:calc(var(--cell) * .13); border-radius:calc(var(--cell) * .4);
+    background:
+      radial-gradient(circle, rgba(13,10,8,.34) 0 calc(var(--cell) * .1), rgba(239,227,204,.25) calc(var(--cell) * .1) calc(var(--cell) * .13), transparent calc(var(--cell) * .14))
+        calc(var(--cell) * -.13) calc(var(--cell) * -.13) / var(--cell) var(--cell),
+      linear-gradient(180deg, #ece2cd, #b3a68f 60%, #978a74);
+    box-shadow:0 3px 8px -2px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.45);
+    transition:box-shadow .2s ease, transform .2s ease, filter .3s ease;
+  }
+  .ship[data-v] i{
+    background:
+      radial-gradient(circle, rgba(13,10,8,.34) 0 calc(var(--cell) * .1), rgba(239,227,204,.25) calc(var(--cell) * .1) calc(var(--cell) * .13), transparent calc(var(--cell) * .14))
+        calc(var(--cell) * -.13) calc(var(--cell) * -.13) / var(--cell) var(--cell),
+      linear-gradient(90deg, #ece2cd, #b3a68f 60%, #978a74);
+  }
+  .ship.sunk i{ filter:brightness(.42) saturate(.5); box-shadow:0 0 0 1.5px rgba(255,106,42,.75), 0 0 14px -3px rgba(255,106,42,.6); }
+  .sboard.placing .ship i{ box-shadow:0 3px 8px -2px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.45), 0 0 0 1px rgba(255,179,71,.4); }
+  .sboard.placing .ship.lift{ z-index:1; transition-duration:.09s; }
+  .sboard.placing .ship.lift i{ transform:scale(1.05); box-shadow:0 10px 20px -4px rgba(0,0,0,.7), 0 0 0 2px var(--amber); }
+  .sboard.placing .ship.bad i{ box-shadow:0 10px 20px -4px rgba(0,0,0,.7), 0 0 0 2px var(--ember); filter:sepia(.6) saturate(2.4) hue-rotate(-20deg); }
+  .ship.nope i{ animation:nope .35s ease; }
+  @keyframes nope{ 25%{ transform:translateX(-4px) } 75%{ transform:translateX(4px) } }
+  .sgrid{ position:absolute; inset:0; display:grid; grid-template:repeat(10,1fr) / repeat(10,1fr); }
+  .sboard.placing .sgrid{ cursor:grab; }
+  .cell{
+    position:relative; border:0; padding:0; margin:0; font:inherit; cursor:default;
+    background:transparent; -webkit-tap-highlight-color:transparent;
+    transition:background .15s ease;
+  }
+  .cell:focus-visible{ outline:2px solid var(--amber); outline-offset:-2px; z-index:2; }
+  .cell::after{ content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); border-radius:50%; }
+  .cell.miss::after{ width:24%; height:24%; background:rgba(239,227,204,.66); box-shadow:0 0 0 3px rgba(239,227,204,.1); }
+  .cell.hit::after{
+    width:54%; height:54%;
+    background:radial-gradient(circle at 40% 36%, #ffe6bd 0 14%, #ffb347 32%, #ff6a2a 60%, #c8321f 100%);
+    box-shadow:0 0 12px -1px rgba(255,106,42,.85);
+  }
+  /* a square known to be empty: red when they gave it away with a wrong
+     answer, blue when your streak earned it */
+  .cell.slip{ color:#ff7a5c; background:rgba(214,58,44,.3); box-shadow:inset 0 0 0 1px rgba(255,106,42,.55); }
+  .cell.clear{ color:var(--cold); background:rgba(108,212,255,.17); box-shadow:inset 0 0 0 1px rgba(108,212,255,.5); }
+  .cell.slip::after, .cell.clear::after{
+    width:34%; height:34%; border-radius:0;
+    background:
+      linear-gradient(45deg, transparent 42%, currentColor 42% 58%, transparent 58%),
+      linear-gradient(-45deg, transparent 42%, currentColor 42% 58%, transparent 58%);
+  }
+  .cell.pop{ animation:pop .5s ease; }
+  @keyframes pop{ 0%{ transform:scale(.3); opacity:0 } 60%{ transform:scale(1.18); opacity:1 } 100%{ transform:scale(1) } }
+  .cell.can{ cursor:crosshair; }
+  @media (hover:hover){ .cell.can:hover{ background:rgba(255,179,71,.15); } }
+  .cell.aim{ background:rgba(255,179,71,.24); z-index:1; }
+  .cell.aim::before{
+    content:""; position:absolute; inset:9%; border-radius:50%;
+    border:2px solid var(--amber); box-shadow:0 0 12px rgba(255,179,71,.7);
+    animation:aim 1.1s ease-in-out infinite;
+  }
+  .cell.aim::after{
+    width:64%; height:64%; border-radius:0;
+    background:
+      linear-gradient(var(--amber), var(--amber)) center / 2px 100% no-repeat,
+      linear-gradient(var(--amber), var(--amber)) center / 100% 2px no-repeat;
+    opacity:.85;
+  }
+  @keyframes aim{ 50%{ transform:scale(.86) } }
+  /* where a shot lands: a burst for a hit, rings in the water for a miss */
+  .cell.boom, .cell.splash{ z-index:2; }
+  .cell.boom::before, .cell.splash::before{
+    content:""; position:absolute; left:50%; top:50%; width:100%; height:100%; border-radius:50%;
+    transform:translate(-50%,-50%) scale(.2); opacity:0;
+  }
+  .cell.boom::before{ border:3px solid #ffb347; box-shadow:0 0 18px #ff6a2a, inset 0 0 12px rgba(255,106,42,.8); animation:ring .75s ease-out; }
+  .cell.splash::before{ border:2px solid rgba(239,227,204,.75); animation:ring .8s ease-out; }
+  @keyframes ring{ 0%{ opacity:1; transform:translate(-50%,-50%) scale(.2) } 100%{ opacity:0; transform:translate(-50%,-50%) scale(2.1) } }
+  .cell.boom::after{ animation:burst .45s ease-out; }
+  .cell.splash::after{ animation:burst .35s ease-out; }
+  @keyframes burst{ 0%{ transform:translate(-50%,-50%) scale(0) } 60%{ transform:translate(-50%,-50%) scale(1.3) } 100%{ transform:translate(-50%,-50%) scale(1) } }
+
+  /* notes here often run to two lines, so the room is kept from the start
+     and the board never shrinks mid-match */
+  #sCard .pcard-note{ min-height:2.8em; display:flex; align-items:center; justify-content:center; }
+  #sCard .pcard-q{ min-height:3rem; display:flex; align-items:center; justify-content:center; }
+  /* room for the other player's face, which shows up next to their question */
+  #sCard .qhead{ min-height:30px; }
+  .scard .pcard-q.hot{ color:var(--ember); }
+  .scard .pcard-q.cool{ color:var(--cold); }
+  .scard .pcard-q.time{ font-variant-numeric:tabular-nums; }
+  .stools{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:9px; }
+  .stools .btn{ padding:10px 20px; }
+  @media (prefers-reduced-motion: reduce){
+    .cell.aim::before, .swrap.rattle, .ship.nope i{ animation:none; }
+    .ship{ transition:none; }
+  }
+
   @media (max-width:360px){
     .choice{ font-size:1.15rem; min-height:52px }
     .app{ gap:14px }
@@ -681,10 +836,15 @@
     .ccard .pcard-choices .choice{ min-height:40px; padding:6px 4px; font-size:1.1rem; }
     .ccard .pcard-choices .choice kbd{ top:3px; left:5px; }
     .ccard .pcard-note{ font-size:.76rem; min-height:1.2em; }
+    .srow{ min-height:38px; }
+    .stab .pod{ width:24px; }
+    .stab-txt{ gap:4px; }
+    .stools .btn{ padding:8px 16px; }
+    #sCard .pcard-q{ min-height:2.2rem; }
   }
 
   /* the test mode tag gets its own strip under a game, never on top of it */
-  body.testing .app[data-screen="scPool"], body.testing .app[data-screen="scChess"]{ padding-bottom:30px; }
+  body.testing .app[data-screen="scPool"], body.testing .app[data-screen="scChess"], body.testing .app[data-screen="scSea"]{ padding-bottom:30px; }
   body.testing .testchip{ bottom:max(6px, env(safe-area-inset-bottom)); }
   /* reduced motion means less travel across the screen, not a dead page. the
      demo still plays its shots, since that's the point of it. what goes is
@@ -751,6 +911,11 @@
         <circle cx="12" cy="5.6" r="3.3"/>
         <path d="M9.3 9.8h5.4l-.5 1.7c1.7 1.7 2.5 4.2 2.7 6.9H7.1c.2-2.7 1-5.2 2.7-6.9z"/>
         <rect x="5.2" y="19.2" width="13.6" height="2.8" rx="1"/>
+      </symbol>
+
+      <symbol id="i-ship" viewBox="0 0 24 24">
+        <path d="M11 2.5h2v3.2h2.6v3.6H18l-.2 3.2h3.7l-2.6 5.4H5.1L2.5 12.5h3.7L6 9.3h2.4V5.7H11z"/>
+        <path d="M2 20.3q2.5-1.5 5 0t5 0 5 0 5 0V22q-2.5 1.5-5 0t-5 0-5 0-5 0z"/>
       </symbol>
 
       <symbol id="char-boy" viewBox="0 0 64 72">
@@ -964,10 +1129,10 @@
           <b>Chess</b>
           <span>Answer right to move. Wrong costs clock time.</span>
         </button>
-        <button class="mode" type="button" disabled>
-          <svg><use href="#i-lock"/></svg>
-          <b>More games</b>
-          <span>Coming soon.</span>
+        <button class="mode" type="button" data-mode="battleships">
+          <svg><use href="#i-ship"/></svg>
+          <b>Battleships</b>
+          <span>Answer right to fire. Wrong gives a square away.</span>
         </button>
       </div>
       <button class="btn primary" id="introGo">Go</button>
@@ -1158,6 +1323,60 @@
       </div>
     </section>
 
+    <section class="panel" id="scSea" hidden>
+      <div class="srow">
+        <button class="stab" type="button" id="sTabTheirs" data-view="theirs">
+          <div class="pod" id="sPodTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+          <div class="stab-txt">
+            <span class="stab-name" id="sNameTheirs">Their waters</span>
+            <span class="sfleet" id="sFleetTheirs"></span>
+          </div>
+        </button>
+        <button class="stab" type="button" id="sTabMine" data-view="mine">
+          <div class="pod" id="sPodMine" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+          <div class="stab-txt">
+            <span class="stab-name" id="sNameMine">Your waters</span>
+            <span class="sfleet" id="sFleetMine"></span>
+          </div>
+        </button>
+      </div>
+      <div class="turnbar" id="sTurn">
+        <div class="pod" id="sTurnPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+        <div class="turnbar-txt">
+          <span class="turnbar-who" id="sTurnWho"></span>
+          <span class="pcall" id="sCall" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="swrap" id="sWrap">
+        <div class="slab x" id="sLabX" aria-hidden="true"></div>
+        <div class="slab y" id="sLabY" aria-hidden="true"></div>
+        <div class="sboard" id="sBoard">
+          <div class="sships" id="sShipsMine"></div>
+          <div class="sships" id="sShipsTheirs"></div>
+          <div class="sgrid" id="sGrid" aria-label="Battleships board"></div>
+        </div>
+      </div>
+      <div class="ccard scard" id="sCard">
+        <div class="qhead"><div class="pod" id="bcPod" data-char="boy" hidden><svg class="head"><use href="#char-boy"/></svg></div><p class="pcard-who" id="bcWho"></p></div>
+        <div class="fuse" id="bcFuse"><i id="bcBar"></i></div>
+        <div class="pcard-q" id="bcQ"></div>
+        <div class="qbox">
+          <div class="choices pcard-choices" id="bcChoices"></div>
+          <div class="qwait" id="bcWait" hidden><div class="pod" id="bcWaitPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div><span id="bcWaitTxt"></span></div>
+          <div class="stools" id="sTools" hidden>
+            <button class="btn" type="button" id="sShuffle">Shuffle</button>
+            <button class="btn primary" type="button" id="sReady">Ready</button>
+            <button class="btn primary" type="button" id="sFire" hidden>Fire</button>
+          </div>
+        </div>
+        <p class="pcard-note" id="bcNote"></p>
+        <div class="row" id="bcOver" hidden>
+          <button class="btn primary" id="bcAgain" hidden>Run it back</button>
+          <a class="btn leavelink" href="./">New opponent</a>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="scDead" hidden>
       <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
@@ -1171,7 +1390,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scDead'];
+  const PANELS = ['scIntro','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scSea','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   let ws = null, gameId = null, myRole = null, pickedMode = 'pool', pickedChar = '';
@@ -1248,8 +1467,9 @@
     }
   }
 
+  let curState = null;   // the latest state from the room, whichever game it's for
   const theirName = () => {
-    const st = pv.s || cv.s, op = myRole === 'host' ? 'guest' : 'host';
+    const st = curState, op = myRole === 'host' ? 'guest' : 'host';
     return (st && st[op] && st[op].name) || 'They';
   };
 
@@ -1316,7 +1536,7 @@
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
     document.body.classList.toggle('testing', !$('testChip').hidden);
-    const inMatch = ids.includes('scPool') || ids.includes('scChess');
+    const inMatch = ids.includes('scPool') || ids.includes('scChess') || ids.includes('scSea');
     $('wordmark').hidden = inMatch;
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
     // a finished match has its own way out ("New opponent") on the end card,
@@ -1750,11 +1970,12 @@
   }
   document.addEventListener('keydown', e => {
     const n = Number(e.key);
-    if(n >= 1 && n <= 4 && ((phase === 'pq' && !poolMine()) || (phase === 'cq' && !chessMine()))){
-      nudge("It's " + theirName() + "'s question. Yours is next.", phase === 'pq' ? 'pcWait' : 'ccWait');
+    if(n >= 1 && n <= 4 && ((phase === 'pq' && !poolMine()) || (phase === 'cq' && !chessMine()) || (phase === 'bq' && !seaMine()))){
+      nudge("It's " + theirName() + "'s question. Yours is next.", { pq: 'pcWait', cq: 'ccWait', bq: 'bcWait' }[phase]);
     }
     else if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
     else if(phase === 'cq' && n >= 1 && n <= 4) chessPick(n - 1);
+    else if(phase === 'bq' && n >= 1 && n <= 4) seaPick(n - 1);
     else if(e.key === 'Escape' && !$('cPromo').hidden) chessPromoClose();
     else if(phase === 'aim' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) poolNudge(e);
   });
@@ -3074,8 +3295,528 @@
     setTimeout(() => { $('ccAgain').disabled = false; }, 1200);
   });
 
+  // ---------- battleships ----------
+  // the room keeps both fleets and only ever tells you about your own, plus
+  // whatever's been shot, sunk or given away on theirs. this side shows one
+  // sea at a time (theirs while you're firing, yours while they are), lets
+  // you lay out your fleet before the match, and says where you fire
+  let Sea = null;
+  const sv = {
+    s: null, game: null, view: 'mine', autoView: '', layout: null, drag: null, aim: null,
+    sent: false, picked: null, qKey: '', built: false, played: 0, cardH: 0,
+    seen: { mine: new Set(), theirs: new Set() }, fx: new Map(),
+  };
+  import('/battleships.js').then(m => { Sea = m; if(sv.s && !$('scSea').hidden) applySea(sv.s); }).catch(() => {});
+
+  const seaMine = () => !!sv.s && sv.s.sea.turn === myRole;
+  const canFire = () => !!Sea && !!ws && phase === 'fire' && seaMine() && !sv.sent;
+  const canPlace = () => !!Sea && !!sv.s && !!sv.layout && phase === 'place' && !sv.s.sea.ready[myRole];
+
+  function buildSea(){
+    if(sv.built) return;
+    sv.built = true;
+    const grid = $('sGrid');
+    for(let sq = 0; sq < 100; sq++){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell';
+      b.addEventListener('click', e => seaTap(sq, e));
+      grid.appendChild(b);
+    }
+    for(let i = 0; i < 10; i++){
+      $('sLabX').insertAdjacentHTML('beforeend', '<span>' + 'ABCDEFGHIJ'[i] + '</span>');
+      $('sLabY').insertAdjacentHTML('beforeend', '<span>' + (i + 1) + '</span>');
+    }
+    for(const id of ['sShipsMine', 'sShipsTheirs']){
+      for(let i = 0; i < 5; i++) $(id).insertAdjacentHTML('beforeend', '<div class="ship" hidden><i></i></div>');
+    }
+    grid.addEventListener('pointerdown', seaGrab);
+    grid.addEventListener('pointermove', seaDragMove);
+    grid.addEventListener('pointerup', seaDrop);
+    grid.addEventListener('pointercancel', () => { if(sv.drag){ sv.drag = null; renderSea(); } });
+  }
+
+  function placeShip(el, ship, len){
+    el.hidden = !ship;
+    if(!ship) return;
+    const x = ship[0] % 10, y = Math.floor(ship[0] / 10);
+    el.style.left = x * 10 + '%';
+    el.style.top = y * 10 + '%';
+    el.style.width = (ship[1] ? 1 : len) * 10 + '%';
+    el.style.height = (ship[1] ? len : 1) * 10 + '%';
+    el.toggleAttribute('data-v', !!ship[1]);
+  }
+
+  function renderSea(){
+    if(!Sea || !sv.s) return;
+    buildSea();
+    const S = sv.s.sea, view = sv.view, B = S[view], now = performance.now();
+    const placing = view === 'mine' && canPlace();
+    const board = $('sBoard');
+    board.dataset.view = view;
+    board.classList.toggle('placing', placing);
+    $('sShipsMine').hidden = view !== 'mine';
+    $('sShipsTheirs').hidden = view !== 'theirs';
+    const fleet = view === 'mine' && phase === 'place' && sv.layout ? sv.layout : B.fleet;
+    [...$(view === 'mine' ? 'sShipsMine' : 'sShipsTheirs').children].forEach((el, i) => {
+      const d = placing && sv.drag && sv.drag.i === i && sv.drag.moved ? sv.drag : null;
+      placeShip(el, d ? d.to : fleet[i], Sea.FLEET[i].len);
+      el.classList.toggle('sunk', !!B.sunk[i] && phase !== 'place');
+      el.classList.toggle('lift', !!d);
+      el.classList.toggle('bad', !!d && !d.ok);
+    });
+    const live = view === 'theirs' && canFire();
+    const aimed = view === 'theirs' && phase === 'fire' && seaMine() ? sv.aim : null;
+    [...$('sGrid').children].forEach((el, sq) => {
+      const shot = B.shots[sq], mark = B.marks[sq];
+      let cls = 'cell', what = '';
+      if(shot === 'o'){ cls += ' miss'; what = ', miss'; }
+      else if(shot === 'x'){ cls += ' hit'; what = ', hit'; }
+      else if(mark !== '.'){
+        cls += mark === 'r' ? ' slip' : ' clear';
+        what = ', known to be empty';
+        // a square that's just been given away pops in the first time it's seen
+        if(!sv.seen[view].has(sq)){ sv.seen[view].add(sq); sv.fx.set(view + sq, { cls: 'pop', until: now + 600 }); }
+      }
+      else if(live) cls += ' can';
+      if(aimed === sq) cls += ' aim';
+      const fx = sv.fx.get(view + sq);
+      if(fx){ if(fx.until > now) cls += ' ' + fx.cls; else sv.fx.delete(view + sq); }
+      if(el.className !== cls) el.className = cls;
+      el.setAttribute('aria-label', Sea.coord(sq) + what);
+      el.tabIndex = live || placing ? 0 : -1;
+    });
+  }
+
+  // placing: drag a ship to move it, tap it to turn it. it snaps square to
+  // square as it goes, and shows red where it can't go
+  function seaCellAt(e){
+    const r = $('sGrid').getBoundingClientRect();
+    return { x: Math.floor((e.clientX - r.left) / r.width * 10), y: Math.floor((e.clientY - r.top) / r.height * 10) };
+  }
+
+  function seaGrab(e){
+    if(sv.view !== 'mine' || !canPlace() || sv.drag) return;
+    const c = seaCellAt(e);
+    if(c.x < 0 || c.x > 9 || c.y < 0 || c.y > 9) return;
+    const i = Sea.shipAt(sv.layout, c.y * 10 + c.x);
+    if(i < 0) return;
+    e.preventDefault();
+    try{ $('sGrid').setPointerCapture(e.pointerId); }catch(err){}
+    const [at, v] = sv.layout[i];
+    sv.drag = {
+      i, id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false, ok: true, to: sv.layout[i],
+      grab: v ? c.y - Math.floor(at / 10) : c.x - at % 10,
+    };
+  }
+
+  function seaDragMove(e){
+    const d = sv.drag;
+    if(!d || e.pointerId !== d.id) return;
+    if(!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 7) return;
+    const c = seaCellAt(e), v = sv.layout[d.i][1], len = Sea.FLEET[d.i].len;
+    const x = Math.max(0, Math.min(10 - (v ? 1 : len), c.x - (v ? 0 : d.grab)));
+    const y = Math.max(0, Math.min(10 - (v ? len : 1), c.y - (v ? d.grab : 0)));
+    if(d.moved && d.to[0] === y * 10 + x) return;
+    d.moved = true;
+    d.to = [y * 10 + x, v];
+    d.ok = Sea.fits(sv.layout, d.i, d.to);
+    renderSea();
+  }
+
+  function seaDrop(e){
+    const d = sv.drag;
+    if(!d || e.pointerId !== d.id) return;
+    sv.drag = null;
+    if(!d.moved) seaRotate(d.i);
+    else if(d.ok){ sv.layout[d.i] = d.to; seaSendLayout(); }
+    renderSea();
+  }
+
+  // turn about the bow, nudged back along the new line if it would run off
+  // the board or into another ship. a shake if there's no room at all
+  function seaRotate(i){
+    const [at, v] = sv.layout[i], len = Sea.FLEET[i].len;
+    for(let k = 0; k < len; k++){
+      const x = at % 10 - (v ? k : 0), y = Math.floor(at / 10) - (v ? 0 : k);
+      if(x < 0 || y < 0) break;
+      const ship = [y * 10 + x, !v];
+      if(Sea.fits(sv.layout, i, ship)){ sv.layout[i] = ship; seaSendLayout(); renderSea(); return; }
+    }
+    const el = $('sShipsMine').children[i];
+    el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
+  }
+
+  // the room keeps the latest layout, so a refresh mid-placement keeps it too
+  function seaSendLayout(){
+    try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'place', ships: sv.layout })); }catch(e){}
+  }
+
+  function seaTap(sq, e){
+    if(!sv.s || !Sea) return;
+    if(phase === 'place'){
+      // a pointer drags or taps on its own; this is for turning a ship from the keyboard
+      if(e && e.detail === 0 && sv.view === 'mine' && canPlace()){
+        const i = Sea.shipAt(sv.layout, sq);
+        if(i >= 0) seaRotate(i);
+      }
+      return;
+    }
+    if(!canFire()){
+      if(phase === 'bq' || phase === 'bqres' || phase === 'fire' || phase === 'shot'){
+        if(!seaMine()) nudge("It's " + theirName() + "'s turn. Yours is next.", 'bcWait');
+        else if(phase === 'bq' || phase === 'bqres') nudge('Answer your question first, then fire.');
+      }
+      return;
+    }
+    if(sv.view !== 'theirs'){ seaView('theirs'); return; }
+    const T = sv.s.sea.theirs;
+    if(T.shots[sq] !== '.'){ nudge(Sea.coord(sq) + ' has already been fired at.'); return; }
+    if(T.marks[sq] !== '.'){ nudge(Sea.coord(sq) + " is empty water. Try somewhere else."); return; }
+    if(sv.aim === sq){ seaFire(); return; }
+    sv.aim = sq;
+    renderSea();
+    seaCard(sv.s);
+  }
+
+  function seaFire(){
+    if(!canFire() || sv.aim == null) return;
+    ws.send(JSON.stringify({ t:'fire', sq: sv.aim }));
+    sv.sent = true;
+    renderSea();
+    seaCard(sv.s);
+  }
+
+  function seaView(v){
+    if(sv.view === v) return;
+    sv.view = v;
+    sv.drag = null;
+    const b = $('sBoard');
+    b.classList.remove('swap'); void b.offsetWidth; b.classList.add('swap');
+    if(sv.s){ renderSea(); seaTabs(sv.s); }
+  }
+
+  // each tab is that player's fleet: a bar per ship, lit until it's sunk
+  function seaTabs(s){
+    if(!Sea) return;
+    const S = s.sea, op = myRole === 'host' ? 'guest' : 'host';
+    for(const [key, view, role] of [['Theirs', 'theirs', op], ['Mine', 'mine', myRole]]){
+      const p = s[role] || {}, tab = $('sTab' + key), box = $('sFleet' + key);
+      wearChar($('sPod' + key), p.char);
+      $('sName' + key).textContent = key === 'Mine' ? 'Your fleet' : p.name ? owns(p.name) + ' fleet' : 'Their fleet';
+      tab.classList.toggle('on', sv.view === view);
+      tab.setAttribute('aria-pressed', String(sv.view === view));
+      if(s.phase === 'place' && key === 'Theirs'){
+        box.innerHTML = S.ready[role] ? '<span class="rdy">Ready</span>' : '<span class="wait">Placing ships…</span>';
+        continue;
+      }
+      if(box.children.length !== Sea.FLEET.length || box.firstElementChild.tagName !== 'I'){
+        box.innerHTML = Sea.FLEET.map(f => '<i style="--len:' + f.len + '"></i>').join('');
+      }
+      [...box.children].forEach((el, i) => {
+        const down = !!S[view].sunk[i] && s.phase !== 'place';
+        el.classList.toggle('sunk', down);
+        el.title = Sea.FLEET[i].name + (down ? ' (sunk)' : '');
+      });
+    }
+  }
+
+  function seaClock(ms){
+    const t = Math.ceil(ms / 1000);
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  }
+
+  function seaCard(s){
+    const S = s.sea, mine = S.turn === myRole, who = (s[S.turn] || {}).name || 'They';
+    const op = myRole === 'host' ? 'guest' : 'host', them = (s[op] || {}).name || 'They';
+    const q = $('bcQ'), note = $('bcNote'), box = $('bcChoices');
+    const placing = s.phase === 'place' && !S.ready[myRole];
+    $('bcOver').hidden = s.phase !== 'over';
+    q.className = 'pcard-q';
+    note.className = 'pcard-note';
+    $('bcFuse').classList.toggle('gone', !(s.phase === 'bq' || s.phase === 'fire' || placing));
+    questionLook('bc', $('sCard'), s, S.turn, s.phase === 'bq' || s.phase === 'bqres', s.phase === 'bqres');
+    $('sTools').hidden = true;
+    $('sShuffle').hidden = $('sReady').hidden = $('sFire').hidden = true;
+    // with no question up, invisible stand-ins hold the card at question
+    // height, so the board is the same size all match long
+    const holdChoices = () => {
+      if(box.dataset.key === 'hold') return;
+      box.innerHTML = '<button class="choice" type="button" tabindex="-1" style="visibility:hidden">0</button>'.repeat(4);
+      box.dataset.key = 'hold';
+    };
+    const tools = (...ids) => { $('sTools').hidden = false; ids.forEach(id => { $(id).hidden = false; }); };
+
+    if(s.phase === 'over'){
+      const o = s.over || {}, st = S.stats[myRole] || { asked: 0, right: 0, shots: 0, hits: 0 };
+      $('bcWho').textContent = 'Game over';
+      q.classList.add('result');
+      box.innerHTML = ''; box.dataset.key = '';
+      if(o.left){
+        q.textContent = (o.left === myRole ? 'You' : ((s[o.left] || {}).name || 'They')) + ' left';
+        note.textContent = 'The game has ended.';
+        $('bcAgain').hidden = true;
+        return;
+      }
+      q.textContent = o.winner === myRole ? 'You win' : ((s[o.winner] || {}).name || 'They') + ' wins';
+      note.textContent = (o.why || '') + ' You answered ' + st.right + ' of ' + st.asked
+        + ' right and hit ' + st.hits + ' of ' + st.shots + ' shots.';
+      $('bcAgain').hidden = myRole !== 'host';
+      $('bcAgain').disabled = false;
+      return;
+    }
+    if(s.phase === 'place'){
+      holdChoices();
+      if(placing){
+        $('bcWho').textContent = 'Time to place your ships';
+        q.classList.add('time');
+        q.textContent = seaClock(s.ms);
+        note.textContent = 'Ships can sit side by side, just not on top of each other.';
+        tools('sShuffle', 'sReady');
+      }else{
+        $('bcWho').textContent = 'Fleet locked in';
+        q.classList.add('result');
+        q.textContent = 'Ready';
+        note.textContent = 'Waiting for ' + them + ' to place their ships.';
+      }
+      return;
+    }
+    if(s.phase === 'countdown'){
+      holdChoices();
+      $('bcWho').textContent = mine ? 'Get ready. You fire first' : 'Get ready. ' + who + ' fires first';
+      q.classList.add('countnum');
+      q.textContent = String(Math.min(3, Math.max(1, Math.ceil(s.ms / 1000))));
+      note.textContent = 'A wrong answer shows ' + them + ' an empty square of yours.';
+      return;
+    }
+    if(s.phase === 'fire'){
+      holdChoices();
+      q.classList.add('result');
+      if(mine){
+        const need = S.streakAt - S.streak[myRole] % S.streakAt;
+        $('bcWho').textContent = 'Correct. Pick a square to fire at';
+        q.textContent = sv.aim != null ? Sea.coord(sv.aim) : 'Pick a square';
+        tools('sFire');
+        $('sFire').disabled = sv.aim == null || sv.sent;
+        note.textContent = sv.sent ? 'Firing…' : sv.aim != null ? 'Tap it again, or hit Fire.'
+          : need + ' more right in a row clears a square on their side.';
+      }else{
+        $('bcWho').textContent = who + ' got it right';
+        q.textContent = who + ' is aiming';
+        note.textContent = 'Watch your waters.';
+      }
+      return;
+    }
+    if(s.phase === 'shot'){
+      holdChoices();
+      const L = S.last || {}, byMe = L.by === myRole;
+      const ship = L.sunk >= 0 ? Sea.FLEET[L.sunk].name : '';
+      $('bcWho').textContent = (byMe ? 'You fire' : who + ' fires') + ' at ' + Sea.coord(L.sq);
+      q.classList.add('result');
+      if(L.hit) q.classList.add('hot');
+      q.textContent = L.sunk >= 0 ? 'Sunk!' : L.hit ? 'Hit!' : 'Miss';
+      note.textContent = L.sunk >= 0 ? (byMe ? 'You sank their ' + ship + '.' : who + ' sank your ' + ship + '.')
+        : L.hit ? (byMe ? 'Got one. It carries on from there.' : who + ' found one of your ships.')
+        : (byMe ? 'Nothing but water.' : 'Missed you.');
+      return;
+    }
+    if(!s.q) return;
+
+    $('bcWho').textContent = mine ? 'Your question. Answer right to fire' : who + "'s question";
+    q.textContent = s.q.text;
+    if(box.dataset.key !== sv.qKey){
+      box.innerHTML = '';
+      s.q.choices.forEach((n, i) => {
+        const b = document.createElement('button');
+        b.className = 'choice'; b.type = 'button';
+        const k = document.createElement('kbd'); k.textContent = i + 1;
+        b.append(k, document.createTextNode(String(n)));
+        b.addEventListener('click', () => seaPick(i));
+        box.appendChild(b);
+      });
+      box.dataset.key = sv.qKey;
+    }
+    const r = s.phase === 'bqres' ? S.bqResult : null;
+    const picked = r ? r.choice : sv.picked;
+    [...box.children].forEach((b, i) => {
+      b.disabled = !(mine && s.phase === 'bq' && sv.picked == null);
+      b.classList.toggle('picked', !r && picked === i);
+      b.classList.remove('right', 'wrong', 'dim');
+      if(r){
+        if(i === s.q.answer) b.classList.add('right');
+        else if(i === picked) b.classList.add('wrong');
+        else b.classList.add('dim');
+      }
+    });
+    if(r){
+      const rv = r.reveal, at = rv ? Sea.coord(rv.sq) : '';
+      note.classList.add(r.right ? 'good' : 'bad');
+      if(r.right){
+        note.textContent = (mine ? 'Correct. Pick your target.' : who + ' got it and fires next.')
+          + (!rv ? '' : mine ? ' Streak of ' + S.streak[myRole] + ': ' + at + ' on their side is clear.'
+            : ' Their streak clears ' + at + ' on your side.');
+      }else{
+        note.textContent = (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '.'
+          + (!rv ? '' : mine ? ' ' + them + ' can now see ' + at + ' is empty.' : ' ' + at + ' on their side is empty.');
+      }
+    }else{
+      note.textContent = mine && sv.picked != null ? 'Locked in.' : '';
+    }
+  }
+
+  function seaPick(i){
+    if(phase !== 'bq' || !seaMine() || sv.picked != null || !ws) return;
+    sv.picked = i;
+    ws.send(JSON.stringify({ t:'bans', choice:i }));
+    seaCard(sv.s);
+  }
+
+  function applySea(s){
+    const S = s.sea, now = performance.now();
+    // a different match (a new link in the same tab) starts from nothing
+    const prev = sv.game === gameId ? sv.s : null;
+    sv.game = gameId;
+    sv.s = s;
+    if(s.ms != null) deadlineAt = now + s.ms;
+    if(!prev){
+      // joining mid-match: what's already on the board isn't news
+      sv.played = S.last ? S.last.id : 0;
+      sv.fx.clear();
+      for(const v of ['mine', 'theirs']){
+        sv.seen[v] = new Set([...S[v].marks].map((m, i) => m === '.' ? -1 : i).filter(i => i >= 0));
+      }
+    }
+    if(s.phase === 'place' && (!prev || prev.phase !== 'place')){
+      // a fresh layout round starts from the room's random fleet
+      sv.layout = S.mine.fleet.map(f => f.slice());
+      sv.drag = null;
+      sv.cardH = 0; $('sCard').style.minHeight = '';
+      $('sReady').disabled = false;
+      if(prev){ sv.played = 0; sv.fx.clear(); sv.seen = { mine: new Set(), theirs: new Set() }; }
+    }
+    if(s.phase === 'fire' && (!prev || prev.phase !== 'fire')) sv.sent = false;
+    if(s.phase !== 'fire') sv.aim = null;
+    // a new shot plays where it landed: a burst for a hit, rings for a miss
+    let rattle = false;
+    if(S.last && S.last.id !== sv.played){
+      sv.played = S.last.id;
+      const view = S.last.by === myRole ? 'theirs' : 'mine';
+      sv.fx.set(view + S.last.sq, { cls: S.last.hit ? 'boom' : 'splash', until: now + 900 });
+      if(S.last.hit && S.last.by !== myRole){
+        rattle = true;
+        try{ if(navigator.vibrate) navigator.vibrate(S.last.sunk >= 0 ? [60, 60, 90] : 60); }catch(e){}
+      }
+    }
+    const qKey = s.q ? s.q.text + '|' + s.q.choices.join(',') : '';
+    if(qKey !== sv.qKey){ sv.qKey = qKey; sv.picked = null; }
+    // the sea on show follows the turn, but either tab can be looked at in
+    // between. once someone is aiming, it goes back to the sea under fire
+    const want = s.phase === 'place' ? 'mine' : s.phase === 'over' ? 'theirs' : S.turn === myRole ? 'theirs' : 'mine';
+    const wantKey = want + (s.phase === 'fire' ? ':fire' : '');
+    if(wantKey !== sv.autoView){ sv.autoView = wantKey; seaView(want); }
+
+    show(['scSea']);
+    if(s.phase === 'place'){
+      const ready = S.ready[myRole], op = myRole === 'host' ? 'guest' : 'host';
+      wearChar($('sTurnPod'), (s[myRole] || {}).char);
+      $('sTurn').className = 'turnbar' + (ready ? '' : ' mine');
+      $('sTurnWho').textContent = ready ? 'Fleet locked in' : 'Place your ships';
+      $('sCall').textContent = ready ? 'Waiting for ' + ((s[op] || {}).name || 'them') + '.'
+        : 'Drag a ship to move it. Tap one to turn it.';
+      lastTurn = null;
+    }else{
+      $('sCall').textContent = S.call || '';
+      turnBar('s', s, S.turn);
+      turnCue(s, S.turn);
+    }
+    seaResize();
+    if(!Sea) return;   // the rules are still loading; this runs again once they're in
+    seaTabs(s);
+    renderSea();
+    seaCard(s);
+    seaCardHold();
+    seaResize();
+    if(rattle){ const w = $('sWrap'); w.classList.remove('rattle'); void w.offsetWidth; w.classList.add('rattle'); }
+  }
+
+  // the board takes whatever height the tabs, banner and card leave, so the
+  // screen never needs to scroll
+  function seaResize(){
+    const panel = $('scSea'), wrap = $('sWrap');
+    if(panel.hidden) return;
+    const kids = [...panel.children].filter(el => !el.hidden && getComputedStyle(el).display !== 'none');
+    const others = kids.filter(el => el !== wrap).reduce((a, el) => a + el.offsetHeight, 0);
+    const gaps = 8 * (kids.length - 1);
+    const bs = getComputedStyle(document.body), as = getComputedStyle(app);
+    const top = panel.getBoundingClientRect().top;
+    const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
+    const room = window.innerHeight - top - others - gaps - below - 2;
+    const size = Math.floor(Math.max(170, Math.min(panel.clientWidth, room, 560)));
+    wrap.style.width = size + 'px';
+    $('sBoard').style.setProperty('--cell', ((size - 16) / 10).toFixed(2) + 'px');
+  }
+  function seaCardHold(){
+    const card = $('sCard');
+    if(phase === 'over'){ card.style.minHeight = ''; return; }
+    sv.cardH = Math.max(sv.cardH || 0, card.offsetHeight);
+    card.style.minHeight = sv.cardH + 'px';
+  }
+  window.addEventListener('resize', () => {
+    if($('scSea').hidden) return;
+    sv.cardH = 0; $('sCard').style.minHeight = '';
+    seaCardHold(); seaResize();
+  });
+
+  // the timers run off the last update, between updates
+  function seaFrame(now){
+    requestAnimationFrame(seaFrame);
+    const s = sv.s;
+    if(!s || $('scSea').hidden) return;
+    const left = Math.max(0, deadlineAt - now), q = $('bcQ');
+    const placing = phase === 'place' && !s.sea.ready[myRole];
+    let text = null;
+    if(phase === 'countdown') text = String(Math.min(3, Math.max(1, Math.ceil(left / 1000))));
+    if(placing) text = seaClock(left);
+    if(text != null && q.textContent !== text) q.textContent = text;
+    const total = phase === 'bq' ? questionMs : phase === 'fire' ? s.sea.aimMs : placing ? s.sea.placeMs : 0;
+    if(total){
+      $('bcBar').style.width = (left / total * 100).toFixed(1) + '%';
+      $('bcFuse').classList.toggle('low', left < (placing ? 10000 : 3000));
+    }
+  }
+  requestAnimationFrame(seaFrame);
+
+  $('sTabTheirs').addEventListener('click', () => {
+    if(phase === 'place'){ nudge('Their waters open up once the match starts.'); return; }
+    seaView('theirs');
+  });
+  $('sTabMine').addEventListener('click', () => seaView('mine'));
+  $('sShuffle').addEventListener('click', () => {
+    if(!canPlace()) return;
+    sv.layout = Sea.randomFleet();
+    sv.drag = null;
+    seaSendLayout();
+    renderSea();
+  });
+  $('sReady').addEventListener('click', () => {
+    if(!canPlace() || !ws) return;
+    sv.drag = null;
+    ws.send(JSON.stringify({ t:'sready', ships: sv.layout }));
+    $('sReady').disabled = true;
+  });
+  $('sFire').addEventListener('click', seaFire);
+  $('sCard').addEventListener('pointerdown', () => {
+    if(phase === 'bq' && !seaMine()) nudge("It's " + theirName() + "'s question. Yours is next.", 'bcWait');
+  });
+  $('bcAgain').addEventListener('click', () => {
+    $('bcAgain').disabled = true;
+    ws.send(JSON.stringify({ t:'again' }));
+    setTimeout(() => { $('bcAgain').disabled = false; }, 1200);
+  });
+
   function applyState(s){
     phase = s.phase;
+    curState = s;
     $('testChip').hidden = !s.test;
     // a test match has no one to wait for, so the lobby starts itself
     if(s.test && phase === 'lobby' && myRole === 'host' && !testStarted && ws){
@@ -3105,7 +3846,7 @@
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
         $('guestMode').querySelector('span').textContent = s.modeName || 'Pool';
-        $('guestMode').querySelector('use').setAttribute('href', '#i-' + (s.mode === 'chess' ? 'chess' : 'pool'));
+        $('guestMode').querySelector('use').setAttribute('href', '#i-' + ({ chess: 'chess', battleships: 'ship' }[s.mode] || 'pool'));
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
           setLobbyCard('glGuest', { char: s.guest.char, name: s.guest.name || 'You', ready: true, statusText: 'Ready' });
@@ -3121,6 +3862,7 @@
     }
 
     if(s.mode === 'chess') applyChess(s);
+    else if(s.mode === 'battleships') applySea(s);
     else applyPool(s);
   }
 
@@ -3190,9 +3932,10 @@
   });
 
   function introLead(){
-    $('introLead').textContent = pickedMode === 'chess'
-      ? 'Answer right to earn your move. Get it wrong and your clock pays for it.'
-      : "Answer right to earn your shot. Get it wrong and the table's theirs.";
+    $('introLead').textContent = {
+      chess: 'Answer right to earn your move. Get it wrong and your clock pays for it.',
+      battleships: 'Answer right to fire. Get it wrong and they see where your ships aren’t.',
+    }[pickedMode] || "Answer right to earn your shot. Get it wrong and the table's theirs.";
   }
 
   $('introGo').addEventListener('click', () => show(['scOpponent']));
@@ -3291,9 +4034,10 @@
   if(navigator.share){
     $('hostSend').hidden = false;
     $('hostSend').addEventListener('click', () => {
-      const text = pickedMode === 'chess'
-        ? 'Chess, but every move has to be earned. Fancy a game?'
-        : 'Pool, but every shot has to be earned. Fancy a game?';
+      const text = {
+        chess: 'Chess, but every move has to be earned. Fancy a game?',
+        battleships: 'Battleships, but every shot has to be earned. Fancy a game?',
+      }[pickedMode] || 'Pool, but every shot has to be earned. Fancy a game?';
       navigator.share({ text, url: shareUrl() }).catch(() => {});
     });
   }
@@ -3329,7 +4073,7 @@
       $('introName').value = localStorage.getItem('sd-name') || '';
       savedMode = localStorage.getItem('sd-mode') || '';
     }catch(e){}
-    if(savedMode === 'pool' || savedMode === 'chess') pickedMode = savedMode;
+    if(['pool', 'chess', 'battleships'].includes(savedMode)) pickedMode = savedMode;
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
     introLead();
     opponentType = 'friend';
