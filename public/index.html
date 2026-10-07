@@ -1729,7 +1729,7 @@
   function rollBalls(pos){
     for(let n = 0; n < 16; n++){
       const b = balls3d[n], p = pos[n];
-      if(!p){ b.last = null; continue; }
+      if(!p){ if(b.last && pv.anim) startSink(n, b.last); b.last = null; continue; }
       if(b.last){
         const dx = p[0] - b.last[0], dy = p[1] - b.last[1], d = Math.hypot(dx, dy);
         // a big jump is a placement or a respot, not rolling
@@ -1776,6 +1776,49 @@
     g.putImageData(img, 0, 0);
     b.dirty = false;
     return b.sprite;
+  }
+
+  // ---- sinking ----
+  // a ball that drops doesn't just vanish: it slides into the hole and
+  // shrinks and darkens as it falls, so it reads as going down into the dark
+  const SINK_MS = 340;
+  const HOLES = [
+    { at: [0, 0],          rect: [-38, -38, 58, 58] },
+    { at: [PW, 0],         rect: [PW - 20, -38, 58, 58] },
+    { at: [0, PL / 2],     rect: [-42, PL / 2 - 32, 50, 64] },
+    { at: [PW, PL / 2],    rect: [PW - 8, PL / 2 - 32, 50, 64] },
+    { at: [0, PL],         rect: [-38, PL - 20, 58, 58] },
+    { at: [PW, PL],        rect: [PW - 20, PL - 20, 58, 58] },
+  ];
+  const sinks = [];
+
+  function startSink(n, from){
+    let hole = HOLES[0], best = Infinity;
+    for(const h of HOLES){
+      const d = Math.hypot(h.at[0] - from[0], h.at[1] - from[1]);
+      if(d < best){ best = d; hole = h; }
+    }
+    const [x, y, w, h] = hole.rect;
+    sinks.push({ n, x: from[0], y: from[1], hx: x + w / 2, hy: y + h / 2, hole, t0: performance.now() });
+  }
+
+  function drawSinks(ctx){
+    const now = performance.now();
+    for(let i = sinks.length - 1; i >= 0; i--){
+      const k = sinks[i], p = (now - k.t0) / SINK_MS;
+      if(p >= 1){ sinks.splice(i, 1); continue; }
+      const e = p * p * (3 - 2 * p);                   // ease in and out
+      const x = k.x + (k.hx - k.x) * e, y = k.y + (k.hy - k.y) * e;
+      const r = PR * (1 - .55 * e);
+      ctx.save();
+      const spr = ballSprite(k.n);
+      ctx.globalAlpha = 1 - .5 * e;
+      ctx.drawImage(spr, x - r, y - r, r * 2, r * 2);
+      ctx.globalAlpha = .75 * e;
+      ctx.fillStyle = '#000';
+      circle(ctx, x, y, r + .5); ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawBall(ctx, n, x, y){
@@ -1890,6 +1933,7 @@
 
     for(let n = 1; n < 16; n++) if(pos[n]) drawBall(ctx, n, pos[n][0], pos[n][1]);
     if(pos[0]) drawBall(ctx, 0, pos[0][0], pos[0][1]);
+    drawSinks(ctx);
 
     if(c && T.ballInHand && meAim){
       ctx.strokeStyle = placeValid(c.x, c.y) ? 'rgba(244,239,228,.55)' : 'rgba(255,106,42,.95)';
