@@ -1556,8 +1556,29 @@
     .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint{ animation:none; }
   }
 
+  /* ---------- study set questions in a match ---------- */
+  /* real questions run longer than sums: smaller type, one answer per row */
+  .pcard-q.long{ font:600 clamp(1rem,4.3vw,1.18rem)/1.35 var(--sans); letter-spacing:0; text-wrap:balance; }
+  .pcard-choices.long{ grid-template-columns:minmax(0,1fr); gap:6px; }
+  .pcard-choices.long .choice{ min-height:var(--tap); padding:7px 14px; font:500 .88rem/1.28 var(--sans); text-align:left; }
+  .pcard-choices.mid .choice{ min-height:var(--tap); padding:7px 10px; font:500 .88rem/1.25 var(--sans); }
+  /* whole words only, and never four across (chess goes four across for sums) */
+  .pcard-choices.mid .choice, .pcard-choices.long .choice{ overflow-wrap:break-word; hyphens:auto; }
+  .pcard-choices.mid{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:6px; }
+  .pcard-choices.long{ grid-template-columns:minmax(0,1fr) !important; }
+  .masked.reveal .pcard-q, .masked.reveal .pcard-choices{ display:none; }
+  .lobbyset{ font:400 .82rem/1.4 var(--sans); color:var(--ash); max-width:34ch; }
+  .lobbyset b{ color:var(--tallow); font-weight:600; }
+  select.field{ font:500 .95rem/1.3 var(--sans); padding:11px 14px; appearance:none; -webkit-appearance:none; cursor:pointer;
+    background-image:linear-gradient(45deg, transparent 50%, var(--ash) 50%), linear-gradient(135deg, var(--ash) 50%, transparent 50%);
+    background-position:calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size:5px 5px; background-repeat:no-repeat; padding-right:36px; }
+  select.field option{ background:var(--soot); color:var(--tallow); }
+  .setitem.inuse{ border-color:rgba(255,179,71,.55); }
+  .setitem .inusetag{ font:600 .78rem/1 var(--sans); color:var(--amber); padding:0 6px; align-self:center; white-space:nowrap; }
+
   /* ---------- study sets ---------- */
-  .setsrow{ display:flex; justify-content:center; }
+  .setsrow{ display:flex; justify-content:center; max-width:100%; }
+  .setsrow .pillbtn{ max-width:min(320px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .setlist{ width:min(380px, 100%); display:flex; flex-direction:column; gap:var(--s2); max-height:44dvh; overflow-y:auto; overscroll-behavior:contain; }
   .setitem{
     display:flex; align-items:center; justify-content:space-between; gap:var(--s3); text-align:left;
@@ -2119,7 +2140,7 @@
         </article>
       </div>
       <div class="dots" id="gameDots"></div>
-      <div class="setsrow"><button class="pillbtn" id="introSets" type="button">Your study sets</button></div>
+      <div class="setsrow"><button class="pillbtn" id="introSets" type="button">Questions: Quick maths</button></div>
       <div class="dock">
         <button class="btn" id="introPractice" type="button">Practice</button>
         <button class="btn primary" id="introGo" type="button">Invite a friend</button>
@@ -2149,6 +2170,7 @@
     <section class="panel" id="scHost" hidden>
       <h2 class="hd" id="hostHd">Invite your opponent</h2>
       <p class="gamechip" id="hostGame"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
+      <p class="lobbyset" id="hostSetNote"></p>
       <div class="lobby" id="hostLobby">
         <div class="lobbyside">
           <div class="pod" id="lbHostPod"><svg class="head"><use href="#char-boy"/></svg></div>
@@ -2194,6 +2216,7 @@
       </div>
       <input class="field" id="guestName" type="text" maxlength="16" placeholder="Your name" autocomplete="name" aria-label="Your name">
       <div class="chars" id="charGridGuest"></div>
+      <select class="field" id="guestSet" aria-label="Your questions" hidden></select>
       <div class="deckrow" id="deckRowGuest" hidden><div class="deckrow-cards" id="deckRowGuestCards"></div><button class="btn" id="deckEditGuest" type="button">Edit deck</button></div>
       <p class="status" id="guestStatus"></p>
       <div class="dock"><button class="btn primary" id="guestReady" type="button" disabled>I'm ready</button></div>
@@ -2630,9 +2653,14 @@
     if(w && !w.hidden){ w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
   }
 
+  // the right answer, said after a miss. the other player's question never
+  // reaches this browser, so for them it's left out
+  function itWas(q){ return q && !q.theirs ? 'It was ' + q.choices[q.answer] + '.' : ''; }
+
   // the question card, as its owner or as the one waiting
   function questionLook(prefix, cardEl, s, turn, live, reveal){
     const mine = turn === myRole, p = s[turn] || {};
+    cardEl.classList.toggle('masked', !!(s.q && s.q.theirs));
     cardEl.classList.toggle('qcard-mine', live && mine);
     cardEl.classList.toggle('qcard-theirs', live && !mine);
     cardEl.classList.toggle('reveal', !!reveal);
@@ -2644,6 +2672,43 @@
       $(prefix + 'WaitTxt').textContent = (p.name || 'They') + ' is answering';
     }
   }
+
+  // a sum fits in big type; a real question doesn't. once a card's text runs
+  // past what the big type holds, its question gets smaller type (.long), and
+  // its answers go two-up in smaller type (.mid) or one per row (.long).
+  // the game's layout is then measured again, since the card changed height
+  // a narrow card (pool's, Towers') puts even middling answers one per row
+  function fitCard(card){
+    const q = card.querySelector('.pcard-q'), box = card.querySelector('.pcard-choices');
+    const most = box ? Math.max(0, ...[...box.children].map(b => b.textContent.length)) : 0;
+    const before = (q ? q.className : '') + (box ? box.className : '');
+    if(box){
+      const narrow = box.clientWidth > 0 && box.clientWidth < 260;
+      const long = most > 31 || (narrow && most > 15);
+      box.classList.toggle('long', long);
+      box.classList.toggle('mid', !long && most > 15);
+    }
+    if(q) q.classList.toggle('long', q.textContent.length > 28 || most > 15);
+    return before !== (q ? q.className : '') + (box ? box.className : '');
+  }
+  function fitCards(cards, relayout){
+    let changed = false;
+    for(const card of cards) if(fitCard(card)) changed = true;
+    if(changed && relayout) window.dispatchEvent(new Event('resize'));
+  }
+  const qFit = new MutationObserver(list => {
+    const cards = new Set();
+    for(const m of list){
+      const el = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+      const card = el && el.closest('.pcard, .ccard');
+      if(card) cards.add(card);
+    }
+    fitCards(cards, true);
+    // a card that was hidden a moment ago only has a width once it's shown
+    requestAnimationFrame(() => fitCards(cards, true));
+  });
+  window.addEventListener('resize', () => fitCards(document.querySelectorAll('.pcard, .ccard'), false));
+  document.querySelectorAll('.pcard-q, .pcard-choices').forEach(el => qFit.observe(el, { childList: true, characterData: true, subtree: true }));
 
   let curState = null;   // the latest state from the room, whichever game it's for
   const theirName = () => {
@@ -4070,7 +4135,7 @@
       $('pcNote').classList.add(r.right ? 'good' : 'bad');
       $('pcNote').textContent = r.right
         ? (mine ? 'Correct. Take your shot.' : who + ' got it right and shoots next.')
-        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '.';
+        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + itWas(s.q);
     }else{
       $('pcNote').textContent = mine && pv.picked != null ? 'Locked in.' : '';
     }
@@ -4483,7 +4548,7 @@
       $('ccNote').classList.add(r.right ? 'good' : 'bad');
       $('ccNote').textContent = r.right
         ? (mine ? 'Correct. Make your move.' : who + ' got it and moves next.')
-        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '. '
+        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + itWas(s.q) + ' '
           + (mine ? 'You lose ' : who + ' loses ') + secs + ' seconds.';
     }else{
       $('ccNote').textContent = mine && cv.picked != null ? 'Locked in.' : '';
@@ -5011,7 +5076,7 @@
           + (!rv ? '' : mine ? ' Streak of ' + S.streak[myRole] + ': ' + at + ' on their side is clear.'
             : ' Their streak clears ' + at + ' on your side.');
       }else{
-        note.textContent = (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '.'
+        note.textContent = (r.choice == null ? 'Out of time. ' : 'Not quite. ') + itWas(s.q)
           + (!rv ? '' : mine ? ' ' + them + ' can now see ' + at + ' is empty.' : ' ' + at + ' on their side is empty.');
       }
     }else{
@@ -5875,7 +5940,7 @@
       $('gcNote').classList.add(r.right ? 'good' : 'bad');
       $('gcNote').textContent = r.right
         ? (mine ? 'Correct. Take your swing.' : who + ' got it right and swings next.')
-        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '. That’s a penalty stroke.';
+        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + itWas(s.q) + ' That’s a penalty stroke.';
     }else{
       $('gcNote').textContent = mine && gv.picked != null ? 'Locked in.' : '';
     }
@@ -7164,6 +7229,8 @@
           : ready ? (s.guest.name || 'They') + ' is ready'
           : here ? 'They’re picking a character' : away ? 'Waiting for them to come back' : 'Invite your opponent';
         gameChip($('hostGame'), s.mode, s.modeName);
+        const theirs = s.guestSet === 'host' ? 'the same set' : s.guestSet || 'quick maths';
+        $('hostSetNote').textContent = 'Your questions: ' + (s.hostSet || 'quick maths') + (s.guest.ready ? '. Theirs: ' + theirs + '.' : '.');
         // once they're in, the code is no use and sharing is done
         $('hostInvite').hidden = bot || ready || here || away;
         $('hostShareRow').hidden = bot || ready;
@@ -7196,6 +7263,8 @@
           if(!$('guestName').value) $('guestName').value = saved;
         }
         $('deckRowGuest').hidden = s.mode !== 'towers' || !!s.guest.ready;
+        if(guestSetFor !== gameId){ guestSetFor = gameId; fillGuestSets(s, hostName); }
+        $('guestSet').hidden = !!s.guest.ready || $('guestSet').options.length < 2;
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
           setLobbyCard('glGuest', { char: s.guest.char, name: s.guest.name || 'You', ready: true, statusText: 'Ready' });
@@ -7512,17 +7581,21 @@
 
     let made;
     try{
+      // the room only takes a study set this browser can prove is its own
+      const useSet = chosenSet(), dev = useSet ? readDevice() : null;
       const r = await fetch('/api/games', {
         method:'POST',
-        headers:{ 'content-type':'application/json' },
+        headers:{ 'content-type':'application/json', ...(dev ? { authorization: 'Bearer ' + dev.secret } : {}) },
         body: JSON.stringify({
           name: $('introName').value.trim(), mode: pickedMode, char: pickedChar,
           deck: pickedMode === 'towers' ? loadDeck() : undefined,
           test: opponentType === 'test',
+          set: dev ? useSet.id : undefined,
         })
       });
       if(!r.ok) throw new Error('the server answered ' + r.status);
       made = await r.json();
+      if(useSet && !made.set) chooseSet(null);   // gone or not ready: this match is maths
     }catch(e){
       createFailed("Couldn't set the match up — " + reason(e) + '. Try again.');
       return;
@@ -7630,10 +7703,38 @@
     ws.send(JSON.stringify({ t:'start' }));
   });
 
+  // the guest's questions: the host's set, maths, or one of their own ready
+  // sets. their own sets are only listed if this browser already has some
+  let guestSetFor = null;
+  async function fillGuestSets(s, hostName){
+    const sel = $('guestSet');
+    sel.textContent = '';
+    const add = (value, label) => { const o = document.createElement('option'); o.value = value; o.textContent = label; sel.append(o); };
+    if(s.hostSet) add('host', 'Questions: ' + hostName + '’s set, ' + s.hostSet);
+    add('maths', 'Questions: quick maths');
+    sel.value = s.hostSet ? 'host' : 'maths';
+    sel.hidden = sel.options.length < 2;
+    if(!readDevice()) return;
+    try{
+      const r = await setsApi('/api/sets');
+      const { sets } = await r.json();
+      const mine = chosenSet();
+      for(const x of sets) if(x.status === 'ready') add('own:' + x.id, 'Questions: your set, ' + x.name);
+      // with no set from the host, their own chosen set is the natural pick
+      if(!s.hostSet && mine && sets.some(x => x.id === mine.id && x.status === 'ready')) sel.value = 'own:' + mine.id;
+    }catch(e){}
+    sel.hidden = !!(curState && curState.guest && curState.guest.ready) || sel.options.length < 2;
+  }
+  function guestSetChoice(){
+    const v = $('guestSet').value || 'host', dev = readDevice();
+    if(v.startsWith('own:') && dev) return { id: v.slice(4), secret: dev.secret };
+    return v === 'maths' ? 'maths' : 'host';
+  }
+
   $('guestReady').addEventListener('click', () => {
     if(!pickedChar) return;
     try{ localStorage.setItem('sd-name', $('guestName').value.trim()); }catch(e){}
-    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim(), char: pickedChar, deck: loadDeck() }));
+    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim(), char: pickedChar, deck: loadDeck(), set: guestSetChoice() }));
     $('guestReady').disabled = true;
   });
   $('guestName').addEventListener('keydown', e => { if(e.key === 'Enter') $('guestReady').click(); });
@@ -7668,7 +7769,13 @@
   }
   async function makeDevice(){
     const r = await fetch('/api/device', { method:'POST' });
-    if(!r.ok) throw new Error('device');
+    if(!r.ok){
+      // the server says why (too many new players from one network today)
+      const j = await r.json().catch(() => ({}));
+      const e = new Error('device');
+      if(j.error) e.say = j.error.charAt(0).toUpperCase() + j.error.slice(1) + '. Try again tomorrow.';
+      throw e;
+    }
     const d = await r.json();
     memDevice = d;
     try{ localStorage.setItem('sd-device', JSON.stringify(d)); }catch(e){}
@@ -7682,6 +7789,46 @@
       if(r.status === 401 && attempt === 0){ memDevice = null; try{ localStorage.removeItem('sd-device'); }catch(e){} continue; }
       return r;
     }
+  }
+
+  // which study set this browser's questions come from: { id, name }, or
+  // null for the built-in maths
+  let memSet = null;
+  function chosenSet(){
+    try{ const c = JSON.parse(localStorage.getItem('sd-set') || 'null'); if(c && c.id) return c; }catch(e){}
+    return memSet;
+  }
+  function chooseSet(c){
+    memSet = c;
+    try{ c ? localStorage.setItem('sd-set', JSON.stringify(c)) : localStorage.removeItem('sd-set'); }catch(e){}
+    setsChip();
+  }
+  function setsChip(){
+    const c = chosenSet();
+    $('introSets').textContent = 'Questions: ' + (c ? c.name : 'Quick maths');
+  }
+  setsChip();
+
+  // one row of the list: a name, a line under it and its buttons
+  function setRow(name, line, acts, inUse){
+    const row = document.createElement('div');
+    row.className = 'setitem' + (inUse ? ' inuse' : '');
+    const txt = document.createElement('div');
+    const b = document.createElement('b'); b.textContent = name;
+    const small = document.createElement('small'); small.textContent = line;
+    txt.append(b, small);
+    const box = document.createElement('div');
+    box.className = 'setacts';
+    if(inUse){ const tag = document.createElement('span'); tag.className = 'inusetag'; tag.textContent = 'In use'; box.append(tag); }
+    box.append(...acts);
+    row.append(txt, box);
+    return row;
+  }
+  function useBtn(c){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.textContent = 'Use';
+    b.addEventListener('click', () => { haptics('select'); chooseSet(c); loadSets(); });
+    return b;
   }
 
   function openSets(){
@@ -7712,31 +7859,31 @@
       const r = await setsApi('/api/sets');
       const { sets } = await r.json();
       list.textContent = '';
+      // a chosen set that's gone, or lost its questions, goes back to maths
+      const cur = chosenSet();
+      if(cur && !sets.some(x => x.id === cur.id && x.status === 'ready')) chooseSet(null);
+      const using = chosenSet();
+      list.append(setRow('Quick maths', 'Built in: quick sums', using ? [useBtn(null)] : [], !using));
       if(!sets.length){
         const p = document.createElement('p');
         p.className = 'setempty';
-        p.textContent = 'No study sets yet. Make one from your notes to play with them.';
+        p.textContent = 'Make a study set from your notes to play with your own questions.';
         list.append(p);
       }
       for(const s of sets){
-        const row = document.createElement('div');
-        row.className = 'setitem';
-        const txt = document.createElement('div');
-        const b = document.createElement('b'); b.textContent = s.name;
-        const small = document.createElement('small');
         const words = Math.max(1, Math.round(s.chars / 6)).toLocaleString() + ' words';
-        small.textContent = s.status === 'ready' ? words + ' · ' + s.questions + ' questions'
+        const line = s.status === 'ready' ? words + ' · ' + s.questions + ' questions'
           : s.status === 'generating' ? 'Making questions…'
           : s.status === 'failed' ? (s.note || "Couldn't make questions.")
           : words + ' · no questions yet';
-        txt.append(b, small);
-        const acts = document.createElement('div');
-        acts.className = 'setacts';
+        const acts = [];
+        const inUse = !!using && using.id === s.id;
+        if(s.status === 'ready' && !inUse) acts.push(useBtn({ id: s.id, name: s.name }));
         if(s.status === 'new' || s.status === 'failed'){
           const go = document.createElement('button');
           go.type = 'button'; go.className = 'btn primary'; go.textContent = s.status === 'failed' ? 'Try again' : 'Make questions';
           go.addEventListener('click', async () => { go.disabled = true; await startMaking(s.id); loadSets(); });
-          acts.append(go);
+          acts.push(go);
         }
         const del = document.createElement('button');
         del.type = 'button'; del.className = 'btn'; del.textContent = 'Delete';
@@ -7747,15 +7894,14 @@
           try{ await setsApi('/api/sets/' + s.id, { method:'DELETE' }); }catch(e){}
           loadSets();
         });
-        acts.append(del);
-        row.append(txt, acts);
-        list.append(row);
+        acts.push(del);
+        list.append(setRow(s.name, line, acts, inUse));
       }
       // while any set is being made, look again every few seconds
       clearTimeout(setsPoll);
       if(sets.some(x => x.status === 'generating')) setsPoll = setTimeout(() => { if(!$('scSets').hidden) loadSets(); }, 3000);
     }catch(e){
-      note.textContent = "Couldn't load your sets. Check your connection.";
+      note.textContent = (e && e.say) || "Couldn't load your sets. Check your connection.";
     }
   }
 
@@ -7840,7 +7986,7 @@
       const j = await r.json().catch(() => ({}));
       $('setNote').textContent = j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : "Couldn't save that. Try again.";
     }catch(e){
-      $('setNote').textContent = "Couldn't save that. Check your connection.";
+      $('setNote').textContent = (e && e.say) || "Couldn't save that. Check your connection.";
     }
     setReady();
   });
@@ -7888,6 +8034,7 @@
     settle();
     profileChip();
     deckRows();
+    setsChip();
     show(['scIntro']);
     // the cards only have a size once they're on screen
     requestAnimationFrame(() => scrollToGame(pickedMode, false));

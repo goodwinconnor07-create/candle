@@ -16,10 +16,23 @@ plays and DEPLOY.md for deploy details.
   mapping it to a room id. The host asks for one from the lobby; it's let go
   as soon as the guest seat is taken.
 - `questions.js`: where every question comes from. Games call `nextQ(role)` on
-  the room, which gives each player a `Feed` over a source (maths today, study
-  sets later). Questions carry a hidden `diff` and `why`; snapshots only ever
-  copy `text` and `choices` (and `answer` once resolved), so players never see
-  a difficulty ranking.
+  the room, which gives each player a `Feed` over a source: `mathsSource`, or
+  `setSource()` for a study set. A set deals its core questions like a
+  shuffled deck and, about a third of the time, has the local engine
+  (`engineMakers()`) fill the set's templates from its facts, which costs
+  nothing. Questions carry a hidden `diff` and `why`; snapshots only ever copy
+  `text` and `choices` (and `answer` once resolved), so players never see a
+  difficulty ranking. How often each core question was shown and answered
+  right goes back to D1 (`flushAnswers()`); Tester's answers don't count.
+- Study sets in a match: the host's set is whichever one they chose on the
+  home screen (`sd-set` in localStorage, the "Questions:" pill), checked by
+  the Worker on `POST /api/games` (must be theirs and ready). The guest picks
+  the host's set, quick maths or one of their own in the lobby (`#guestSet`);
+  an own set is proved with their device secret in the `ready` message, which
+  the room checks and never keeps. Each player only ever receives their own
+  live question: `snapshot(role)` blanks the other player's (`theirs: true`),
+  so they see "X is answering" and the result. Question cards size their text
+  by length (`fitCard()`: `.long` question, `.mid`/`.long` answers).
 - `library.js` and `migrations/`: the D1 database (`DB` binding, named
   `study-duel`): anonymous devices, study sets, source text chunks and
   generated questions. Live matches never live here. A device is a secret the
@@ -39,7 +52,7 @@ plays and DEPLOY.md for deploy details.
   local testing; never set it in production.
 - Spending caps (all checked in the route before any money is spent):
   `DAILY_BUDGET_USD` for the whole app per UTC day, `DEVICE_RUNS_PER_DAY` per
-  browser, 10 new devices per network per day, and `GENERATION_ENABLED =
+  browser, 30 new devices per network per day, and `GENERATION_ENABLED =
   "false"` to switch it off. They're `[vars]` in `wrangler.toml`. The key is a
   secret: `npx wrangler secret put ANTHROPIC_API_KEY`. Every run's real cost
   is in `gen_runs` (micro-dollars, with per-call token counts in `detail`).
