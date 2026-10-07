@@ -65,11 +65,22 @@ Checkmate, stalemate, castling, en passant and promotion all work as usual,
 and so do draws by threefold repetition, the fifty-move rule and not enough
 material.
 
-The best move comes from a small search engine in `public/chess.js`. It's
-not Stockfish, but it reliably finds mates, free pieces and simple tactics,
-which is more than enough to help a casual player. It runs in the mover's
-own browser, in a background worker (`public/hint-worker.js`), for about a
-second. The room just says when the hint has been earned.
+The best move comes from Stockfish 19, the lite single-threaded build of
+[Stockfish.js](https://github.com/nmrugg/stockfish.js) (about 1.8 MB, in
+`public/stockfish/`). It runs in the mover's own browser as a background
+worker and thinks for one second, so it never touches the server and costs
+nothing per game. The room just says when the hint has been earned. The
+engine starts loading when a chess match opens, and the browser caches it
+after that.
+
+If Stockfish can't load on a device, the small engine in `public/chess.js`
+takes over (`public/hint-worker.js`). That engine also picks Tester's moves
+on the server.
+
+Stockfish is GPLv3. Its license is in `public/stockfish/Copying.txt` and its
+source is at https://github.com/nmrugg/stockfish.js. To update it, take
+`stockfish-*-lite-single.js` and `.wasm` from the `stockfish` npm package and
+change `SF_URL` in `public/index.html`.
 
 ## Starting a match
 

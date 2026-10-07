@@ -2477,8 +2477,82 @@
   }
   $('cPromo').addEventListener('pointerdown', e => { if(e.target === $('cPromo')) chessPromoClose(); });
 
-  // the best move is searched in a worker so the clocks keep ticking. the
-  // room only says when it's been earned
+  // the best move comes from Stockfish: the lite build, run right here in
+  // the player's browser, so it never costs the server anything. it starts
+  // up when a chess match opens, so it's warm by the time a streak earns a
+  // hint. the room only says when the hint has been earned
+  const SF_URL = '/stockfish/stockfish-19-lite-single.js', SF_MS = 1000;
+  const sf = { w: null, ready: false, failed: false, busy: false, job: null, next: null, timer: 0 };
+
+  function sfStart(){
+    if(sf.w || sf.failed) return;
+    try{ sf.w = new Worker(SF_URL); }catch(e){ sfFail(); return; }
+    sf.w.onmessage = e => sfLine(String(e.data));
+    sf.w.onerror = sfFail;
+    sf.w.postMessage('uci');
+    sf.w.postMessage('isready');
+    // a phone that can't load it in time gets the small engine instead
+    sf.timer = setTimeout(() => { if(!sf.ready) sfFail(); }, 20000);
+  }
+
+  function sfFail(){
+    if(sf.failed) return;
+    sf.failed = true;
+    clearTimeout(sf.timer);
+    try{ if(sf.w) sf.w.terminate(); }catch(e){}
+    sf.w = null;
+    const j = sf.next || (sf.busy ? sf.job : null);
+    sf.job = sf.next = null; sf.busy = false;
+    if(j) smallHint(j.fen, j.done);
+  }
+
+  function sfGo(job){
+    sf.job = job; sf.busy = true; job.mate = 0;
+    sf.w.postMessage('position fen ' + job.fen);
+    sf.w.postMessage('go movetime ' + SF_MS);
+  }
+
+  function sfLine(line){
+    if(line === 'readyok'){
+      sf.ready = true;
+      clearTimeout(sf.timer);
+      if(sf.next){ const j = sf.next; sf.next = null; sfGo(j); }
+      return;
+    }
+    const j = sf.job;
+    if(!j) return;
+    if(line.startsWith('info ')){
+      const m = / score (cp|mate) (-?\d+)/.exec(line);
+      if(m) j.mate = m[1] === 'mate' ? Number(m[2]) : 0;
+      return;
+    }
+    if(!line.startsWith('bestmove')) return;
+    sf.job = null; sf.busy = false;
+    // a newer position is waiting, so this answer is already stale
+    if(sf.next){ const n = sf.next; sf.next = null; sfGo(n); return; }
+    const u = line.split(' ')[1], pos = Chess.fromFen(j.fen), all = Chess.moves(pos);
+    const m = all.find(x => Chess.uci(x) === u);
+    if(m) j.done({ fen: j.fen, from: m.from, to: m.to, promo: m.promo, san: Chess.san(pos, m, all), mate: j.mate });
+  }
+
+  // the small engine from chess.js, for when Stockfish can't run here
+  function smallHint(fen, done){
+    try{
+      if(!cv.worker){
+        cv.worker = new Worker('/hint-worker.js', { type: 'module' });
+        cv.worker.onmessage = e => cv.workerDone && cv.workerDone(e.data);
+      }
+      cv.workerDone = done;
+      cv.worker.postMessage({ fen, ms: 1200 });
+    }catch(e){
+      // no module workers either: think on the page, a bit shorter
+      setTimeout(() => {
+        const r = Chess.bestMove(Chess.fromFen(fen), { ms: 700 });
+        if(r) done({ fen, from: r.move.from, to: r.move.to, promo: r.move.promo, san: r.san, mate: r.mate });
+      }, 30);
+    }
+  }
+
   function chessHint(){
     const C = cv.s.chess;
     if(!C.hint || !chessMine() || !Chess || cv.hintFen === C.fen) return;
@@ -2489,19 +2563,11 @@
       renderBoard();
       chessCard(cv.s);
     };
-    try{
-      if(!cv.worker){
-        cv.worker = new Worker('/hint-worker.js', { type: 'module' });
-        cv.worker.onmessage = e => done(e.data);
-      }
-      cv.worker.postMessage({ fen: C.fen, ms: 1200 });
-    }catch(e){
-      // no module workers here: think on the page instead, a bit shorter
-      setTimeout(() => {
-        const r = Chess.bestMove(Chess.fromFen(C.fen), { ms: 700 });
-        if(r) done({ fen: C.fen, from: r.move.from, to: r.move.to, promo: r.move.promo, san: r.san, mate: r.mate });
-      }, 30);
-    }
+    sfStart();
+    if(sf.failed){ smallHint(C.fen, done); return; }
+    const job = { fen: C.fen, done };
+    if(sf.ready && !sf.busy) sfGo(job);
+    else{ sf.next = job; if(sf.busy) sf.w.postMessage('stop'); }
   }
 
   // what each side has taken, shown under their name, plus who's ahead
@@ -2676,6 +2742,7 @@
 
     show(['scChess']);
     $('cCall').textContent = s.chess.call || '';
+    sfStart();
     if(!Chess) return;   // the rules are still loading; this runs again once they're in
     cv.pos = Chess.fromFen(s.chess.fen);
     chessBar(s);
