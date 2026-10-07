@@ -11,6 +11,9 @@ plays and DEPLOY.md for deploy details.
   per match holds the only real game state; both players talk to it over a
   WebSocket. `MODES` lists the games. `sendState()` builds a separate
   snapshot for each seat, so `snapshot(role)` can hide things from one player.
+  `JoinCode` is a second, tiny Durable Object, one per 6-digit join code,
+  mapping it to a room id. The host asks for one from the lobby; it's let go
+  as soon as the guest seat is taken.
 - `pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`), and the
   test stand-in's shot picker (`botShot()`). The server runs every shot and
   sends frames for the browsers to replay.

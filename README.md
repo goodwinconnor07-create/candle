@@ -131,9 +131,12 @@ Each match starts with a 3-2-1 that says who goes first.
 
 Pick a game (Pool, Chess or Battleships), hit **Go**, then choose who you're playing:
 
-- **Invite a Friend** gives you a link to send. Whoever opens it picks a
-  character and a name and hits **I'm ready**, and then your **Start the
-  match** button comes alive. Only the player who created the match can start
+- **Invite a Friend** lets you send a link, or switch to **Get a code** for a
+  6-digit code you can read out or text. Your friend opens the site, taps
+  **Got a code? Join a match** under Go, and types it in. A code stops
+  working once someone has joined with it, and after a day either way.
+  Whoever joins picks a character and a name and hits **I'm ready**, and then
+  your **Start the match** button comes alive. Only the player who created the match can start
   it, or rematch afterwards.
 - **Play a Bot** is greyed out until pool has a proper bot.
 - **Test Mode** skips setup and the lobby and puts you straight into a match
@@ -148,7 +151,9 @@ straight away.
 
 ## How it's built
 
-One Cloudflare Worker, one Durable Object per match, no database.
+One Cloudflare Worker, one Durable Object per match, no database. Join codes
+get their own tiny Durable Object each (`JoinCode`), which just remembers
+which match the code points at.
 
 The Durable Object holds the only real copy of a match. Both browsers hold a
 WebSocket to it, so a shot lands on both screens at once. The room simulates

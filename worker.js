@@ -28,6 +28,10 @@
  *
  * Routes:
  *   POST /api/games            create a room, returns {id, token}
+ *   POST /api/games/:id/code   host only ({token}), returns {code}: a
+ *                              6-digit code a friend can type instead of
+ *                              opening the link
+ *   GET  /api/codes/:code      returns {id} for a live code, or 404
  *   GET  /api/games/:id/ws     WebSocket, ?role=host|guest&token=...
  * Everything else is the static site in /public.
  */
@@ -94,6 +98,53 @@ function randomId(bytes) {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+// 100000-999999, so a code never starts with a zero someone might drop
+function randomCode() {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0];
+  return String(100000 + (n % 900000));
+}
+
+function codeBook(env, code) {
+  return env.CODES.get(env.CODES.idFromName(code));
+}
+
+// One tiny Durable Object per join code, holding the room id it points at.
+// Claiming a code happens inside the object, so two rooms can never end up
+// with the same one. A code lasts as long as a room would, and is let go as
+// soon as someone takes the guest seat.
+export class JoinCode {
+  constructor(state) {
+    this.state = state;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+    const now = Date.now();
+    let entry = await this.state.storage.get('entry');
+    if (entry && entry.until < now) entry = null;
+
+    if (url.pathname === '/claim') {
+      if (entry && entry.id !== body.id) return json({ ok: false });
+      await this.state.storage.put('entry', { id: body.id, until: now + ROOM_TTL_MS });
+      await this.state.storage.setAlarm(now + ROOM_TTL_MS);
+      return json({ ok: true });
+    }
+    if (url.pathname === '/lookup') {
+      return entry ? json({ id: entry.id }) : err(404, 'no such code');
+    }
+    if (url.pathname === '/release') {
+      if (entry && entry.id === body.id) await this.state.storage.deleteAll();
+      return json({ ok: true });
+    }
+    return err(404, 'not found');
+  }
+
+  async alarm() {
+    await this.state.storage.deleteAll();
+  }
+}
+
 function clean(str, max) {
   return String(str == null ? '' : str).trim().slice(0, max);
 }
@@ -145,6 +196,7 @@ export class GameRoom {
     this.lobby = null;          // { hostName, hostToken, guestName, guestToken, guestReady, mode, ... }
     this.game = null;           // in-memory while a match is running
     this.loop = null;
+    this.codeClaim = null;      // a code request in flight, so two at once share it
   }
 
   async loadLobby() {
@@ -187,6 +239,20 @@ export class GameRoom {
       return json({ token: this.lobby.hostToken });
     }
 
+    if (url.pathname === '/code') {
+      const body = await request.json().catch(() => ({}));
+      const lobby = await this.loadLobby();
+      if (!lobby || !body.token || body.token !== lobby.hostToken) return err(403, 'not the host');
+      if (lobby.vsBot) return err(400, 'test matches have no code');
+      if (lobby.guestToken) return err(409, 'the guest seat is taken');
+      if (lobby.code) return json({ code: lobby.code });
+      if (!this.codeClaim) {
+        this.codeClaim = this.claimCode(body.id).finally(() => { this.codeClaim = null; });
+      }
+      const code = await this.codeClaim;
+      return code ? json({ code }) : err(503, 'no free code, try again');
+    }
+
     if (url.pathname === '/ws') {
       if (request.headers.get('upgrade') !== 'websocket') return err(426, 'expected websocket');
       const pair = new WebSocketPair();
@@ -195,6 +261,24 @@ export class GameRoom {
     }
 
     return err(404, 'not found');
+  }
+
+  async claimCode(id) {
+    for (let i = 0; i < 8; i++) {
+      const code = randomCode();
+      const res = await codeBook(this.env, code).fetch('https://code/claim', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if ((await res.json()).ok) {
+        this.lobby.code = code;
+        this.lobby.id = id;
+        await this.saveLobby();
+        return code;
+      }
+    }
+    return null;
   }
 
   async accept(ws, params) {
@@ -219,6 +303,14 @@ export class GameRoom {
       } else if (!lobby.guestToken) {
         lobby.guestToken = randomId(18);      // first arrival claims the seat
         await this.saveLobby();
+        // the seat's gone, so the code has nothing left to open
+        if (lobby.code) {
+          codeBook(this.env, lobby.code).fetch('https://code/release', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: lobby.id }),
+          }).catch(() => {});
+        }
         role = 'guest';
       }
     }
@@ -1076,6 +1168,11 @@ async function api(request, env) {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').filter(Boolean);   // ['api','games', id?, 'ws'?]
 
+  if (parts[1] === 'codes' && parts.length === 3 && request.method === 'GET') {
+    if (!/^\d{6}$/.test(parts[2])) return err(404, 'no such code');
+    return codeBook(env, parts[2]).fetch('https://code/lookup');
+  }
+
   if (parts[1] !== 'games') return err(404, 'not found');
 
   if (parts.length === 2 && request.method === 'POST') {
@@ -1089,6 +1186,16 @@ async function api(request, env) {
     });
     const created = await res.json();
     return json({ id, token: created.token }, { status: 201 });
+  }
+
+  if (parts.length === 4 && parts[3] === 'code' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const room = env.GAMES.get(env.GAMES.idFromName(parts[2]));
+    return room.fetch('https://room/code', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: parts[2], token: body.token }),
+    });
   }
 
   if (parts.length === 4 && parts[3] === 'ws') {
