@@ -908,30 +908,22 @@
   }
   .bover{ top:46%; }
 
-  /* the question: every right answer is elixir */
-  .bq{
-    position:relative; width:100%; display:flex; flex-direction:column; gap:6px;
-    padding:7px 8px 8px; border-radius:13px; border:1px solid rgba(255,179,71,.45);
-    background:rgba(255,179,71,.06); flex:0 0 auto;
+  /* study rounds: the arena stands still and the question sits over it */
+  .bstudy{ top:50%; }
+  .bstudy .bs-q{ font-size:clamp(1.3rem,6vw,1.9rem); max-height:9em; overflow:auto; }
+  .bs-dots{ display:flex; gap:6px; }
+  .bs-dots i{ width:9px; height:9px; border-radius:50%; border:1px solid rgba(239,227,204,.4); }
+  .bs-dots i.now{ border-color:var(--amber); background:rgba(255,179,71,.35); }
+  .bs-dots i.right{ background:#7fd6a2; border-color:#7fd6a2; }
+  .bs-dots i.wrong{ background:var(--ember); border-color:var(--ember); }
+  .bstrip{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:8px; flex:0 0 auto;
+    height:30px; padding:0 10px; border-radius:10px; border:1px solid var(--hair); background:rgba(239,227,204,.03);
+    font:500 .76rem/1.2 var(--sans); color:var(--ash); white-space:nowrap;
   }
-  .bq-top{ display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:26px; padding:0 4px; }
-  .bq-text{
-    font:500 1.35rem/1.1 var(--serif); color:var(--tallow); font-variant-numeric:lining-nums tabular-nums;
-    min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .bq-side{ display:flex; align-items:center; gap:8px; font:500 .74rem/1.2 var(--sans); color:var(--ash); white-space:nowrap; }
-  .bq-side .hot{ color:var(--cold); }
-  .bq-gain{ color:#7fd6a2; font-weight:600; }
-  .bq-choices{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; width:100%; }
-  .bq-choices .choice{ min-height:42px; padding:6px 4px; font-size:1.15rem; }
-  .bq-choices .choice kbd{ top:3px; left:5px; }
-  .bq.wrong{ border-color:rgba(255,106,42,.6); background:rgba(255,106,42,.06); }
-  .bq.right{ border-color:rgba(127,214,162,.6); }
-  .bq-lock{
-    position:absolute; inset:0; border-radius:13px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
-    background:rgba(13,10,8,.72); font:500 .9rem/1.2 var(--sans); color:var(--tallow); pointer-events:none;
-  }
-  .bq-lock i{ display:block; width:60%; height:3px; border-radius:2px; background:var(--ember); transform-origin:left; }
+  .bstrip-mid{ color:var(--tallow); overflow:hidden; text-overflow:ellipsis; }
+  .bstrip .hot{ color:var(--cold); }
+  .bhand.rest{ opacity:.45; filter:saturate(.5); }
 
   /* your hand: four cards and the next one */
   .bhand{ width:100%; display:flex; align-items:stretch; gap:6px; flex:0 0 auto; }
@@ -983,10 +975,6 @@
   @media (max-height:760px){
     .brow{ min-height:34px; }
     .brow .pod{ width:26px; }
-    .bq{ padding:5px 6px 6px; gap:4px; }
-    .bq-top{ min-height:22px; }
-    .bq-text{ font-size:1.15rem; }
-    .bq-choices .choice{ min-height:36px; font-size:1.02rem; }
     .bcard{ max-height:74px; }
     .bcard b{ display:none; }
     .bnext{ width:36px; }
@@ -1680,6 +1668,14 @@
         <canvas id="bCanvas" aria-label="Tower battle arena"></canvas>
         <div class="bcount" id="bCount" hidden></div>
         <div class="bbanner" id="bBanner"></div>
+        <div class="pcard bstudy" id="bStudy" hidden>
+          <p class="pcard-who" id="bsWho"></p>
+          <div class="fuse" id="bsFuse"><i id="bsBar"></i></div>
+          <div class="bs-dots" id="bsDots"></div>
+          <div class="pcard-q bs-q" id="bsQ"></div>
+          <div class="choices pcard-choices" id="bsChoices"></div>
+          <p class="pcard-note" id="bsNote"></p>
+        </div>
         <div class="pcard bover" id="bOver" hidden>
           <p class="pcard-who" id="boWho">Game over</p>
           <div class="pcard-q result" id="boQ"></div>
@@ -1690,13 +1686,10 @@
           </div>
         </div>
       </div>
-      <div class="bq" id="bQ">
-        <div class="bq-top">
-          <span class="bq-text" id="bqText"></span>
-          <span class="bq-side"><span id="bqStreak"></span><span id="bqNote"></span></span>
-        </div>
-        <div class="choices bq-choices" id="bqChoices"></div>
-        <div class="bq-lock" id="bqLock" hidden><span id="bqLockTxt">Not quite</span><i id="bqLockBar"></i></div>
+      <div class="bstrip" id="bStrip">
+        <span id="bsRound">Round 1 of 7</span>
+        <span class="bstrip-mid" id="bsMid"></span>
+        <span id="bsStreak"></span>
       </div>
       <div class="bhand">
         <div class="bnext"><span>Next</span><div class="bcard small" id="bNext"></div></div>
@@ -2324,7 +2317,7 @@
     else if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
     else if(phase === 'cq' && n >= 1 && n <= 4) chessPick(n - 1);
     else if(phase === 'bq' && n >= 1 && n <= 4) seaPick(n - 1);
-    else if((phase === 'battle' || phase === 'overtime') && n >= 1 && n <= 4) towersPick(n - 1);
+    else if(phase === 'study' && n >= 1 && n <= 4) towersPick(n - 1);
     else if(e.key === 'Escape' && bv.sel != null){ bv.sel = null; renderHand(); }
     else if(e.key === 'Escape' && !$('cPromo').hidden) chessPromoClose();
     else if(phase === 'aim' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) poolNudge(e);
@@ -4275,7 +4268,8 @@
     sprites: {}, kings: {}, crowns: [0, 0],
   };
   const myBit = () => (myRole === 'guest' ? 1 : 0);
-  const live = () => !!bv.latest && (bv.latest.ph === 'battle' || bv.latest.ph === 'overtime');
+  const live = () => !!bv.latest && bv.latest.ph === 'battle';
+  const studying = () => !!bv.latest && bv.latest.ph === 'study';
   // the host sees the arena as the room has it; the guest sees it turned round
   const toView = (x, y) => (myRole === 'guest' ? [Cards.W - x, Cards.H - y] : [x, y]);
   const fromView = toView;
@@ -4773,16 +4767,19 @@
 
     // the clock runs on between pictures
     const L = bv.latest, since = now - bv.at;
-    const left = L.ph === 'battle' || L.ph === 'overtime' ? Math.max(0, L.tl - since) : L.tl;
+    const left = L.ph === 'battle' || L.ph === 'study' ? Math.max(0, L.tl - since) : L.tl;
     const secs = Math.ceil(left / 1000);
     $('bTime').textContent = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
     if(L.ph === 'countdown'){
       $('bCount').hidden = false;
       $('bCount').textContent = String(Math.min(3, Math.max(1, Math.ceil((L.cd - since) / 1000))));
     }else $('bCount').hidden = true;
-    if(bv.me && bv.me.q && bv.me.q.state === 'wrong'){
-      const q = bv.me.q, w = Math.max(0, (q.wait || 0) - (now - bv.qAt));
-      $('bqLockBar').style.transform = 'scaleX(' + Math.min(1, w / 2000).toFixed(3) + ')';
+    if(L.ph === 'study') $('bsBar').style.width = (Math.min(1, left / 30000) * 100).toFixed(1) + '%';
+    // the arena stands still in a study round
+    if(L.ph === 'study' || L.ph === 'countdown'){
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(13,10,8,.45)';
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     }
   }
   requestAnimationFrame(battleFrame);
@@ -4829,64 +4826,77 @@
   }
 
   function renderQuestion(){
-    const q = bv.me && bv.me.q, box = $('bqChoices');
-    const rush = bv.latest && bv.latest.rush;
-    if(!q){
-      $('bqText').textContent = live() ? '…' : 'Get ready';
+    const L = bv.latest, q = bv.me && bv.me.q, box = $('bsChoices');
+    const study = L && L.ph === 'study';
+    $('bStudy').hidden = !study || !$('bOver').hidden;
+    document.querySelector('#scBattle .bhand').classList.toggle('rest', !!L && L.ph !== 'battle');
+    // the strip: which round, how this round's answers went, your streak
+    if(L){
+      $('bsRound').textContent = (L.ot ? 'Overtime ' : 'Round ') + (L.ot ? (L.round - (L.rounds - 2)) + ' of 2' : Math.max(1, L.round) + ' of ' + L.rounds);
+      const st = q ? q.streak : 0;
+      $('bsStreak').textContent = st >= 1 ? 'Streak ' + st : '';
+      $('bsStreak').className = st >= 3 ? 'hot' : '';
+      $('bsMid').textContent = L.ph === 'battle' ? 'Battle: spend your elixir'
+        : L.ph === 'study' ? 'Study: answer for elixir' : L.ph === 'countdown' ? 'Get ready' : '';
+    }
+    if(!study || !q) return;
+    const n = q.n || 4, res = q.results || [];
+    $('bsDots').innerHTML = Array.from({ length: n }, (_, i) =>
+      '<i class="' + (res[i] === true ? 'right' : res[i] === false ? 'wrong' : i === q.i && q.state !== 'done' ? 'now' : '') + '"></i>').join('');
+    const per = 2.5 + (q.streak >= 2 ? .5 : 0) + (L.rush ? 1 : 0);
+    if(q.state === 'done'){
+      const op = 1 - myBit(), them = (bv.s && bv.s[myRole === 'host' ? 'guest' : 'host'] || {}).name || 'them';
+      $('bsWho').textContent = 'Round done';
+      $('bsQ').textContent = res.filter(r => r === true).length + ' of ' + n + ' right';
       box.innerHTML = '';
-      for(let i = 0; i < 4; i++){ const b = document.createElement('button'); b.className = 'choice'; b.disabled = true; b.innerHTML = '&nbsp;'; box.appendChild(b); }
-      $('bqStreak').textContent = '';
-      $('bqNote').textContent = '+2 elixir each';
-      $('bQ').className = 'bq';
-      $('bqLock').hidden = true;
+      $('bsNote').className = 'pcard-note';
+      $('bsNote').textContent = L.done && L.done[op] ? 'Battle coming up.' : 'Waiting for ' + them + '…';
       return;
     }
     if(q.id !== bv.qid){
       bv.qid = q.id; bv.picked = null;
       box.innerHTML = '';
-      q.choices.forEach((n, i) => {
+      q.choices.forEach((c, i) => {
         const b = document.createElement('button');
         b.className = 'choice'; b.type = 'button';
         const k = document.createElement('kbd'); k.textContent = i + 1;
-        b.append(k, document.createTextNode(String(n)));
+        b.append(k, document.createTextNode(String(c)));
         b.addEventListener('click', () => towersPick(i));
         box.appendChild(b);
       });
     }
-    $('bqText').textContent = q.text;
-    const done = q.state !== 'ask';
+    $('bsWho').textContent = 'Question ' + (q.i + 1) + ' of ' + n + (L.rush ? ' · rush' : '');
+    $('bsQ').textContent = q.text;
+    const shown = q.state === 'right' || q.state === 'wrong';
     [...box.children].forEach((b, i) => {
-      b.disabled = done || bv.picked != null || !live();
-      b.classList.toggle('picked', !done && bv.picked === i);
+      b.disabled = shown || bv.picked != null;
+      b.classList.toggle('picked', !shown && bv.picked === i);
       b.classList.remove('right', 'wrong', 'dim');
-      if(done){
+      if(shown){
         if(i === q.answer) b.classList.add('right');
         else if(i === q.choice) b.classList.add('wrong');
         else b.classList.add('dim');
       }
     });
-    $('bQ').className = 'bq' + (q.state === 'wrong' ? ' wrong' : q.state === 'right' ? ' right' : '');
-    const next = 2 + (q.streak >= 2 ? 1 : 0) + (rush ? 1 : 0);
-    $('bqStreak').textContent = q.streak >= 1 ? 'Streak ' + q.streak : '';
-    $('bqStreak').className = q.streak >= 3 ? 'hot' : '';
+    $('bsNote').className = 'pcard-note' + (q.state === 'right' ? ' good' : q.state === 'wrong' ? ' bad' : '');
     if(q.state === 'right'){
-      $('bqNote').innerHTML = '<span class="bq-gain">+' + q.gain + ' elixir</span>';
+      $('bsNote').textContent = '+' + q.gain + ' elixir';
       if(bv.gainId !== q.id){
         bv.gainId = q.id;
         const g = $('bGain');
         g.textContent = '+' + q.gain;
         g.classList.remove('go'); void g.offsetWidth; g.classList.add('go');
       }
+    }else if(q.state === 'wrong'){
+      $('bsNote').textContent = 'Not quite. It was ' + q.choices[q.answer] + '.';
     }else{
-      $('bqNote').textContent = '+' + next + ' elixir' + (rush ? ' (rush)' : '');
+      $('bsNote').textContent = '+' + per + ' elixir for a right answer';
     }
-    $('bqLock').hidden = q.state !== 'wrong';
-    if(q.state === 'wrong') $('bqLockTxt').textContent = 'Not quite. It was ' + q.choices[q.answer] + '.';
   }
 
   function towersPick(i){
     const q = bv.me && bv.me.q;
-    if(!q || q.state !== 'ask' || bv.picked != null || !live() || !ws) return;
+    if(!q || q.state !== 'ask' || bv.picked != null || !studying() || !ws) return;
     bv.picked = i;
     ws.send(JSON.stringify({ t:'tans', choice:i, id:q.id }));
     renderQuestion();
@@ -4894,7 +4904,7 @@
 
   // ---- playing a card
   function tryPlay(slot, vx, vy){
-    if(!bv.me || !live()){ nudge('Wait for the battle to start.'); return; }
+    if(!bv.me || !live()){ nudge(studying() ? 'Cards go down in the battle round. Answer for elixir first.' : 'Wait for the battle to start.'); return; }
     const key = Cards.CARD_KEYS[bv.me.hand[slot]], c = Cards.CARDS[key];
     if(c.cost > bv.me.el){
       nudge(c.name + ' costs ' + c.cost + ' elixir. Answer questions to earn more.');
@@ -4980,7 +4990,7 @@
     wearChar($('bPodTheirs'), them.char);
     kingSprite(s.host.char); kingSprite(s.guest.char);
     for(const k of Cards.CARD_KEYS) sprite(k);
-    if(s.phase === 'overtime' && (!prev || prev.phase !== 'overtime')) banner('Overtime: next tower wins', 'ot');
+
     const over = s.phase === 'over';
     $('bOver').hidden = !over;
     if(over){
@@ -5012,21 +5022,25 @@
     const prevQ = bv.me && bv.me.q;
     bv.latest = m; bv.at = now; bv.me = m.me;
     if(m.me.q && (!prevQ || prevQ.id !== m.me.q.id || prevQ.state !== m.me.q.state)) bv.qAt = now;
-    if(m.ph !== 'battle' && m.ph !== 'overtime' && bv.sel != null) bv.sel = null;
-    if(m.rush && !bv.rushSeen && m.ph === 'battle'){ bv.rushSeen = true; banner('Elixir rush: +1 per answer'); }
+    if(m.ph !== 'battle' && bv.sel != null) bv.sel = null;
+    if(m.ph !== bv.lastPh){
+      if(m.ph === 'battle') banner(m.ot ? 'Overtime: next tower wins' : 'Battle!', m.ot ? 'ot' : '');
+      else if(m.ph === 'study' && m.rush && !bv.rushSeen){ bv.rushSeen = true; banner('Rush rounds: +1 per answer'); }
+    }
     const op = 1 - myBit(), st = m.st ? m.st[op] : 0;
     $('bStreakTheirs').textContent = st >= 1 ? 'Streak ' + st : '';
     $('bStreakTheirs').className = 'bstreak' + (st >= 3 ? ' hot' : '');
     const clock = $('bClock');
-    clock.className = 'bclock' + (m.ph === 'overtime' ? ' ot' : m.rush ? ' rush' : '');
-    $('bClockLbl').textContent = m.ph === 'overtime' ? 'Overtime' : m.rush ? 'Elixir rush' : m.ph === 'countdown' ? 'Get ready' : 'Time left';
+    clock.className = 'bclock' + (m.ot ? ' ot' : m.rush ? ' rush' : '');
+    $('bClockLbl').textContent = m.ph === 'study' ? 'Study' : m.ph === 'battle' ? (m.ot ? 'Overtime' : 'Battle') : m.ph === 'countdown' ? 'Get ready' : 'Time';
     renderHand();
     renderQuestion();
     if(!bv.w || m.ph !== bv.lastPh){ bv.lastPh = m.ph; battleResize(); }
   }
 
   function towersRejected(m){
-    nudge(m.why === 'elixir' ? 'Not enough elixir yet.' : m.why === 'place' ? "That can't go there." : "That card's not in your hand.");
+    nudge(m.why === 'elixir' ? 'Not enough elixir yet.' : m.why === 'place' ? "That can't go there."
+      : m.why === 'study' ? 'Cards go down in the battle round.' : "That card's not in your hand.");
   }
 
   $('boAgain').addEventListener('click', () => {

@@ -122,23 +122,31 @@ A tower battle after Clash Royale, with its own cast. Each side has a king
 tower and two lantern towers, with a river and two bridges between. You win
 by knocking towers down: one crown per lantern tower, all three for the king.
 
-The twist: elixir only comes from answering questions. There are no turns.
-The battle runs in real time and both players answer their own questions at
-once, so you're always weighing up one more question against defending your
-lane right now.
+The twist: elixir only comes from answering questions, and the match is
+played in rounds so studying and fighting never compete for your attention.
 
-- A right answer is +2 elixir, +3 once you've got three in a row. In the last
-  minute and in overtime ("elixir rush") every right answer is worth 1 more.
-- A wrong answer locks your questions for 2 seconds and resets your streak.
-- You start with 5 elixir, and you can hold 10.
-- 3 minutes of regular time. Most crowns wins. If it's level, up to 2 minutes
-  of sudden-death overtime, where the next tower to fall decides it. Still
-  level after that and whoever's weakest tower has less health left loses.
+- **Study round**: both arenas freeze and each player gets 4 questions to
+  answer at their own pace. Each right answer banks 2.5 elixir (a perfect round
+  fills the bar), plus 0.5 from your third right answer in a row on. A wrong
+  answer shows the right one and moves on. The round ends when both players
+  are done, or after 30 seconds. Whoever finishes first waits for the other.
+- **Battle round**: 25 seconds of live battle with no questions at all. Spend
+  what you banked; anything left carries over, up to 10.
+- 7 rounds, about 3 minutes of battle. Most crowns wins. If it's level, up to
+  2 overtime rounds where the next tower to fall decides it, then whoever's
+  weakest tower has less health left loses. The last 2 regular rounds and the
+  overtime rounds are "rush" rounds: every right answer is worth 1 more.
+- You start with no elixir, so the first study round sets the pace.
 - Your deck is 8 cards. You hold 4 and can see the next one. A played card
   goes to the back of the queue, so the order cycles.
-- Tap a card, then tap the arena, or drag the card straight on. Troops and
-  buildings go on your side of the river. Once you take a lantern tower, the
-  gap it leaves on their side opens up too. Spells go anywhere.
+- In a battle round, tap a card, then tap the arena, or drag the card straight
+  on. Troops and buildings go on your side of the river. Once you take a
+  lantern tower, the gap it leaves on their side opens up too. Spells go
+  anywhere.
+
+The rounds are there so harder questions work: a study round can be as long
+as the questions need (`STUDY_MS`) without the battle punishing you for
+reading.
 
 How troops think, the way Clash Royale's do: each one goes for the nearest
 enemy it's allowed to hit within sight, and with nothing in sight it walks
@@ -262,9 +270,9 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 | `SEA_PLACE_MS` | time to lay out a battleships fleet |
 | `SEA_AIM_MS` | time to pick a square once a question is answered right |
 | `SEA_STREAK` | right answers in a row that clear one of their squares |
-| `ELIXIR_RIGHT`, `ELIXIR_STREAK`, `ELIXIR_RUSH` | Towers elixir per right answer, the streak bonus and the rush bonus |
-| `WRONG_LOCK_MS`, `RIGHT_GAP_MS` | Towers: the wait after a wrong answer, and before the next question |
-| `TOWERS_REG_TICKS`, `TOWERS_OT_TICKS` | Towers match and overtime length, in tenths of a second |
+| `ELIXIR_PER_RIGHT`, `ELIXIR_STREAK`, `ELIXIR_RUSH` | Towers elixir per right answer, the streak bonus and the rush bonus |
+| `STUDY_QS`, `STUDY_MS` | Towers questions per study round, and the most a study round can last |
+| `BATTLE_TICKS`, `ROUNDS`, `OT_ROUNDS`, `RUSH_ROUNDS` | Towers battle round length (tenths of a second), round counts |
 | `CARDS`, `TOWER_STATS` (public/towers-cards.js) | every card's stats, and the towers' |
 | `MAX_SPEED` (pool.js) | how hard a full-power shot hits |
 | `ROLL_DECEL`, `DRAG` (pool.js) | how quickly balls slow down |

@@ -23,10 +23,12 @@
  * their own fleet. The rules live in public/battleships.js, which the browser
  * loads too.
  *
- * Towers: a tower-battle game after Clash Royale. It runs in real time, and
- * both players answer their own questions at once: every right answer is
- * elixir, and elixir is the only way to play cards. The battle itself is in
- * towers.js, and the cards and the arena in public/towers-cards.js.
+ * Towers: a tower-battle game after Clash Royale, played in rounds. In a
+ * study round the arena is frozen and both players answer a set of questions
+ * at their own pace: every right answer is elixir, the only elixir there is.
+ * Then a short battle round runs in real time with no questions at all. The
+ * battle itself is in towers.js, the cards and the arena in
+ * public/towers-cards.js.
  *
  * Judge Mode and Debate Mode used to live here too. They're kept on the
  * `archive/judge-debate-modes` branch.
@@ -81,17 +83,21 @@ const SEA_SUNK_MS   = 2400;    // a little longer when a ship goes down
 const SEA_STREAK    = 3;       // right answers in a row that clear one of their squares
 
 // ---- Towers ----
-// no turns: the battle runs in real time and both players answer their own
-// questions at once. elixir only comes from right answers
+// rounds: a frozen study round where both players answer their own set of
+// questions, then a live battle round with no questions in it. elixir only
+// comes from right answers
 const TOWERS_TICK_MS   = 100;     // one battle step; both screens get a picture every step
-const TOWERS_REG_TICKS = 1800;    // 3:00 of regular time
-const TOWERS_OT_TICKS  = 1200;    // up to 2:00 of sudden-death overtime
-const TOWERS_RUSH_TICKS = 600;    // the last minute of regular time pays extra
-const ELIXIR_RIGHT     = 2;       // elixir for a right answer
-const ELIXIR_STREAK    = 1;       // extra once you've got 3 in a row
-const ELIXIR_RUSH      = 1;       // extra in the last minute and in overtime
-const RIGHT_GAP_MS     = 600;     // after a right answer, the next question comes this soon
-const WRONG_LOCK_MS    = 2000;    // after a wrong one, you wait this long
+const STUDY_QS         = 4;       // questions per player per study round
+const STUDY_MS         = 30000;   // a study round ends when both are done, or at this
+const BATTLE_TICKS     = 250;     // 25s of battle per round
+const ROUNDS           = 7;       // regular rounds, about 3 minutes of battle
+const OT_ROUNDS        = 2;       // sudden-death rounds if the crowns are level
+const RUSH_ROUNDS      = 2;       // the last regular rounds pay extra
+const ELIXIR_PER_RIGHT = 2.5;     // a perfect study round fills the bar
+const ELIXIR_STREAK    = 0.5;     // extra from your third right answer in a row on
+const ELIXIR_RUSH      = 1;       // extra in rush and overtime rounds
+const SHOW_RIGHT_MS    = 700;     // how long a right answer shows before the next question
+const SHOW_WRONG_MS    = 1500;    // a wrong one shows a little longer, with the right answer
 
 // a dropped connection mid-match might just be a refresh or a locked phone,
 // so the seat is held this long before the match is called off
@@ -436,6 +442,8 @@ export class GameRoom {
       const lobby = this.lobby;
       this.game.battle = Towers.newBattle({ host: lobby.hostDeck, guest: lobby.guestDeck });
       this.game.tq = { host: this.towersQ0(), guest: this.towersQ0() };
+      this.game.round = 0;
+      this.game.ot = false;
       this.game.bt = 0;
       this.game.botLast = -99;
       this.sendState();
@@ -998,55 +1006,87 @@ export class GameRoom {
   // only goes out once it's been answered
 
   towersQ0() {
-    return { q: null, id: 0, state: 'wait', readyAt: 0, last: null, streak: 0, asked: 0, right: 0, botAt: 0, botChoice: 0 };
+    return { list: [], i: 0, results: [], id: 0, state: 'wait', readyAt: 0, last: null,
+             streak: 0, asked: 0, right: 0, botAt: 0, botChoice: 0 };
   }
 
   towersRush() {
     const g = this.game;
-    return g.phase === 'overtime' || (g.phase === 'battle' && g.bt >= TOWERS_REG_TICKS - TOWERS_RUSH_TICKS);
+    return g.ot || g.round > ROUNDS - RUSH_ROUNDS;
+  }
+
+  // a study round: a fresh set of questions each, and the arena stands still
+  towersStudy() {
+    const g = this.game;
+    g.round += 1;
+    g.phase = 'study';
+    g.phaseEnd = Date.now() + STUDY_MS;
+    for (const role of ['host', 'guest']) {
+      const Q = g.tq[role];
+      Q.list = [];
+      for (let i = 0; i < STUDY_QS; i++) Q.list.push(makeQuestion());
+      Q.i = 0;
+      Q.results = [];
+      this.towersAsk(role);
+    }
+    this.sendState();
+  }
+
+  towersBattle() {
+    const g = this.game;
+    g.phase = 'battle';
+    g.bt = 0;
+    for (const role of ['host', 'guest']) {
+      const Q = g.tq[role];
+      if (Q.state === 'ask') { Q.results[Q.i] = null; }
+      Q.state = 'off';
+    }
+    this.sendState();
   }
 
   towersAsk(role) {
     const g = this.game, Q = g.tq[role];
-    Q.q = makeQuestion();
     Q.id += 1;
     Q.state = 'ask';
+    Q.last = null;
+    const q = Q.list[Q.i];
     if (g.vsBot && role === 'guest') {
-      Q.botAt = Date.now() + 2000 + rnd(2000);
-      Q.botChoice = Math.random() < .75 ? Q.q.answer : (Q.q.answer + 1 + rnd(3)) % 4;
+      Q.botAt = Date.now() + 1500 + rnd(2000);
+      Q.botChoice = Math.random() < .75 ? q.answer : (q.answer + 1 + rnd(3)) % 4;
     }
   }
 
   towersAnswer(role, choice, id) {
     const g = this.game;
-    if (!g || g.mode !== 'towers' || (g.phase !== 'battle' && g.phase !== 'overtime')) return;
+    if (!g || g.mode !== 'towers' || g.phase !== 'study') return;
     const Q = g.tq[role];
     if (Q.state !== 'ask' || (id != null && Number(id) !== Q.id)) return;
+    const q = Q.list[Q.i];
     const picked = choice == null ? null : Number(choice);
-    const right = picked === Q.q.answer;
+    const right = picked === q.answer;
     Q.asked += 1;
     let gain = 0;
     if (right) {
       Q.right += 1;
       Q.streak += 1;
-      gain = ELIXIR_RIGHT + (Q.streak >= 3 ? ELIXIR_STREAK : 0) + (this.towersRush() ? ELIXIR_RUSH : 0);
+      gain = ELIXIR_PER_RIGHT + (Q.streak >= 3 ? ELIXIR_STREAK : 0) + (this.towersRush() ? ELIXIR_RUSH : 0);
       Towers.addElixir(g.battle, role, gain);
-      Q.state = 'right';
-      Q.readyAt = Date.now() + RIGHT_GAP_MS;
     } else {
       Q.streak = 0;
-      Q.state = 'wrong';
-      Q.readyAt = Date.now() + WRONG_LOCK_MS;
     }
+    Q.results[Q.i] = right;
+    Q.state = right ? 'right' : 'wrong';
+    Q.readyAt = Date.now() + (right ? SHOW_RIGHT_MS : SHOW_WRONG_MS);
     Q.last = { id: Q.id, choice: picked, right, gain };
     this.towersSend();
   }
 
   towersPlay(role, msg) {
     const g = this.game;
-    if (!g || g.mode !== 'towers' || (g.phase !== 'battle' && g.phase !== 'overtime')) return;
+    if (!g || g.mode !== 'towers') return;
     const slot = Number(msg.slot);
     if (!(slot >= 0 && slot < 4)) return;
+    if (g.phase !== 'battle') { this.sendTo(role, { t: 'bno', why: 'study', slot }); return; }
     const side = g.battle.sides[role];
     // the hand only changes when you play, so a mismatch is a stale double tap
     if (msg.card != null && Cards.CARD_KEYS[Number(msg.card)] !== side.hand[slot]) return;
@@ -1054,34 +1094,37 @@ export class GameRoom {
     if (why) this.sendTo(role, { t: 'bno', why, slot });
   }
 
-  // a player's own question, as they're allowed to see it
+  // a player's own question, as they're allowed to see it: never the answer
+  // while it's still live
   towersQuestion(role) {
-    const Q = this.game.tq[role];
-    if (!Q.q) return null;
-    const out = { id: Q.id, text: Q.q.text, choices: Q.q.choices, state: Q.state, streak: Q.streak };
-    if (Q.state !== 'ask' && Q.last && Q.last.id === Q.id) {
-      out.answer = Q.q.answer;
-      out.choice = Q.last.choice;
-      out.gain = Q.last.gain;
-      out.wait = Math.max(0, Q.readyAt - Date.now());
+    const g = this.game, Q = g.tq[role];
+    const out = { state: Q.state, i: Q.i, n: STUDY_QS, results: Q.results, streak: Q.streak };
+    const q = Q.list[Q.i];
+    if (q && (Q.state === 'ask' || Q.state === 'right' || Q.state === 'wrong')) {
+      out.id = Q.id; out.text = q.text; out.choices = q.choices;
+      if (Q.state !== 'ask' && Q.last && Q.last.id === Q.id) {
+        out.answer = q.answer; out.choice = Q.last.choice; out.gain = Q.last.gain;
+      }
     }
     return out;
   }
 
   towersLeft() {
     const g = this.game;
-    if (g.phase === 'countdown') return TOWERS_REG_TICKS * TOWERS_TICK_MS;
-    if (g.phase === 'battle') return (TOWERS_REG_TICKS - g.bt) * TOWERS_TICK_MS;
-    if (g.phase === 'overtime') return (TOWERS_REG_TICKS + TOWERS_OT_TICKS - g.bt) * TOWERS_TICK_MS;
+    if (g.phase === 'countdown') return STUDY_MS;
+    if (g.phase === 'study') return Math.max(0, g.phaseEnd - Date.now());
+    if (g.phase === 'battle') return (BATTLE_TICKS - g.bt) * TOWERS_TICK_MS;
     return 0;
   }
 
   towersSend() {
     const g = this.game, s = g.battle;
     const base = {
-      t: 'bt', ph: g.phase, tl: Math.max(0, this.towersLeft()), rush: this.towersRush() ? 1 : 0,
+      t: 'bt', ph: g.phase, tl: this.towersLeft(), rush: this.towersRush() ? 1 : 0,
       cd: g.phase === 'countdown' ? Math.max(0, g.deadline - Date.now()) : 0,
+      round: g.round, rounds: g.ot ? ROUNDS + OT_ROUNDS : ROUNDS, ot: g.ot ? 1 : 0,
       st: [g.tq.host.streak, g.tq.guest.streak],
+      done: [g.tq.host.state === 'done' ? 1 : 0, g.tq.guest.state === 'done' ? 1 : 0],
       ...Towers.world(s),
     };
     for (const conn of [...this.sockets]) {
@@ -1093,22 +1136,29 @@ export class GameRoom {
   towersTick(g) {
     const now = Date.now();
     if (g.phase === 'countdown') {
-      if (now >= g.deadline) {
-        g.phase = 'battle';
-        this.towersAsk('host');
-        this.towersAsk('guest');
-        this.sendState();
-      }
+      if (now >= g.deadline) this.towersStudy();
       this.towersSend();
       return;
     }
-    const s = g.battle;
-    for (const role of ['host', 'guest']) {
-      const Q = g.tq[role];
-      if (Q.state !== 'ask' && now >= Q.readyAt) this.towersAsk(role);
-      else if (g.vsBot && role === 'guest' && Q.state === 'ask' && now >= Q.botAt) this.towersAnswer('guest', Q.botChoice, Q.id);
+
+    if (g.phase === 'study') {
+      for (const role of ['host', 'guest']) {
+        const Q = g.tq[role];
+        if ((Q.state === 'right' || Q.state === 'wrong') && now >= Q.readyAt) {
+          Q.i += 1;
+          if (Q.i < STUDY_QS) this.towersAsk(role); else Q.state = 'done';
+        } else if (g.vsBot && role === 'guest' && Q.state === 'ask' && now >= Q.botAt) {
+          this.towersAnswer('guest', Q.botChoice, Q.id);
+        }
+      }
+      // over when both have finished, or when time's up
+      if ((g.tq.host.state === 'done' && g.tq.guest.state === 'done') || now >= g.phaseEnd) this.towersBattle();
+      this.towersSend();
+      return;
     }
-    // the stand-in plays at most once a second
+
+    // battle: the arena runs, no questions
+    const s = g.battle;
     if (g.vsBot && g.bt % 5 === 0 && g.bt - g.botLast >= 10) {
       const p = Towers.botPlay(s, 'guest');
       if (p && !Towers.play(s, 'guest', p.slot, p.x, p.y)) g.botLast = g.bt;
@@ -1118,18 +1168,20 @@ export class GameRoom {
 
     const h = s.sides.host.crowns, c = s.sides.guest.crowns;
     if (s.kingDown) { this.towersOver(s.kingDown === 'host' ? 'guest' : 'host', 'king'); return; }
-    if (g.phase === 'battle' && g.bt >= TOWERS_REG_TICKS) {
-      if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'time'); return; }
-      g.phase = 'overtime';
-      this.sendState();
-    } else if (g.phase === 'overtime') {
-      // sudden death: the first tower to fall settles it
-      if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'overtime'); return; }
-      if (g.bt >= TOWERS_REG_TICKS + TOWERS_OT_TICKS) {
+    // in overtime the first tower to fall settles it
+    if (g.ot && h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'overtime'); return; }
+    if (g.bt >= BATTLE_TICKS) {
+      g.botLast = -99;
+      if (g.round === ROUNDS && !g.ot) {
+        if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'time'); return; }
+        g.ot = true;
+      }
+      if (g.ot && g.round >= ROUNDS + OT_ROUNDS) {
         const a = Towers.weakest(s, 'host'), b = Towers.weakest(s, 'guest');
         this.towersOver(a === b ? null : a > b ? 'host' : 'guest', a === b ? 'draw' : 'tiebreak');
         return;
       }
+      this.towersStudy();
     }
     this.towersSend();
   }
@@ -1142,9 +1194,9 @@ export class GameRoom {
     const score = winner === 'host' ? cr[0] + '–' + cr[1] : cr[1] + '–' + cr[0];
     const why = {
       king: wn + " knocked down " + ln + "'s king tower.",
-      time: "Time's up with the crowns at " + score + '.',
+      time: 'After ' + ROUNDS + ' rounds the crowns were ' + score + '.',
       overtime: wn + ' took a tower in overtime.',
-      tiebreak: "Still level after overtime, and " + ln + "'s weakest tower had less left.",
+      tiebreak: 'Still level after the overtime rounds, and ' + ln + "'s weakest tower had less left.",
       draw: "Level on crowns and on tower health. It's a draw.",
     }[how];
     g.phase = 'over';

@@ -84,10 +84,13 @@ PR to the default branch, merge, deploy, then check the live site.
   the move (two moves in a row decides most games). Don't use `Date.now()`
   for time limits on searches inside the Worker, because it doesn't advance
   while code runs. Pass a node budget instead, like `botMove()` does.
-- Towers is real time, not turn based: both players answer their own
-  questions at once and right answers are the only source of elixir. Each
+- Towers is played in rounds: a study round (arena frozen, each player
+  answers their own 4 questions; right answers are the only source of
+  elixir), then a live battle round with no questions in it. Don't put
+  questions back into the live battle: playtesting showed people stop
+  answering, and real lecture questions need undivided attention. Each
   player's question, hand and elixir are sent only to them (`towersSend()`).
-  The battle steps on a fixed 100ms tick; keep `step()` cheap (it runs in
+  The battle steps on a fixed 100ms tick, only during battle rounds; keep `step()` cheap (it runs in
   well under a millisecond with ~40 troops). For balance changes, run bots
   against each other in Node with `newBattle()`, `botPlay()` and `step()`
   before trying it in the browser.
