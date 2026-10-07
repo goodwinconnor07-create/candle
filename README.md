@@ -1,8 +1,8 @@
 # Study Duel
 
 Two-player study mini games. You play a simple game everyone already knows,
-but every move has to be earned by answering a question right. Pool and chess
-so far.
+but every move has to be earned by answering a question right. Pool, chess and
+battleships so far.
 
 Live at https://candle-timer.candle-timer.workers.dev
 
@@ -82,9 +82,43 @@ source is at https://github.com/nmrugg/stockfish.js. To update it, take
 `stockfish-*-lite-single.js` and `.wasm` from the `stockfish` npm package and
 change `SF_URL` in `public/index.html`.
 
+## Battleships
+
+Normal battleships, with a question before every shot. Each side has a 10 by
+10 sea and the usual fleet: a Carrier (5 squares), a Battleship (4), a Cruiser
+(3), a Submarine (3) and a Destroyer (2).
+
+- Before the match, both players lay out their fleets at the same time. Ships
+  start in random spots: drag one to move it, tap it to turn it, or hit
+  Shuffle for a fresh layout. Ships can sit side by side but can't overlap.
+  Hit Ready when you're set. There are 90 seconds for this, and whatever's on
+  the board when time runs out is locked in.
+- Turns alternate, one shot each. Before you fire you get a question, and a
+  right answer lets you pick a square. Tap it to aim and again (or hit Fire)
+  to shoot. You get 20 seconds to fire once you've answered.
+- A wrong answer, or running out the 10 seconds, doesn't cost you the shot.
+  Instead one empty square on your board (no ship on it, and not already fired
+  at) is marked red for your opponent, so they know not to bother with it.
+  Then you get another question.
+- Every third right answer in a row works the other way: one empty square on
+  their board is marked blue for you. A wrong answer resets the streak.
+- Hits, misses and sunk ships work as usual, and a sunk ship's outline shows on
+  the board. Sink all five of theirs to win. Their whole fleet is shown at the
+  end.
+
+The board on screen follows the turn: their waters while you're firing, yours
+while they are. The two tabs at the top switch between them any time, and each
+tab shows that fleet's ships with the sunk ones greyed out in red.
+
+The room keeps both fleets and only ever sends each player their own. The
+other side's ships only go out once they're sunk, or when the match ends. The
+rules live in `public/battleships.js`, shared by the room and the browser like
+`chess.js`, and that file also picks Tester's shots: it finishes off a ship
+it has hit before hunting on a checkerboard for the next one.
+
 ## Whose turn is it?
 
-Both games put a banner over the board that says whose turn it is, with that
+Every game puts a banner over the board that says whose turn it is, with that
 player's character. It goes amber when it's yours. When the turn comes back
 to you, "Your turn" flashes in the middle of the screen and phones give a
 short buzz. While the other player answers, their question card is greyed out
@@ -95,7 +129,7 @@ Each match starts with a 3-2-1 that says who goes first.
 
 ## Starting a match
 
-Pick a game, hit **Go**, then choose who you're playing:
+Pick a game (Pool, Chess or Battleships), hit **Go**, then choose who you're playing:
 
 - **Invite a Friend** gives you a link to send. Whoever opens it picks a
   character and a name and hits **I'm ready**, and then your **Start the
@@ -124,6 +158,8 @@ The 8-ball rules live in `judgeShot()` in the same file.
 
 The answer to a live question is never sent to the browsers. It only goes out
 once the question is resolved, so there's nothing in the page to read ahead.
+Each player gets their own copy of the state (`sendState()`), which is how
+battleships keeps the two fleets secret.
 
 Rooms delete themselves a day after the last activity.
 
@@ -153,6 +189,9 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 | `CHESS_CLOCK_MS` | each player's chess clock |
 | `CHESS_PENALTY_MS` | time off your chess clock for a wrong answer |
 | `HINT_STREAK` | right answers in a row that unlock the best move |
+| `SEA_PLACE_MS` | time to lay out a battleships fleet |
+| `SEA_AIM_MS` | time to pick a square once a question is answered right |
+| `SEA_STREAK` | right answers in a row that clear one of their squares |
 | `MAX_SPEED` (pool.js) | how hard a full-power shot hits |
 | `ROLL_DECEL`, `DRAG` (pool.js) | how quickly balls slow down |
 | `CORNER_GAP`, `SIDE_GAP` (pool.js) | pocket sizes |
@@ -160,8 +199,8 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 ## Adding another mini game
 
 `MODES` in `worker.js` lists the games. A new one needs an entry there, a card
-in `#modeGrid` in `public/index.html` (there's a locked "More games" card
-holding the spot), and its own game loop in the room alongside pool's and
-chess's. The
-lobby, test mode, leaving and the hold-to-quit button are shared and don't
-need to change.
+in `#modeGrid` in `public/index.html`, and its own game loop in the room
+alongside the others. The grid is three across and full now, so a fourth game
+means taking `cols3` off it for a two by two grid (check it still fits a
+360x640 phone). The lobby, test mode, leaving and the hold-to-quit button are
+shared and don't need to change.
