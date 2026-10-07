@@ -6,9 +6,15 @@
  * ruling lands on both screens at the same moment rather than waiting for a
  * poll.
  *
- * Pool is the only game for now: 8-ball where every shot has to be earned by
- * answering a question first. The room simulates each shot itself (pool.js)
- * and ships both phones the frames to replay.
+ * Pool: 8-ball where every shot has to be earned by answering a question
+ * first. The room simulates each shot itself (pool.js) and ships both phones
+ * the frames to replay.
+ *
+ * Chess: moves always alternate, so nobody ever gets two in a row. Each move
+ * still needs a right answer first, but a wrong one costs time off your chess
+ * clock and you get another question. Three right in a row unlocks the best
+ * move for as long as the streak lasts. The rules live in public/chess.js,
+ * which the browser loads too.
  *
  * Judge Mode and Debate Mode used to live here too. They're kept on the
  * `archive/judge-debate-modes` branch.
@@ -20,6 +26,7 @@
  */
 
 import * as Pool from './pool.js';
+import * as Chess from './public/chess.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
@@ -27,7 +34,7 @@ const TICK_MS      = 200;     // how often the room checks its own deadlines
 const NAME_MAX     = 16;
 // every mini game gets an entry here; the lobby, test mode and leaving all
 // work the same whichever one is picked
-const MODES        = { pool: 'Pool' };
+const MODES        = { pool: 'Pool', chess: 'Chess' };
 
 // ---- Pool ----
 // every shot is earned: the shooter answers a question first, and a miss
@@ -35,6 +42,14 @@ const MODES        = { pool: 'Pool' };
 const POOL_RESULT_MS = 1500;   // pause on right/wrong before the shot or handover
 const AIM_MS         = 30000;  // shot clock once a question is answered right
 const ROLL_PAD_MS    = 700;    // breathing room after the replay before the next question
+
+// ---- Chess ----
+// a wrong answer never hands over a move: it costs clock time instead, and
+// you get another question. turns always alternate
+const CHESS_CLOCK_MS  = 5 * 60 * 1000;   // each player's clock
+const CHESS_PENALTY_MS = 15000;          // off your clock for a wrong answer or no answer
+const CHESS_RESULT_MS = 1500;            // pause on right/wrong; the clock stops for it
+const HINT_STREAK     = 3;               // right answers in a row that unlock the best move
 
 // a dropped connection mid-match might just be a refresh or a locked phone,
 // so the seat is held this long before the match is called off
@@ -251,6 +266,8 @@ export class GameRoom {
 
     if (msg.t === 'pans') { this.poolAnswer(role, msg.choice); return; }
     if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
+    if (msg.t === 'cans') { this.chessAnswer(role, msg.choice); return; }
+    if (msg.t === 'move') { this.chessMove(role, msg); return; }
 
     if (msg.t === 'leave') { this.playerLeft(role); return; }
 
@@ -261,9 +278,10 @@ export class GameRoom {
 
   startGame() {
     const now = Date.now();
+    const mode = MODES[this.lobby.mode] ? this.lobby.mode : 'pool';
     const breaker = Math.random() < 0.5 ? 'host' : 'guest';
     this.game = {
-      mode: 'pool',
+      mode,
       phase: 'countdown',
       host: { name: this.lobby.hostName, char: this.lobby.hostChar },
       guest: { name: this.lobby.guestName || 'Challenger', char: this.lobby.guestChar },
@@ -275,6 +293,28 @@ export class GameRoom {
       botDueAt: 0,
       botChoice: null,
     };
+    if (mode === 'chess') {
+      // white is picked at random, the way pool picks who breaks
+      const pos = Chess.start();
+      this.game.chess = {
+        pos,
+        colors: { host: breaker === 'host' ? 'w' : 'b', guest: breaker === 'host' ? 'b' : 'w' },
+        clock: { host: CHESS_CLOCK_MS, guest: CHESS_CLOCK_MS },
+        since: 0,               // when the running clock last started; 0 means stopped
+        keys: [Chess.posKey(pos)],
+        sans: [],
+        last: null,
+        call: this.game[breaker].name + ' has white and moves first.',
+        stats: { host: { asked: 0, right: 0 }, guest: { asked: 0, right: 0 } },
+        streak: { host: 0, guest: 0 },
+        cqResult: null,
+        penalty: null,          // { role, id } so both screens can flash the -15s
+        penalties: 0,
+      };
+      this.broadcast(this.snapshot());
+      this.startLoop();
+      return;
+    }
     this.game.table = {
       balls: Pool.rack(),
       turn: breaker,
@@ -451,6 +491,165 @@ export class GameRoom {
     }
   }
 
+  // ---- Chess ----
+  // a turn is: question → (right) move → the other player's question.
+  // a wrong answer or a timeout costs clock time and asks again. the clock
+  // runs through your question and your move, and stops for the result pause
+
+  chessTurn() {
+    const C = this.game.chess;
+    return C.colors.host === C.pos.turn ? 'host' : 'guest';
+  }
+
+  // what's left on a clock right now, counting the turn that's under way
+  chessLeft(role) {
+    const C = this.game.chess;
+    const running = C.since && role === this.chessTurn() ? Date.now() - C.since : 0;
+    return Math.max(0, C.clock[role] - running);
+  }
+
+  chessRun() {
+    const C = this.game.chess;
+    if (!C.since) C.since = Date.now();
+  }
+
+  chessStop() {
+    const C = this.game.chess;
+    if (!C.since) return;
+    const role = this.chessTurn();
+    C.clock[role] = Math.max(0, C.clock[role] - (Date.now() - C.since));
+    C.since = 0;
+  }
+
+  chessAsk() {
+    const g = this.game, C = g.chess;
+    g.q = makeQuestion();
+    C.cqResult = null;
+    g.phase = 'cq';
+    g.deadline = Date.now() + QUESTION_MS;
+    this.chessRun();
+    if (g.vsBot && this.chessTurn() === 'guest') {
+      g.botDueAt = Date.now() + 1500 + rnd(1500);
+      g.botChoice = Math.random() < .75 ? g.q.answer : (g.q.answer + 1 + rnd(3)) % 4;
+    }
+    this.broadcast(this.snapshot());
+  }
+
+  chessAnswer(role, choice) {
+    const g = this.game;
+    if (!g || g.mode !== 'chess' || g.phase !== 'cq' || role !== this.chessTurn()) return;
+    const C = g.chess;
+    const picked = choice == null ? null : Number(choice);
+    const right = picked === g.q.answer;
+    this.chessStop();
+    C.stats[role].asked += 1;
+    if (right) {
+      C.stats[role].right += 1;
+      C.streak[role] += 1;
+    } else {
+      C.streak[role] = 0;
+      C.clock[role] = Math.max(0, C.clock[role] - CHESS_PENALTY_MS);
+      C.penalties += 1;
+      C.penalty = { role, id: C.penalties };
+    }
+    C.cqResult = { choice: picked, right };
+    g.phase = 'cqres';
+    g.deadline = Date.now() + CHESS_RESULT_MS;
+    this.broadcast(this.snapshot());
+  }
+
+  chessMove(role, msg) {
+    const g = this.game;
+    if (!g || g.mode !== 'chess' || g.phase !== 'move' || role !== this.chessTurn()) return;
+    const C = g.chess;
+    const all = Chess.moves(C.pos);
+    const from = Number(msg.from), to = Number(msg.to);
+    const promo = ['q', 'r', 'b', 'n'].indexOf(msg.promo) >= 0 ? msg.promo : 'q';
+    const m = all.find((x) => x.from === from && x.to === to && (!x.promo || x.promo === promo));
+    if (!m) return;
+
+    this.chessStop();
+    const san = Chess.san(C.pos, m, all);
+    C.pos = Chess.make(C.pos, m);
+    C.keys.push(Chess.posKey(C.pos));
+    C.sans.push(san);
+    C.last = { from: m.from, to: m.to };
+    const me = g[role].name;
+    const ended = Chess.status(C.pos, C.keys);
+    if (ended === 'checkmate') { this.chessOver(role, me + ' plays ' + san + '. Checkmate.'); return; }
+    if (ended) {
+      const why = { stalemate: 'Stalemate', material: 'Not enough pieces left to mate',
+        fifty: 'Fifty moves without a capture or a pawn move', repetition: 'Same position three times' }[ended];
+      this.chessOver(null, me + ' plays ' + san + '. ' + why + ', so it\'s a draw.');
+      return;
+    }
+    C.call = me + ' plays ' + san + '.';
+    this.chessAsk();
+  }
+
+  // winner is a role, or null for a draw
+  chessOver(winner, why) {
+    const g = this.game;
+    if (g.chess.since) this.chessStop();
+    g.phase = 'over';
+    g.q = null;
+    g.over = { winner, draw: !winner, why };
+    g.chess.call = why;
+    this.stopLoop();
+    this.broadcast(this.snapshot());
+  }
+
+  // out of time loses, unless the other side couldn't ever mate
+  chessFlag(role) {
+    const g = this.game, C = g.chess;
+    C.clock[role] = 0;
+    C.since = 0;
+    const other = role === 'host' ? 'guest' : 'host';
+    if (!Chess.canMate(C.pos.b, C.colors[other])) {
+      this.chessOver(null, g[role].name + ' ran out of time, but ' + g[other].name + " can't mate with what's left. Draw.");
+    } else {
+      this.chessOver(other, g[role].name + ' ran out of time.');
+    }
+  }
+
+  chessTick(g) {
+    const C = g.chess, turn = this.chessTurn();
+    if ((g.phase === 'cq' || g.phase === 'move') && this.chessLeft(turn) <= 0) { this.chessFlag(turn); return; }
+    // the stand-in opponent's turns: answer after a moment, then move
+    if (g.vsBot && turn === 'guest' && g.botDueAt && Date.now() >= g.botDueAt) {
+      if (g.phase === 'cq') { g.botDueAt = 0; this.chessAnswer('guest', g.botChoice); return; }
+      if (g.phase === 'move') {
+        g.botDueAt = 0;
+        const m = Chess.botMove(C.pos);
+        if (m) this.chessMove('guest', { from: m.from, to: m.to, promo: m.promo });
+        return;
+      }
+    }
+    if (g.phase === 'countdown') {
+      if (Date.now() >= g.deadline) this.chessAsk();
+      return;
+    }
+    if (g.phase === 'cq' && Date.now() >= g.deadline) { this.chessAnswer(turn, null); return; }
+    if (g.phase === 'cqres' && Date.now() >= g.deadline) {
+      const name = g[turn].name;
+      if (C.clock[turn] <= 0) { this.chessFlag(turn); return; }
+      if (C.cqResult && C.cqResult.right) {
+        g.phase = 'move';
+        g.q = null;
+        this.chessRun();
+        if (g.vsBot && turn === 'guest') g.botDueAt = Date.now() + 1000 + rnd(1500);
+        C.call = C.streak[turn] >= HINT_STREAK
+          ? name + ' is on a streak of ' + C.streak[turn] + ' and gets the best move.'
+          : name + ' is choosing a move.';
+        this.broadcast(this.snapshot());
+      } else {
+        C.call = (C.cqResult && C.cqResult.choice != null ? 'Wrong answer. ' : 'No answer. ')
+          + name + ' loses ' + (CHESS_PENALTY_MS / 1000) + ' seconds. Another question.';
+        this.chessAsk();
+      }
+    }
+  }
+
   startLoop() {
     if (this.loop) return;
     this.loop = setInterval(() => {
@@ -475,7 +674,8 @@ export class GameRoom {
     g.phase = 'over';
     g.over = { winner: other, left: role, why: g[role].name + ' left the game.' };
     g.q = null;
-    g.table.shot = null; g.table.after = null; g.table.call = g.over.why;
+    if (g.chess) { if (g.chess.since) this.chessStop(); g.chess.call = g.over.why; }
+    else { g.table.shot = null; g.table.after = null; g.table.call = g.over.why; }
     this.stopLoop();
     this.broadcast(this.snapshot());
   }
@@ -490,7 +690,8 @@ export class GameRoom {
         if (Date.now() - g.gone[role] > LEAVE_GRACE_MS) { this.playerLeft(role); return; }
       }
     }
-    this.poolTick(g);
+    if (g.mode === 'chess') this.chessTick(g);
+    else this.poolTick(g);
   }
 
   snapshot() {
@@ -513,6 +714,8 @@ export class GameRoom {
         },
       };
     }
+
+    if (g.chess) return this.chessSnapshot(mode);
 
     const T = g.table;
     const snap = {
@@ -542,6 +745,47 @@ export class GameRoom {
     // never ship the answer index while the question is still live
     if (g.q && (g.phase === 'pq' || g.phase === 'pqres')) {
       snap.q = g.phase === 'pq'
+        ? { text: g.q.text, choices: g.q.choices }
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+    }
+    return snap;
+  }
+
+  chessSnapshot(mode) {
+    const g = this.game, C = g.chess, turn = this.chessTurn();
+    const snap = {
+      t: 'state',
+      phase: g.phase,
+      mode,
+      modeName: MODES[mode],
+      test: !!g.test,
+      ms: Math.max(0, g.deadline - Date.now()),
+      host: { name: g.host.name, char: g.host.char },
+      guest: { name: g.guest.name, char: g.guest.char },
+      over: g.over,
+      chess: {
+        fen: Chess.toFen(C.pos),
+        turn,
+        colors: C.colors,
+        clocks: { host: this.chessLeft('host'), guest: this.chessLeft('guest') },
+        running: C.since ? turn : null,
+        last: C.last,
+        sans: C.sans,
+        call: C.call,
+        stats: C.stats,
+        streak: C.streak,
+        hintAt: HINT_STREAK,
+        penaltyMs: CHESS_PENALTY_MS,
+        // the room only says when the best move is earned; the mover's own
+        // browser does the searching, so the room never burns time on it
+        hint: g.phase === 'move' && C.streak[turn] >= HINT_STREAK,
+        cqResult: C.cqResult,
+        penalty: C.penalty,
+      },
+    };
+    // never ship the answer index while the question is still live
+    if (g.q && (g.phase === 'cq' || g.phase === 'cqres')) {
+      snap.q = g.phase === 'cq'
         ? { text: g.q.text, choices: g.q.choices }
         : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
     }

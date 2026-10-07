@@ -444,6 +444,105 @@
   .pcard-note.good{ color:#7fd6a2; }
   .pcard-note.bad{ color:var(--ember); }
 
+  /* ---------- chess ---------- */
+  #scChess{ gap:8px; }
+  .app[data-screen="scChess"]{ margin-top:0; }
+  .crow{ width:100%; display:flex; align-items:center; gap:8px; min-height:44px; }
+  /* the top row shares its corner with the quit button */
+  .crow.them{ padding-left:46px; }
+  .crow .pod{ width:34px; flex:0 0 auto; }
+  .crow .pod::after{ display:none; }
+  .cmeta{ display:flex; flex-direction:column; gap:3px; min-width:0; flex:1 1 auto; text-align:left; }
+  .crow.turn .pname{ color:var(--tallow); }
+  .crow.turn .pname::before{
+    content:""; width:6px; height:6px; border-radius:50%; flex:0 0 auto; background:var(--amber);
+  }
+  .ctaken{ display:flex; align-items:center; flex-wrap:wrap; min-height:14px; font:400 .8rem/1 var(--chesspc); color:var(--ash); }
+  .ctaken i{ font-style:normal; margin-right:-2px; }
+  .ctaken b{ font:500 .68rem/1 var(--sans); margin-left:5px; color:var(--ash); }
+  .cstreak{
+    flex:0 0 auto; padding:3px 8px; border-radius:999px; border:1px solid var(--hair);
+    font:500 .68rem/1.3 var(--sans); color:var(--ash); white-space:nowrap;
+  }
+  .cstreak.hot{ border-color:rgba(108,212,255,.55); color:var(--cold); box-shadow:0 0 14px -4px rgba(108,212,255,.6); }
+  .cclock{
+    position:relative; flex:0 0 auto; min-width:68px; padding:6px 10px; border-radius:9px;
+    border:1px solid var(--hair); background:rgba(239,227,204,.03);
+    font:500 1.05rem/1 var(--sans); font-variant-numeric:tabular-nums; color:var(--ash); text-align:center;
+    transition:border-color .2s ease, color .2s ease, background .2s ease;
+  }
+  .cclock.on{ border-color:var(--amber); color:var(--tallow); background:rgba(255,179,71,.08); }
+  .cclock.low{ border-color:var(--ember); color:var(--ember); }
+  .cpen{
+    position:absolute; left:50%; top:-4px; transform:translate(-50%,0);
+    font:600 .78rem/1 var(--sans); color:var(--ember); opacity:0; pointer-events:none; white-space:nowrap;
+  }
+  .cpen.go{ animation:penalty 1.6s ease-out; }
+  @keyframes penalty{
+    0%  { opacity:0; transform:translate(-50%,6px); }
+    15% { opacity:1; transform:translate(-50%,-10px); }
+    70% { opacity:1; transform:translate(-50%,-16px); }
+    100%{ opacity:0; transform:translate(-50%,-22px); }
+  }
+
+  :root{ --chesspc:"Segoe UI Symbol","Noto Sans Symbols 2","Apple Symbols","DejaVu Sans",serif; }
+  .cwrap{ position:relative; width:min(100%, max(248px, calc(100dvh - 380px))); aspect-ratio:1; }
+  .cboard{
+    position:absolute; inset:0; display:grid; grid-template:repeat(8,1fr) / repeat(8,1fr);
+    border-radius:10px; overflow:hidden; container-type:inline-size;
+    box-shadow:0 0 0 1px rgba(0,0,0,.5), 0 22px 44px -16px rgba(0,0,0,.9);
+  }
+  .sq{
+    position:relative; border:0; padding:0; margin:0; cursor:default; font:inherit;
+    display:flex; align-items:center; justify-content:center;
+    background:#c8b28c; -webkit-tap-highlight-color:transparent;
+  }
+  .sq.d{ background:#86643f; }
+  .sq.last::before, .sq.sel::before{ content:""; position:absolute; inset:0; background:rgba(255,179,71,.42); }
+  .sq.sel::before{ background:rgba(255,179,71,.68); }
+  .sq.check{ background-image:radial-gradient(circle, rgba(255,106,42,.95) 0 28%, rgba(255,106,42,.35) 55%, transparent 72%); }
+  .sq.tip::after{ content:""; position:absolute; inset:0; box-shadow:inset 0 0 0 3px var(--cold); }
+  .sq.can{ cursor:pointer; }
+  .sq.to::after{
+    content:""; position:absolute; left:50%; top:50%; width:30%; height:30%; transform:translate(-50%,-50%);
+    border-radius:50%; background:rgba(13,10,8,.32);
+  }
+  .sq.to.hit::after{ width:88%; height:88%; background:transparent; box-shadow:inset 0 0 0 4px rgba(13,10,8,.36); }
+  .sq:focus-visible{ outline:2px solid var(--amber); outline-offset:-2px; z-index:1; }
+  .pc{ position:relative; z-index:1; font:400 10.4cqw/1 var(--chesspc); pointer-events:none; }
+  .pc.w{
+    color:#fbf4e4;
+    text-shadow:0 1px 0 #1b130d, 0 -1px 0 #1b130d, 1px 0 0 #1b130d, -1px 0 0 #1b130d, 0 3px 4px rgba(0,0,0,.45);
+  }
+  .pc.b{ color:#17110c; text-shadow:0 1px 0 rgba(255,240,210,.28), 0 3px 4px rgba(0,0,0,.35); }
+  .sq .co{ position:absolute; font:600 2.1cqw/1 var(--sans); color:rgba(13,10,8,.55); pointer-events:none; }
+  .sq.d .co{ color:rgba(239,227,204,.6); }
+  .sq .co.f{ right:3px; bottom:2px; }
+  .sq .co.r{ left:3px; top:3px; }
+  .carrow{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:2; }
+  .carrow line{ stroke:var(--cold); stroke-width:.17; stroke-linecap:round; opacity:.9; }
+  .carrow path{ fill:var(--cold); opacity:.9; }
+  .cpromo{
+    position:absolute; inset:0; z-index:3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+    background:rgba(13,10,8,.82); border-radius:10px;
+  }
+  .cpromo p{ font:400 .86rem/1.4 var(--sans); color:var(--tallow); }
+  .cpromo-row{ display:flex; gap:8px; }
+  .cpromo button{
+    width:min(17cqw, 64px); aspect-ratio:1; border-radius:10px; cursor:pointer; padding:0;
+    border:1px solid var(--hair); background:#c8b28c; display:flex; align-items:center; justify-content:center;
+  }
+  .cpromo button:hover, .cpromo button:focus-visible{ border-color:var(--amber); outline:none; box-shadow:0 0 0 2px var(--amber); }
+  .cpromo .pc{ font-size:min(13cqw, 48px); }
+  .ccard{
+    width:100%; display:flex; flex-direction:column; align-items:center; gap:9px; text-align:center;
+    padding:12px; border:1px solid var(--hair); border-radius:14px; background:rgba(239,227,204,.025);
+    min-height:196px; justify-content:center;
+  }
+  .ccard .fuse{ width:100%; }
+  .ccard .fuse.gone{ visibility:hidden; }
+  .ccard .pcard-q.hint{ color:var(--cold); }
+
   @media (max-width:360px){
     .choice{ font-size:1.15rem; min-height:52px }
     .app{ gap:14px }
@@ -508,6 +607,12 @@
       </symbol>
       <symbol id="i-pool" viewBox="0 0 24 24">
         <path fill-rule="evenodd" d="M12 1.8a10.2 10.2 0 1 1 0 20.4 10.2 10.2 0 0 1 0-20.4zm-.6 4.4a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0-9.2zm0 1.3a1.45 1.45 0 1 1 0 2.9 1.45 1.45 0 0 1 0-2.9zm0 3.8a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4z"/>
+      </symbol>
+
+      <symbol id="i-chess" viewBox="0 0 24 24">
+        <circle cx="12" cy="5.6" r="3.3"/>
+        <path d="M9.3 9.8h5.4l-.5 1.7c1.7 1.7 2.5 4.2 2.7 6.9H7.1c.2-2.7 1-5.2 2.7-6.9z"/>
+        <rect x="5.2" y="19.2" width="13.6" height="2.8" rx="1"/>
       </symbol>
 
       <symbol id="char-boy" viewBox="0 0 64 72">
@@ -709,12 +814,17 @@
           </div>
         </div>
       </div>
-      <p class="lead">Answer right to earn your shot. Get it wrong and the table's theirs.</p>
-      <div class="modes" id="modeGrid">
+      <p class="lead" id="introLead">Answer right to earn your shot. Get it wrong and the table's theirs.</p>
+      <div class="modes cols3" id="modeGrid">
         <button class="mode on" type="button" data-mode="pool">
           <svg><use href="#i-pool"/></svg>
           <b>Pool</b>
           <span>8-ball. Answer right to take your shot.</span>
+        </button>
+        <button class="mode" type="button" data-mode="chess">
+          <svg><use href="#i-chess"/></svg>
+          <b>Chess</b>
+          <span>Answer right to move. Wrong costs clock time.</span>
         </button>
         <button class="mode" type="button" disabled>
           <svg><use href="#i-lock"/></svg>
@@ -848,6 +958,50 @@
       </div>
     </section>
 
+    <section class="panel" id="scChess" hidden>
+      <div class="crow them" id="cRowTheirs">
+        <div class="pod" id="cPodTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+        <div class="cmeta">
+          <div class="pname" id="cNameTheirs">Them</div>
+          <div class="ctaken" id="cTakenTheirs"></div>
+        </div>
+        <div class="cstreak" id="cStreakTheirs" hidden></div>
+        <div class="cclock" id="cClockTheirs"><span id="cTimeTheirs">5:00</span><b class="cpen" id="cPenTheirs"></b></div>
+      </div>
+      <div class="cwrap" id="cWrap">
+        <div class="cboard" id="cBoard" aria-label="Chess board"></div>
+        <svg class="carrow" id="cArrow" viewBox="0 0 8 8" aria-hidden="true" hidden>
+          <line id="cArrowLine" x1="0" y1="0" x2="0" y2="0"/>
+          <path id="cArrowHead" d=""/>
+        </svg>
+        <div class="cpromo" id="cPromo" hidden>
+          <p>Promote to</p>
+          <div class="cpromo-row" id="cPromoRow"></div>
+        </div>
+      </div>
+      <div class="crow mine" id="cRowMine">
+        <div class="pod" id="cPodMine" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+        <div class="cmeta">
+          <div class="pname" id="cNameMine">You</div>
+          <div class="ctaken" id="cTakenMine"></div>
+        </div>
+        <div class="cstreak" id="cStreakMine" hidden></div>
+        <div class="cclock" id="cClockMine"><span id="cTimeMine">5:00</span><b class="cpen" id="cPenMine"></b></div>
+      </div>
+      <p class="pcall" id="cCall" aria-live="polite"></p>
+      <div class="ccard" id="cCard">
+        <p class="pcard-who" id="ccWho"></p>
+        <div class="fuse" id="ccFuse"><i id="ccBar"></i></div>
+        <div class="pcard-q" id="ccQ"></div>
+        <div class="choices pcard-choices" id="ccChoices"></div>
+        <p class="pcard-note" id="ccNote"></p>
+        <div class="row" id="ccOver" hidden>
+          <button class="btn primary" id="ccAgain" hidden>Run it back</button>
+          <a class="btn leavelink" href="./">New opponent</a>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="scDead" hidden>
       <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
@@ -861,7 +1015,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scOpponent','scSetup','scHost','scGuest','scPool','scDead'];
+  const PANELS = ['scIntro','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   let ws = null, gameId = null, myRole = null, pickedMode = 'pool', pickedChar = '';
@@ -937,11 +1091,12 @@
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
-    $('wordmark').hidden = ids.includes('scPool');
+    const inMatch = ids.includes('scPool') || ids.includes('scChess');
+    $('wordmark').hidden = inMatch;
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
     // a finished match has its own way out ("New opponent") on the end card,
     // so the hold-to-quit button only covers a match that's still going
-    const showQuit = ids.includes('scPool') && phase !== 'over';
+    const showQuit = inMatch && phase !== 'over';
     if(showQuit && $('quitBtn').hidden) resetQuitRing();
     $('quitBtn').hidden = !showQuit;
     if(ids.includes('scIntro')) demoStart(); else demoStop();
@@ -1371,6 +1526,8 @@
   document.addEventListener('keydown', e => {
     const n = Number(e.key);
     if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
+    else if(phase === 'cq' && n >= 1 && n <= 4) chessPick(n - 1);
+    else if(e.key === 'Escape' && !$('cPromo').hidden) chessPromoClose();
     else if(phase === 'aim' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) poolNudge(e);
   });
 
@@ -2199,6 +2356,361 @@
     updateCueBar();
   }
 
+  // ---------- chess ----------
+  // the room owns the game; this side draws the board, lets the mover pick
+  // a piece and a square, and runs the clocks between updates. the rules
+  // come from /chess.js, the same file the room checks moves with
+  let Chess = null;
+  const GLYPH = { k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟' };
+  const PIECE_NAME = { k:'king', q:'queen', r:'rook', b:'bishop', n:'knight', p:'pawn' };
+  const cv = {
+    s: null, pos: null, sel: null, targets: [], sent: false, picked: null, qKey: '',
+    at: 0, penSeen: 0, promo: null, hint: null, hintFen: '', worker: null, built: false,
+  };
+  import('/chess.js').then(m => { Chess = m; if(cv.s && !$('scChess').hidden) applyChess(cv.s); }).catch(() => {});
+
+  const glyph = p => GLYPH[p.toLowerCase()] + '︎';
+  const myColor = () => cv.s ? cv.s.chess.colors[myRole] : 'w';
+  const chessMine = () => !!cv.s && cv.s.chess.turn === myRole;
+  const canMove = () => !!Chess && !!cv.pos && phase === 'move' && chessMine() && !cv.sent;
+
+  function buildBoard(){
+    if(cv.built) return;
+    cv.built = true;
+    const board = $('cBoard');
+    for(let d = 0; d < 64; d++){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sq';
+      b.addEventListener('click', () => chessTap(Number(b.dataset.sq)));
+      board.appendChild(b);
+    }
+  }
+
+  // squares are a8 = 0 to h1 = 63, and black sees the board turned round
+  function renderBoard(){
+    buildBoard();
+    const C = cv.s.chess, flip = myColor() === 'b', pos = cv.pos;
+    const files = 'abcdefgh';
+    const checked = Chess && Chess.inCheck(pos) ? Chess.kingSq(pos.b, pos.turn) : -1;
+    const tip = cv.hint && cv.hint.fen === C.fen && C.hint && chessMine() ? cv.hint : null;
+    const live = canMove();
+    [...$('cBoard').children].forEach((el, d) => {
+      const sq = flip ? 63 - d : d, r = sq >> 3, f = sq & 7, p = pos.b[sq];
+      el.dataset.sq = sq;
+      el.className = 'sq' + ((r + f) % 2 ? ' d' : '');
+      if(C.last && (C.last.from === sq || C.last.to === sq)) el.classList.add('last');
+      if(cv.sel === sq) el.classList.add('sel');
+      if(sq === checked) el.classList.add('check');
+      if(tip && (tip.from === sq || tip.to === sq)) el.classList.add('tip');
+      const target = cv.targets.find(m => m.to === sq);
+      if(target){ el.classList.add('to', 'can'); if(p || target.flag === 'e') el.classList.add('hit'); }
+      if(live && p && (p === p.toUpperCase() ? 'w' : 'b') === myColor()) el.classList.add('can');
+      let html = p ? '<span class="pc ' + (p === p.toUpperCase() ? 'w' : 'b') + '">' + glyph(p) + '</span>' : '';
+      if(d >= 56) html += '<span class="co f">' + files[f] + '</span>';
+      if(d % 8 === 0) html += '<span class="co r">' + (8 - r) + '</span>';
+      el.innerHTML = html;
+      el.setAttribute('aria-label', files[f] + (8 - r) + (p ? ', ' + (p === p.toUpperCase() ? 'white ' : 'black ') + PIECE_NAME[p.toLowerCase()] : ''));
+      el.tabIndex = live ? 0 : -1;
+    });
+    // the hint arrow, drawn in the board's own turned-round coordinates
+    // svg elements have no .hidden property, so the attribute is set directly
+    $('cArrow').toggleAttribute('hidden', !tip);
+    if(tip){
+      const at = sq => { const d = flip ? 63 - sq : sq; return [(d & 7) + .5, (d >> 3) + .5]; };
+      const [x1, y1] = at(tip.from), [x2, y2] = at(tip.to);
+      const len = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / len, uy = (y2 - y1) / len;
+      const hx = x2 - ux * .42, hy = y2 - uy * .42;   // where the head starts
+      $('cArrowLine').setAttribute('x1', x1); $('cArrowLine').setAttribute('y1', y1);
+      $('cArrowLine').setAttribute('x2', hx); $('cArrowLine').setAttribute('y2', hy);
+      const px = -uy * .26, py = ux * .26;
+      $('cArrowHead').setAttribute('d', 'M' + (x2 - ux * .1) + ' ' + (y2 - uy * .1) + 'L' + (hx + px) + ' ' + (hy + py) + 'L' + (hx - px) + ' ' + (hy - py) + 'Z');
+    }
+  }
+
+  function chessTap(sq){
+    if(!canMove()) return;
+    const p = cv.pos.b[sq];
+    const hits = cv.targets.filter(m => m.to === sq);
+    if(cv.sel != null && hits.length){
+      if(hits.some(m => m.promo)) chessPromoOpen(hits[0]);
+      else chessSend(hits[0]);
+      return;
+    }
+    if(p && (p === p.toUpperCase() ? 'w' : 'b') === myColor() && cv.sel !== sq){
+      cv.sel = sq;
+      cv.targets = Chess.moves(cv.pos).filter(m => m.from === sq);
+    }else{
+      cv.sel = null; cv.targets = [];
+    }
+    renderBoard();
+  }
+
+  function chessSend(m, promo){
+    if(!ws || !canMove()) return;
+    ws.send(JSON.stringify({ t:'move', from: m.from, to: m.to, promo: promo || m.promo || '' }));
+    cv.sent = true;
+    cv.sel = null; cv.targets = [];
+    chessPromoClose();
+    renderBoard();
+  }
+
+  function chessPromoOpen(m){
+    cv.promo = m;
+    const row = $('cPromoRow'), side = myColor();
+    row.innerHTML = '';
+    ['q', 'r', 'n', 'b'].forEach(t => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', PIECE_NAME[t]);
+      b.innerHTML = '<span class="pc ' + side + '">' + glyph(t) + '</span>';
+      b.addEventListener('click', () => chessSend(cv.promo, t));
+      row.appendChild(b);
+    });
+    $('cPromo').hidden = false;
+    row.firstChild.focus({ preventScroll: true });
+  }
+
+  function chessPromoClose(){
+    cv.promo = null;
+    $('cPromo').hidden = true;
+  }
+  $('cPromo').addEventListener('pointerdown', e => { if(e.target === $('cPromo')) chessPromoClose(); });
+
+  // the best move is searched in a worker so the clocks keep ticking. the
+  // room only says when it's been earned
+  function chessHint(){
+    const C = cv.s.chess;
+    if(!C.hint || !chessMine() || !Chess || cv.hintFen === C.fen) return;
+    cv.hintFen = C.fen;
+    const done = r => {
+      if(r.fen !== cv.s.chess.fen || r.none) return;
+      cv.hint = r;
+      renderBoard();
+      chessCard(cv.s);
+    };
+    try{
+      if(!cv.worker){
+        cv.worker = new Worker('/hint-worker.js', { type: 'module' });
+        cv.worker.onmessage = e => done(e.data);
+      }
+      cv.worker.postMessage({ fen: C.fen, ms: 1200 });
+    }catch(e){
+      // no module workers here: think on the page instead, a bit shorter
+      setTimeout(() => {
+        const r = Chess.bestMove(Chess.fromFen(C.fen), { ms: 700 });
+        if(r) done({ fen: C.fen, from: r.move.from, to: r.move.to, promo: r.move.promo, san: r.san, mate: r.mate });
+      }, 30);
+    }
+  }
+
+  // what each side has taken, shown under their name, plus who's ahead
+  function chessTaken(){
+    const C = cv.s.chess, left = { w: {}, b: {} };
+    for(const p of cv.pos.b) if(p){ const c = p === p.toUpperCase() ? 'w' : 'b', t = p.toLowerCase(); left[c][t] = (left[c][t] || 0) + 1; }
+    const FULL = { q: 1, r: 2, b: 2, n: 2, p: 8 }, WORTH = { q: 9, r: 5, b: 3, n: 3, p: 1 };
+    const worth = c => Object.keys(FULL).reduce((a, t) => a + (left[c][t] || 0) * WORTH[t], 0);
+    for(const [key, role] of [['Mine', myRole], ['Theirs', myRole === 'host' ? 'guest' : 'host']]){
+      const me = C.colors[role], them = me === 'w' ? 'b' : 'w';
+      let html = '';
+      for(const t of ['q', 'r', 'b', 'n', 'p']){
+        const gone = Math.max(0, FULL[t] - (left[them][t] || 0));
+        for(let i = 0; i < gone; i++) html += '<i>' + glyph(t) + '</i>';
+      }
+      const lead = worth(me) - worth(them);
+      if(lead > 0) html += '<b>+' + lead + '</b>';
+      $('cTaken' + key).innerHTML = html;
+    }
+  }
+
+  function chessBar(s){
+    const C = s.chess, op = myRole === 'host' ? 'guest' : 'host';
+    for(const [key, role] of [['Mine', myRole], ['Theirs', op]]){
+      const p = s[role] || {};
+      $('cName' + key).textContent = (p.name || (key === 'Mine' ? 'You' : 'Them')) + (C.colors[role] === 'w' ? ' · white' : ' · black');
+      wearChar($('cPod' + key), p.char);
+      $('cRow' + key).classList.toggle('turn', C.turn === role && s.phase !== 'over');
+      const st = C.streak[role] || 0, chip = $('cStreak' + key);
+      chip.hidden = st < 1 || s.phase === 'over';
+      chip.textContent = 'Streak ' + st;
+      chip.title = st >= C.hintAt ? 'Gets the best move while the streak lasts' : '';
+      chip.classList.toggle('hot', st >= C.hintAt);
+    }
+    // a fresh penalty floats a "-15s" off that player's clock on both screens
+    if(C.penalty && C.penalty.id !== cv.penSeen){
+      const first = cv.penSeen === 0 && !cv.live;
+      cv.penSeen = C.penalty.id;
+      if(!first){
+        const el = $('cPen' + (C.penalty.role === myRole ? 'Mine' : 'Theirs'));
+        el.textContent = '−' + Math.round(C.penaltyMs / 1000) + 's';
+        el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+      }
+    }
+    cv.live = true;
+  }
+
+  function clockText(ms){
+    if(ms < 10000) return '0:0' + (ms / 1000).toFixed(1);
+    const t = Math.ceil(ms / 1000);
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  }
+
+  function chessCard(s){
+    const C = s.chess, mine = C.turn === myRole, who = (s[C.turn] || {}).name || 'They';
+    $('ccOver').hidden = s.phase !== 'over';
+    $('ccQ').className = 'pcard-q';
+    $('ccNote').className = 'pcard-note';
+    $('ccFuse').classList.toggle('gone', s.phase !== 'cq');
+    const box = $('ccChoices');
+    const noChoices = () => { box.innerHTML = ''; box.dataset.key = ''; };
+
+    if(s.phase === 'over'){
+      const o = s.over || {}, st = C.stats[myRole] || { asked: 0, right: 0 };
+      $('ccWho').textContent = 'Game over';
+      $('ccQ').classList.add('result');
+      noChoices();
+      if(o.left){
+        $('ccQ').textContent = (o.left === myRole ? 'You' : ((s[o.left] || {}).name || 'They')) + ' left';
+        $('ccNote').textContent = 'The game has ended.';
+        $('ccAgain').hidden = true;
+        return;
+      }
+      $('ccQ').textContent = !o.winner ? 'Draw' : o.winner === myRole ? 'You win' : ((s[o.winner] || {}).name || 'They') + ' wins';
+      $('ccNote').textContent = (o.why || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
+      $('ccAgain').hidden = myRole !== 'host';
+      $('ccAgain').disabled = false;
+      return;
+    }
+    if(s.phase === 'countdown'){
+      const white = C.colors.host === 'w' ? 'host' : 'guest';
+      $('ccWho').textContent = 'Get ready';
+      $('ccQ').classList.add('result');
+      $('ccQ').textContent = white === myRole ? 'You have white' : ((s[white] || {}).name || 'They') + ' has white';
+      noChoices();
+      $('ccNote').textContent = 'Every move needs a right answer. A wrong one costs ' + Math.round(C.penaltyMs / 1000) + ' seconds.';
+      return;
+    }
+    if(s.phase === 'move'){
+      noChoices();
+      $('ccQ').classList.add('result');
+      const st = C.streak[C.turn] || 0;
+      if(mine && C.hint){
+        const h = cv.hint && cv.hint.fen === C.fen ? cv.hint : null;
+        $('ccWho').textContent = 'Streak of ' + st + '. Best move';
+        $('ccQ').classList.add('hint');
+        $('ccQ').textContent = h ? h.san : 'Thinking…';
+        $('ccNote').textContent = h
+          ? (h.mate > 0 ? 'Mate in ' + h.mate + '. ' : '') + 'Follow the blue arrow, or play your own.'
+          : 'Working out the best move for you.';
+        return;
+      }
+      $('ccWho').textContent = mine ? 'Correct' : who + ' got it right';
+      $('ccQ').textContent = mine ? 'Your move' : who + ' is moving';
+      const need = C.hintAt - st;
+      $('ccNote').textContent = mine
+        ? (need > 0 ? need + ' more right in a row unlocks the best move.' : 'Tap a piece, then where it goes.')
+        : '';
+      return;
+    }
+    if(!s.q) return;
+
+    $('ccWho').textContent = mine ? 'Answer right to make your move' : who + ' is answering to move';
+    $('ccQ').textContent = s.q.text;
+    if(box.dataset.key !== cv.qKey){
+      box.innerHTML = '';
+      s.q.choices.forEach((n, i) => {
+        const b = document.createElement('button');
+        b.className = 'choice'; b.type = 'button';
+        const k = document.createElement('kbd'); k.textContent = i + 1;
+        b.append(k, document.createTextNode(String(n)));
+        b.addEventListener('click', () => chessPick(i));
+        box.appendChild(b);
+      });
+      box.dataset.key = cv.qKey;
+    }
+    const r = s.phase === 'cqres' ? C.cqResult : null;
+    const picked = r ? r.choice : cv.picked;
+    [...box.children].forEach((b, i) => {
+      b.disabled = !(mine && s.phase === 'cq' && cv.picked == null);
+      b.classList.toggle('picked', !r && picked === i);
+      b.classList.remove('right', 'wrong', 'dim');
+      if(r){
+        if(i === s.q.answer) b.classList.add('right');
+        else if(i === picked) b.classList.add('wrong');
+        else b.classList.add('dim');
+      }
+    });
+    if(r){
+      const secs = Math.round(C.penaltyMs / 1000);
+      $('ccNote').classList.add(r.right ? 'good' : 'bad');
+      $('ccNote').textContent = r.right
+        ? (mine ? 'Correct. Make your move.' : who + ' got it and moves next.')
+        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '. '
+          + (mine ? 'You lose ' : who + ' loses ') + secs + ' seconds.';
+    }else{
+      $('ccNote').textContent = mine && cv.picked != null ? 'Locked in.' : '';
+    }
+  }
+
+  function chessPick(i){
+    if(phase !== 'cq' || !chessMine() || cv.picked != null || !ws) return;
+    cv.picked = i;
+    ws.send(JSON.stringify({ t:'cans', choice:i }));
+    chessCard(cv.s);
+  }
+
+  function applyChess(s){
+    const prev = cv.s;
+    cv.s = s;
+    cv.at = performance.now();
+    if(s.ms != null) deadlineAt = performance.now() + s.ms;
+    if(s.phase === 'countdown' && (!prev || prev.phase !== 'countdown')){
+      cv.hint = null; cv.hintFen = ''; cv.live = false;
+    }
+    if(!prev || prev.chess.fen !== s.chess.fen || s.phase !== 'move'){
+      cv.sel = null; cv.targets = []; chessPromoClose();
+    }
+    if(s.phase === 'move' && (!prev || prev.phase !== 'move')) cv.sent = false;
+    const qKey = s.q ? s.q.text + '|' + s.q.choices.join(',') : '';
+    if(qKey !== cv.qKey){ cv.qKey = qKey; cv.picked = null; }
+
+    show(['scChess']);
+    $('cCall').textContent = s.chess.call || '';
+    if(!Chess) return;   // the rules are still loading; this runs again once they're in
+    cv.pos = Chess.fromFen(s.chess.fen);
+    chessBar(s);
+    chessTaken();
+    chessHint();
+    renderBoard();
+    chessCard(s);
+  }
+
+  // clocks and the question fuse run off the last update, between updates
+  function chessFrame(now){
+    requestAnimationFrame(chessFrame);
+    const s = cv.s;
+    if(!s || $('scChess').hidden) return;
+    const C = s.chess, op = myRole === 'host' ? 'guest' : 'host';
+    for(const [key, role] of [['Mine', myRole], ['Theirs', op]]){
+      const left = Math.max(0, C.clocks[role] - (C.running === role ? now - cv.at : 0));
+      $('cTime' + key).textContent = clockText(left);
+      $('cClock' + key).classList.toggle('on', C.running === role);
+      $('cClock' + key).classList.toggle('low', left < 30000 && s.phase !== 'over');
+    }
+    if(phase === 'cq'){
+      const left = Math.max(0, deadlineAt - now);
+      $('ccBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
+      $('ccFuse').classList.toggle('low', left < 3000);
+    }
+  }
+  requestAnimationFrame(chessFrame);
+
+  $('ccAgain').addEventListener('click', () => {
+    $('ccAgain').disabled = true;
+    ws.send(JSON.stringify({ t:'again' }));
+    setTimeout(() => { $('ccAgain').disabled = false; }, 1200);
+  });
+
   function applyState(s){
     phase = s.phase;
     $('testChip').hidden = !s.test;
@@ -2228,6 +2740,7 @@
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
         $('guestMode').querySelector('span').textContent = s.modeName || 'Pool';
+        $('guestMode').querySelector('use').setAttribute('href', '#i-' + (s.mode === 'chess' ? 'chess' : 'pool'));
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
           setLobbyCard('glGuest', { char: s.guest.char, name: s.guest.name || 'You', ready: true, statusText: 'Ready' });
@@ -2242,7 +2755,8 @@
       return;
     }
 
-    applyPool(s);
+    if(s.mode === 'chess') applyChess(s);
+    else applyPool(s);
   }
 
   function shareUrl(){ return location.href.split('#')[0] + '#g=' + gameId; }
@@ -2307,7 +2821,14 @@
     pickedMode = card.dataset.mode;
     try{ localStorage.setItem('sd-mode', pickedMode); }catch(e){}
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
+    introLead();
   });
+
+  function introLead(){
+    $('introLead').textContent = pickedMode === 'chess'
+      ? 'Answer right to earn your move. Get it wrong and your clock pays for it.'
+      : "Answer right to earn your shot. Get it wrong and the table's theirs.";
+  }
 
   $('introGo').addEventListener('click', () => show(['scOpponent']));
 
@@ -2404,7 +2925,10 @@
   if(navigator.share){
     $('hostSend').hidden = false;
     $('hostSend').addEventListener('click', () => {
-      navigator.share({ text: 'Pool, but every shot has to be earned. Fancy a game?', url: shareUrl() }).catch(() => {});
+      const text = pickedMode === 'chess'
+        ? 'Chess, but every move has to be earned. Fancy a game?'
+        : 'Pool, but every shot has to be earned. Fancy a game?';
+      navigator.share({ text, url: shareUrl() }).catch(() => {});
     });
   }
 
@@ -2438,8 +2962,9 @@
       $('introName').value = localStorage.getItem('sd-name') || '';
       savedMode = localStorage.getItem('sd-mode') || '';
     }catch(e){}
-    if(savedMode === 'pool') pickedMode = savedMode;
+    if(savedMode === 'pool' || savedMode === 'chess') pickedMode = savedMode;
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
+    introLead();
     opponentType = 'friend';
     $('testChip').hidden = true;
     $('setupGo').textContent = 'Create a match';

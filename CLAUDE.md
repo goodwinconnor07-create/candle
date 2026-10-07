@@ -1,7 +1,7 @@
 # Study Duel — notes for Claude
 
 Two-player study mini games: a familiar game where every move is earned by
-answering a question right. Pool (8-ball) is the only game right now. Live at
+answering a question right. Pool (8-ball) and chess so far. Live at
 https://candle-timer.candle-timer.workers.dev. See README.md for how the game
 plays and DEPLOY.md for deploy details.
 
@@ -13,6 +13,10 @@ plays and DEPLOY.md for deploy details.
 - `pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`), and the
   test stand-in's shot picker (`botShot()`). The server runs every shot and
   sends frames for the browsers to replay.
+- `public/chess.js`: chess rules, plus a small alpha-beta engine for the
+  streak hint and the test stand-in. Both the room and the browser import it,
+  which is why it lives in `public/`. `public/hint-worker.js` runs the hint
+  search off the main thread.
 - `public/index.html`: the whole front end in one file (styles, SVG characters,
   script). No build step, no framework.
 - Nothing else to install for the Worker; `wrangler` is the only dev dependency.
@@ -55,6 +59,10 @@ PR to the default branch, merge, deploy, then check the live site.
   ready message. `bot` is server-assigned only, for the test stand-in.
 - Never send a live question's answer index to the browsers; it only goes out
   once the question is resolved.
+- Chess: a wrong answer costs clock time and asks again, it never hands over
+  the move (two moves in a row decides most games). Don't use `Date.now()`
+  for time limits on searches inside the Worker, because it doesn't advance
+  while code runs. Pass a node budget instead, like `botMove()` does.
 - Match the existing style: dark "soot" background, tallow text, amber accent,
   Fraunces serif for headings, the iMessage-inspired pool table.
 
