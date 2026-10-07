@@ -411,6 +411,19 @@
   #modeGrid .mode svg{ grid-row:1 / span 2; width:24px; height:24px; }
   #modeGrid .mode b{ align-self:end; }
   #modeGrid .mode span{ align-self:start; font-size:.7rem; line-height:1.3; }
+  /* five games: three across, then two centred under them. the line above
+     the grid already says what the picked game is, so the cards are just
+     an icon and a name */
+  #modeGrid{ grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }
+  #modeGrid .mode{
+    grid-column:span 2; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; gap:5px; padding:11px 4px;
+  }
+  #modeGrid .mode:nth-child(4){ grid-column:2 / span 2; }
+  #modeGrid .mode:nth-child(5){ grid-column:4 / span 2; }
+  #modeGrid .mode svg{ grid-row:auto; }
+  #modeGrid .mode b{ align-self:auto; font-size:.84rem; }
+  #modeGrid .mode span{ display:none; }
   .mode b{ font:500 .92rem/1.2 var(--sans) }
   .mode span{ font:400 .74rem/1.4 var(--sans); color:var(--ash) }
   .mode:hover:not(:disabled){ border-color:rgba(239,227,204,.5); background:rgba(239,227,204,.04) }
@@ -1128,6 +1141,10 @@
   @media (max-height:790px){
     .modes .mode span{ display:none; }
     .lead{ font-size:.86rem; }
+  }
+  @media (max-height:640px){
+    .app[data-screen="scIntro"] .crest{ display:none; }
+    .app[data-screen="scIntro"]{ gap:10px; }
   }
   @media (max-height:760px){
     .demo-players{ display:none; }
