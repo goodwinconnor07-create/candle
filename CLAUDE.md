@@ -26,6 +26,23 @@ plays and DEPLOY.md for deploy details.
   browser keeps (`POST /api/device`), stored only as a SHA-256. Schema changes
   go in a new numbered file in `migrations/`, applied with
   `npx wrangler d1 migrations apply study-duel --remote` before deploying.
+- `generate.js` and `setjob.js`: making a study set's questions. Per slice of
+  the notes, two calls run side by side: facts (Haiku 4.5, `kind | a | b`
+  lines for the local engine) and core questions plus, for the first slice,
+  wording templates (Sonnet 5.5, structured output, low effort, `fallbacks:
+  'default'`). Everything the models return is checked in code (the quote on
+  each question has to appear in the notes, choices are shuffled here,
+  facts' terms have to appear in the notes); no second model pass. The run
+  lives in the `SetJob` Durable Object's alarm, not in the request, and the
+  browser polls the set's `status`. Nothing sends the hidden `diff`/`why` to
+  players. `AI_MOCK=1` in `.dev.vars` (gitignored) swaps in a fake model for
+  local testing; never set it in production.
+- Spending caps (all checked in the route before any money is spent):
+  `DAILY_BUDGET_USD` for the whole app per UTC day, `DEVICE_RUNS_PER_DAY` per
+  browser, 10 new devices per network per day, and `GENERATION_ENABLED =
+  "false"` to switch it off. They're `[vars]` in `wrangler.toml`. The key is a
+  secret: `npx wrangler secret put ANTHROPIC_API_KEY`. Every run's real cost
+  is in `gen_runs` (micro-dollars, with per-call token counts in `detail`).
 - `public/extract.js` and `public/pdfjs/`: pulls text out of a PDF, .docx,
   .pptx or text file in the player's browser, so only plain text reaches the
   server. docx/pptx are read with a small zip reader plus `DecompressionStream`;
@@ -65,7 +82,7 @@ plays and DEPLOY.md for deploy details.
 - `public/index.html`: the whole front end in one file (styles, SVG characters,
   script). No build step, no framework. Towers card art is the `ART` table
   in the script, drawn in the same style as the player characters.
-- Nothing else to install for the Worker; `wrangler` is the only dev dependency.
+- `npm install` first: `wrangler` is the dev dependency and `@anthropic-ai/sdk` is the one runtime dependency (wrangler bundles it; there's no build step).
 
 ## Branches
 

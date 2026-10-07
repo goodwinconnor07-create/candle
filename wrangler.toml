@@ -17,6 +17,11 @@ class_name = "GameRoom"
 name = "CODES"
 class_name = "JoinCode"
 
+# Makes the questions for one study set. The work runs in its alarm.
+[[durable_objects.bindings]]
+name = "SETJOB"
+class_name = "SetJob"
+
 # SQLite-backed classes are the ones the free plan allows.
 [[migrations]]
 tag = "v1"
@@ -25,6 +30,19 @@ new_sqlite_classes = ["GameRoom"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["JoinCode"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["SetJob"]
+
+# Spending caps for making questions. DAILY_BUDGET_USD is the most the whole app
+# will spend on the API per day (UTC); DEVICE_RUNS_PER_DAY is how many runs one
+# browser gets. Set GENERATION_ENABLED = "false" to switch it off altogether.
+# The API key itself is a secret: `npx wrangler secret put ANTHROPIC_API_KEY`.
+[vars]
+DAILY_BUDGET_USD = "5"
+DEVICE_RUNS_PER_DAY = "5"
+GENERATION_ENABLED = "true"
 
 # Study sets, their source text and generated questions. Live matches stay in
 # the GameRoom Durable Objects. Apply schema changes with
