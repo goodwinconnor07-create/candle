@@ -553,8 +553,10 @@
   .cuetrack{ position:absolute; inset:0; overflow:hidden; border:1px solid var(--hair); border-radius:19px; background:rgba(239,227,204,.03); }
   .cuefill{ position:absolute; left:0; right:0; top:0; height:0; background:linear-gradient(to bottom, rgba(255,106,42,0), rgba(255,106,42,.4)); }
   .cuestick{
-    position:absolute; left:50%; top:14px; height:68%; width:8px; margin-left:-4px; border-radius:4px;
-    background:linear-gradient(to bottom, #6cd4ff 0 7px, #efe3cc 7px 12px, #d8b98b 12px 58%, #3b2416 58% 100%);
+    position:absolute; left:50%; top:14px; height:68%; width:8px; margin-left:-4px; border-radius:4px 4px 3px 3px;
+    background:
+      linear-gradient(90deg, rgba(0,0,0,.45), rgba(255,255,255,.28) 30%, rgba(255,255,255,0) 55%, rgba(0,0,0,.4)),
+      linear-gradient(to bottom, #6cd4ff 0 5px, #f1ead8 5px 10px, #bdb9b1 10px 57%, #2e2c2a 57% 58%, #d9b861 58% 59%, #2e2c2a 59% 60%, #6b6762 60% 74%, #a9a59d 74% 86%, #5d5a55 86% 96%, #232323 96% 100%);
     box-shadow:0 0 0 1px rgba(0,0,0,.25);
   }
   .cuebar:not(.off) .cuestick{ box-shadow:0 0 14px -2px rgba(255,179,71,.55), 0 0 0 1px rgba(0,0,0,.25); }
@@ -2234,11 +2236,16 @@
       ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
       ctx.strokeStyle = 'rgba(60,30,20,.35)'; ctx.lineWidth = 1; ctx.stroke();
     };
-    const cs = RAIL + 12;
+    const cs = RAIL + 4;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-RAIL, -RAIL, DT.OW, DT.OH); ctx.rect(-CUSH, -CUSH, W + CUSH * 2, H + CUSH * 2);
+    ctx.clip('evenodd');
     cap(-RAIL + 1, -RAIL + 1, cs, cs, [13, 6, 8, 6]);
     cap(W + RAIL - 1 - cs, -RAIL + 1, cs, cs, [6, 13, 6, 8]);
     cap(-RAIL + 1, H + RAIL - 1 - cs, cs, cs, [6, 8, 6, 13]);
     cap(W + RAIL - 1 - cs, H + RAIL - 1 - cs, cs, cs, [8, 6, 13, 6]);
+    ctx.restore();
     cap(m - 24, -RAIL + 1, 48, WOOD - 1, [4, 4, 6, 6]);
     cap(m - 24, H + CUSH, 48, WOOD - 1, [6, 6, 4, 4]);
     for(const p of DEMO_POCKETS){
@@ -2301,21 +2308,7 @@
     circle(ctx, S.gx, S.gy, R); ctx.stroke();
     ctx.translate(c.x, c.y);
     ctx.rotate(Math.atan2(S.v[1], S.v[0]));
-    const start = R + 3 + pull, len = 330;
-    const width = t => 4 + (t - start) / len * 4;
-    const seg = (a, b, color) => {
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.moveTo(-a, -width(a) / 2); ctx.lineTo(-b, -width(b) / 2);
-      ctx.lineTo(-b, width(b) / 2); ctx.lineTo(-a, width(a) / 2);
-      ctx.closePath(); ctx.fill();
-    };
-    ctx.save(); ctx.translate(0, 4); ctx.globalAlpha = .3; seg(start, start + len, '#000'); ctx.restore();
-    seg(start, start + 4, '#6cd4ff');
-    seg(start + 4, start + 9, '#efe3cc');
-    seg(start + 9, start + len * .62, '#d8b98b');
-    seg(start + len * .62, start + len * .64, '#efe3cc');
-    seg(start + len * .64, start + len, '#3b2416');
+    paintCue(ctx, R + 3 + pull, 330, 4);
     ctx.restore();
   }
 
@@ -2559,11 +2552,18 @@
       ctx.beginPath(); ctx.roundRect(x, y, w, h2, r); ctx.fill();
       ctx.strokeStyle = 'rgba(60,30,20,.35)'; ctx.lineWidth = 1.2; ctx.stroke();
     };
-    const cs = RAIL + 20;
+    // the corner caps stay on the wood (clipped so none reaches the cloth)
+    // and stop short of the pocket's mouth, so nothing looks like it's in the way
+    const cs = RAIL + 6;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-RAIL, -RAIL, OW, OL); ctx.rect(-CUSH, -CUSH, PW + CUSH * 2, PL + CUSH * 2);
+    ctx.clip('evenodd');
     cap(-RAIL + 2, -RAIL + 2, cs, cs, [20, 10, 12, 10]);
     cap(PW + RAIL - 2 - cs, -RAIL + 2, cs, cs, [10, 20, 10, 12]);
     cap(-RAIL + 2, PL + RAIL - 2 - cs, cs, cs, [10, 12, 10, 20]);
     cap(PW + RAIL - 2 - cs, PL + RAIL - 2 - cs, cs, cs, [12, 10, 20, 10]);
+    ctx.restore();
     cap(-RAIL + 2, h - sg - 16, WOOD - 2, (sg + 16) * 2, [6, 4, 4, 6]);
     cap(PW + CUSH, h - sg - 16, WOOD - 2, (sg + 16) * 2, [4, 6, 6, 4]);
 
@@ -2574,10 +2574,10 @@
       ctx.beginPath(); ctx.roundRect(x, y, w, h2, r); ctx.fill();
     };
     const hs = 58;
-    hole(-hs / 2 - 9, -hs / 2 - 9, hs, hs, 25);
-    hole(PW - hs / 2 + 9, -hs / 2 - 9, hs, hs, 25);
-    hole(-hs / 2 - 9, PL - hs / 2 + 9, hs, hs, 25);
-    hole(PW - hs / 2 + 9, PL - hs / 2 + 9, hs, hs, 25);
+    hole(-hs / 2 - 9, -hs / 2 - 9, hs, hs, hs / 2);
+    hole(PW - hs / 2 + 9, -hs / 2 - 9, hs, hs, hs / 2);
+    hole(-hs / 2 - 9, PL - hs / 2 + 9, hs, hs, hs / 2);
+    hole(PW - hs / 2 + 9, PL - hs / 2 + 9, hs, hs, hs / 2);
     hole(-CUSH - 26, h - sg - 3, 50, (sg + 3) * 2, 25);
     hole(PW + CUSH - 24, h - sg - 3, 50, (sg + 3) * 2, 25);
 
@@ -2841,25 +2841,71 @@
     ctx.restore();
   }
 
-  function drawStick(ctx, c, d, power){
-    const start = PR + 5 + power * 90, len = 560;
-    const width = t => 6 + (t - start) / len * 6;
-    const seg = (a, b, color) => {
-      ctx.fillStyle = color;
+  /* A weathered gray wooden cue, drawn in the frame where the ball is at the
+     origin and the cue runs toward negative x. `start` is the gap to the ball,
+     `len` the length, `w0` the width at the tip (it doubles by the butt).
+     Every part is shaded across its width so it reads as round, lit from the
+     top; the grain comes from fixed offsets, so it never flickers. */
+  function paintCue(ctx, start, len, w0){
+    const width = t => w0 * (1 + (t - start) / len);
+    // one rounded part of the cue between a and b, shaded across its width
+    const part = (a, b, hi, mid, lo) => {
+      const wa = width(a), wb = width(b), wm = (wa + wb) / 2;
+      const g = ctx.createLinearGradient(0, -wm / 2, 0, wm / 2);
+      g.addColorStop(0, lo); g.addColorStop(.28, hi); g.addColorStop(.55, mid); g.addColorStop(1, lo);
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.moveTo(-a, -width(a) / 2); ctx.lineTo(-b, -width(b) / 2);
-      ctx.lineTo(-b, width(b) / 2); ctx.lineTo(-a, width(a) / 2);
+      ctx.moveTo(-a, -wa / 2); ctx.lineTo(-b, -wb / 2); ctx.lineTo(-b, wb / 2); ctx.lineTo(-a, wa / 2);
       ctx.closePath(); ctx.fill();
     };
+    const s = w0 / 6;                       // everything small scales with the cue
+    const shaftEnd = start + len * .62, joint = start + len * .64;
+
+    // soft shadow on the cloth
+    ctx.save(); ctx.translate(0, w0 * .9); ctx.globalAlpha = .26; part(start, start + len, '#000', '#000', '#000'); ctx.restore();
+
+    // chalked leather tip, then the pale ferrule
+    part(start, start + 5 * s, '#9fdcf2', '#6cd4ff', '#3a7f9c');
+    part(start + 5 * s, start + 14 * s, '#fffbef', '#ece3cf', '#a79e8a');
+    // the shaft: pale weathered gray maple
+    part(start + 14 * s, shaftEnd, '#d3cfc7', '#aeaaa2', '#6d6a64');
+    // a few long grain lines, fixed so they hold still
+    ctx.save();
+    ctx.lineCap = 'round';
+    for(let i = 0; i < 7; i++){
+      const f = ((i * 0.37) % 1) - .5, a = start + len * (.05 + (i % 3) * .08), b = a + len * (.22 + (i % 4) * .08);
+      ctx.strokeStyle = i % 2 ? 'rgba(70,66,60,.22)' : 'rgba(255,255,255,.16)';
+      ctx.lineWidth = Math.max(.4, s * .5);
+      ctx.beginPath();
+      ctx.moveTo(-a, f * width(a) * .72); ctx.lineTo(-Math.min(b, shaftEnd), f * width(Math.min(b, shaftEnd)) * .72); ctx.stroke();
+    }
+    ctx.restore();
+    // joint collar: a thin ring of brass between two black ones
+    part(shaftEnd, shaftEnd + len * .006, '#4a4743', '#33312e', '#1b1a18');
+    part(shaftEnd + len * .006, shaftEnd + len * .014, '#f0d48c', '#c9a24c', '#7a5c22');
+    part(shaftEnd + len * .014, joint, '#4a4743', '#33312e', '#1b1a18');
+    // the butt: darker gray wood with two fine inlaid rings and a pale wrap
+    part(joint, start + len * .96, '#87837c', '#5d5a55', '#2d2b29');
+    part(joint + len * .02, joint + len * .026, '#e6e1d6', '#c1bcb0', '#6f6b63');
+    part(joint + len * .05, joint + len * .056, '#e6e1d6', '#c1bcb0', '#6f6b63');
+    part(start + len * .72, start + len * .86, '#a9a59d', '#7e7a73', '#3b3936');
+    for(let t = start + len * .73; t < start + len * .86; t += len * .018){
+      ctx.strokeStyle = 'rgba(30,28,26,.35)'; ctx.lineWidth = Math.max(.4, s * .45);
+      ctx.beginPath(); ctx.moveTo(-t, -width(t) * .5); ctx.lineTo(-(t + len * .012), width(t) * .5); ctx.stroke();
+    }
+    // rubber bumper on the end
+    part(start + len * .96, start + len, '#5a5a5a', '#2c2c2c', '#0e0e0e');
+    // one thin highlight along the top of the whole cue
+    ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = Math.max(.5, s * .6); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-(start + 14 * s), -width(start + 14 * s) * .27); ctx.lineTo(-(start + len * .95), -width(start + len * .95) * .27); ctx.stroke();
+  }
+
+  function drawStick(ctx, c, d, power){
+    const start = PR + 5 + power * 90;
     ctx.save();
     ctx.translate(c.x, c.y);
     ctx.rotate(Math.atan2(d.y, d.x));
-    ctx.save(); ctx.translate(0, 5); ctx.globalAlpha = .3; seg(start, start + len, '#000'); ctx.restore();
-    seg(start, start + 6, '#6cd4ff');
-    seg(start + 6, start + 14, '#efe3cc');
-    seg(start + 14, start + len * .62, '#d8b98b');
-    seg(start + len * .62, start + len * .64, '#efe3cc');
-    seg(start + len * .64, start + len, '#3b2416');
+    paintCue(ctx, start, 560, 6);
     ctx.restore();
   }
 
