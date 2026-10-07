@@ -24,8 +24,14 @@ const PRICE_UNKNOWN = [10, 50];   // a model we don't know about is assumed expe
 
 // what one call cost, in millionths of a dollar (price per million tokens is
 // exactly micro-dollars per token). Cache writes cost 1.25x, cache reads 0.1x
+// the API reports dated ids (claude-haiku-4-5-20251001), so match by prefix
+function priceOf(model) {
+  const key = Object.keys(PRICE).filter(k => String(model).startsWith(k)).sort((a, b) => b.length - a.length)[0];
+  return key ? PRICE[key] : PRICE_UNKNOWN;
+}
+
 export function costMicro(model, usage) {
-  const [pi, po] = PRICE[model] || PRICE_UNKNOWN;
+  const [pi, po] = priceOf(model);
   const u = usage || {};
   return Math.ceil((u.input_tokens || 0) * pi + (u.cache_creation_input_tokens || 0) * pi * 1.25
     + (u.cache_read_input_tokens || 0) * pi * 0.1 + (u.output_tokens || 0) * po);
