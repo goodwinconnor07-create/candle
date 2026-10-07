@@ -9,20 +9,13 @@ a different machine.
 Edit `worker.js` or `public/index.html`, then:
 
 ```
-npm install        # first time only, for the Anthropic SDK
 npx wrangler deploy
 ```
 
-The front end is still plain HTML with no build step. The Worker now bundles
-one dependency (the Anthropic SDK, for Debate Mode's judge), which wrangler
-handles on deploy. Nothing to migrate — the Durable Object binding is already
-in `wrangler.toml` and doesn't change.
-
-Debate Mode needs a key, set once:
-
-```
-npx wrangler secret put ANTHROPIC_API_KEY
-```
+The front end is plain HTML with no build step, and the Worker has no
+dependencies beyond its own `pool.js`. Nothing to migrate — the Durable
+Object binding is already in `wrangler.toml` and doesn't change. No API keys
+or secrets are needed.
 
 ## From a fresh machine
 
@@ -49,12 +42,13 @@ npx wrangler dev
 
 This runs a real Durable Object locally on http://localhost:8787. Open it in
 two browser windows — one normal, one private, so they don't share the same
-saved seat — and you can play a full race against yourself.
+saved seat — and you can play a full match against yourself. Or pick
+**Test Mode** to play solo against a stand-in.
 
 ## What's actually running
 
-One Worker and one Durable Object per race. No database, no KV, nothing to
-clean up: each race room deletes itself a day after its last activity, and the
+One Worker and one Durable Object per match. No database, no KV, nothing to
+clean up: each room deletes itself a day after its last activity, and the
 free tier covers all of this comfortably.
 
 If you want this on your own domain instead of `*.workers.dev`, it's
