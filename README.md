@@ -1,8 +1,8 @@
 # Study Duel
 
 Two-player study mini games. You play a simple game everyone already knows,
-but every move has to be earned by answering a question right. Pool is the
-first one.
+but every move has to be earned by answering a question right. Pool and chess
+so far.
 
 Live at https://candle-timer.candle-timer.workers.dev
 
@@ -42,6 +42,34 @@ make this about something you're actually studying.
 The intro screen plays a looping demo: two random characters taking turns on
 a small table, answering a sum before each shot. It's scripted in the page
 and never talks to the server.
+
+## Chess
+
+Normal chess, with a question before every move. The catch is different from
+pool's, because handing over a turn in chess would give the other player two
+moves in a row, and that's usually game over. So turns always alternate.
+
+- Before each move you get a question. A right answer lets you move.
+- A wrong answer, or running out the 10 seconds, takes 15 seconds off your
+  chess clock and gives you another question. You keep going until you get
+  one right.
+- Each player has a 5 minute clock. It runs through your questions and your
+  move, and pauses for the second where the right answer is shown. Run out
+  and you lose, unless your opponent has too little left to ever mate you,
+  in which case it's a draw.
+- Get 3 or more right in a row and the game shows you the best move (a blue
+  arrow on the board, plus the move written out) for as long as the streak
+  lasts. One wrong answer resets the streak to 0.
+
+Checkmate, stalemate, castling, en passant and promotion all work as usual,
+and so do draws by threefold repetition, the fifty-move rule and not enough
+material.
+
+The best move comes from a small search engine in `public/chess.js`. It's
+not Stockfish, but it reliably finds mates, free pieces and simple tactics,
+which is more than enough to help a casual player. It runs in the mover's
+own browser, in a background worker (`public/hint-worker.js`), for about a
+second. The room just says when the hint has been earned.
 
 ## Starting a match
 
@@ -86,7 +114,9 @@ npx wrangler deploy     # push it live
 
 There's no build step and no dependencies to install for the Worker itself.
 `public/index.html` is the whole front end, `worker.js` is the backend, and
-pool's table physics and 8-ball rules are split out into `pool.js`.
+pool's table physics and 8-ball rules are split out into `pool.js`. Chess
+rules and the hint engine are in `public/chess.js`, which sits in `public/`
+because both the room and the browser load it.
 
 ## Tuning
 
@@ -98,6 +128,9 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 | `AIM_MS` | shot clock once a question is answered right |
 | `POOL_RESULT_MS` | pause on right or wrong before the shot or handover |
 | `LEAVE_GRACE_MS` | how long a dropped player's seat is held |
+| `CHESS_CLOCK_MS` | each player's chess clock |
+| `CHESS_PENALTY_MS` | time off your chess clock for a wrong answer |
+| `HINT_STREAK` | right answers in a row that unlock the best move |
 | `MAX_SPEED` (pool.js) | how hard a full-power shot hits |
 | `ROLL_DECEL`, `DRAG` (pool.js) | how quickly balls slow down |
 | `CORNER_GAP`, `SIDE_GAP` (pool.js) | pocket sizes |
@@ -106,6 +139,7 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 
 `MODES` in `worker.js` lists the games. A new one needs an entry there, a card
 in `#modeGrid` in `public/index.html` (there's a locked "More games" card
-holding the spot), and its own game loop in the room alongside pool's. The
+holding the spot), and its own game loop in the room alongside pool's and
+chess's. The
 lobby, test mode, leaving and the hold-to-quit button are shared and don't
 need to change.
