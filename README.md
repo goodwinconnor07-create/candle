@@ -183,7 +183,7 @@ Under the hood the room runs the whole battle (`towers.js`) ten times a
 second and sends both phones a small picture of it, which they draw smoothly
 between updates. Each player's question, hand and elixir only go to that
 player. The cards, the arena and the drop rules live in
-`public/towers-cards.js`, shared by the room and the browser. In Test Mode,
+`public/towers-cards.js`, shared by the room and the browser. In Practice,
 Tester plays a random deck, answers about three in four right, defends what
 crosses the river and pushes a lane when it has saved up.
 
@@ -236,19 +236,25 @@ Each match starts with a 3-2-1 that says who goes first.
 
 ## Starting a match
 
-Pick a game (Pool, Chess or Battleships), hit **Go**, then choose who you're playing:
+The home screen is a row of game cards you swipe through: Pool, Chess,
+Battleships, Towers and Mini Golf. Whichever card is in the middle is the game
+you'll play. Your character sits in the top left (tap it to change your name or
+character), and **Join** in the top right takes a 6-digit code.
 
-- **Invite a Friend** lets you send a link, or switch to **Get a code** for a
-  6-digit code you can read out or text. Your friend opens the site, taps
-  **Got a code? Join a match** under Go, and types it in. A code stops
-  working once someone has joined with it, and after a day either way.
-  Whoever joins picks a character and a name and hits **I'm ready**, and then
-  your **Start the match** button comes alive. Only the player who created the match can start
-  it, or rematch afterwards.
-- **Play a Bot** is greyed out until pool has a proper bot.
-- **Test Mode** skips setup and the lobby and puts you straight into a match
-  against "Tester", a stand-in that answers and shoots on its own. A dashed
-  "Test mode" tag stays on screen so it's never mistaken for a real match.
+- **Invite a friend** opens the lobby straight away if your name and character
+  are saved, or asks for them first. **Share invite** sends a link through the
+  phone's share sheet (on a computer it's **Copy link**). A 6-digit code shows
+  underneath for reading out. Your friend taps **Join** on the home screen and
+  types it in. A code stops working once someone has joined with it, and after
+  a day either way. Whoever joins picks a character and a name and hits **I'm
+  ready**, and then your **Start the match** button lights up. Only the player
+  who created the match can start it. Either player can rematch afterwards.
+- **Practice** puts you straight into a match against "Tester", a stand-in that
+  answers and plays on its own. A dashed "Practice" tag stays on screen so it's
+  never mistaken for a real match.
+
+On an iPhone, **Add to Home Screen** (from Safari's Share menu) installs it as a
+full-screen app with its own icon. Safari suggests this once.
 
 Only two people can be in a match. A third person opening the link is told it's
 full. If either player refreshes or their phone locks, they land back in the

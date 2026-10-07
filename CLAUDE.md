@@ -57,6 +57,9 @@ plays and DEPLOY.md for deploy details.
 - `archive/judge-debate-modes`: the app with Judge Mode and Debate Mode, before
   they were removed. Bring either back from there if asked.
 - `v1-accountability-candle`: the original candle race / solo candle timer.
+- `archive/pre-revamp`: the whole app just before the UI revamp (home cards,
+  lobby, design tokens). Roll back to it if the owner asks. The matching live
+  deploy was Cloudflare version `4d78c9b8-4290-453f-b5f9-961597de2539`.
 
 ## Running and testing
 
@@ -64,8 +67,10 @@ plays and DEPLOY.md for deploy details.
 npx wrangler dev       # local on http://localhost:8787, real Durable Object
 ```
 
-- Test Mode (Go → Test Mode) plays solo against "Tester" with no second
-  browser needed.
+- **Practice** on the home screen plays solo against "Tester" with no second
+  browser needed (in Playwright: click `[data-mode="chess"]`, then
+  `#introPractice`). **Invite a friend** is `#introGo`; with no saved profile it
+  opens the setup screen first.
 - For UI checks, Playwright with Chromium at `/opt/pw-browsers/chromium` works
   well: two browser contexts for a host and a guest.
 - Stop the dev server with `pkill -f "wrangler dev"` as its own command; it
@@ -117,7 +122,23 @@ PR to the default branch, merge, deploy, then check the live site.
   its sea in `seaResize()`, golf its course view in `golfResize()`, from the space left over, so anything added above or below them is accounted
   for automatically. Check new screens at 360x640 and 1280x720.
 - Match the existing style: dark "soot" background, tallow text, amber accent,
-  Fraunces serif for headings, the iMessage-inspired pool table.
+  the system font (SF Pro on Apple devices) for all interface text, Fraunces
+  only for the Study Duel wordmark, and the iMessage-inspired pool table. Each
+  game has its own colour pair (`--g1`/`--g2` on `[data-mode]`).
+- Use the design tokens in `:root` (`--r-*` corners, `--s*` spacing,
+  `--ease-out`, `--spring`, `--press`, `--settle`) rather than new one-off values.
+  Every tappable control needs a pressed state (`scale` dips while `:active`)
+  and at least a 44px touch area. Animate `scale`, `translate` and `opacity`,
+  never layout, and keep `prefers-reduced-motion` working.
+- The home screen is `#scIntro`: game cards in `#games` (a sideways
+  scroll-snap strip), `pickGame()` and `scrollToGame()` to choose one. Screens
+  before a game put their main button in a `.dock` at the bottom. `show()` slides
+  screens by their `DEPTH` and fades games in.
+- Ids must be unique across the whole page, including SVG gradient ids in the
+  home card scenes (`buildScenes()`): a gradient called `scSea` once hid the
+  Battleships screen from `$('scSea')`.
+- The app icon is `public/icons/mark.svg` (rendered to the PNGs beside it) and
+  `public/manifest.webmanifest` makes it installable.
 
 ## How the owner likes replies
 

@@ -44,7 +44,7 @@ npx wrangler dev
 This runs a real Durable Object locally on http://localhost:8787. Open it in
 two browser windows — one normal, one private, so they don't share the same
 saved seat — and you can play a full match against yourself. Or pick
-**Test Mode** to play solo against a stand-in.
+**Practice** to play solo against a stand-in.
 
 ## What's actually running
 
