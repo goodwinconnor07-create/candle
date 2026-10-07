@@ -88,6 +88,11 @@ PR to the default branch, merge, deploy, then check the live site.
 
 ## Things to keep in mind
 
+- Character art is the `char-*` SVG symbols (64x72). Shapes take the
+  character's colours from `--ch-hair/skin/ink/shirt`; light, shade and detail
+  are constant-colour overlays using the shared gradients in `#chDefs`
+  (a gradient can't pick up a CSS variable through `<use>`). `kingSprite()`
+  copies a symbol plus `#chDefs` into an image for the Towers king.
 - Characters live in `CHAR_LIST` (front end) and `CHARS` (server). A new
   character has to go in both, or the server silently refuses the guest's
   ready message. `bot` is server-assigned only, for the test stand-in.
