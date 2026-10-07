@@ -16,6 +16,13 @@
  * move for as long as the streak lasts. The rules live in public/chess.js,
  * which the browser loads too.
  *
+ * Battleships: both players lay out their fleets, then take turns firing.
+ * Every shot needs a right answer first. A wrong one shows the other player
+ * one empty square of yours and asks again; every third right answer in a
+ * row shows you one empty square of theirs. Each player is only ever sent
+ * their own fleet. The rules live in public/battleships.js, which the browser
+ * loads too.
+ *
  * Towers: a tower-battle game after Clash Royale. It runs in real time, and
  * both players answer their own questions at once: every right answer is
  * elixir, and elixir is the only way to play cards. The battle itself is in
@@ -26,12 +33,17 @@
  *
  * Routes:
  *   POST /api/games            create a room, returns {id, token}
+ *   POST /api/games/:id/code   host only ({token}), returns {code}: a
+ *                              6-digit code a friend can type instead of
+ *                              opening the link
+ *   GET  /api/codes/:code      returns {id} for a live code, or 404
  *   GET  /api/games/:id/ws     WebSocket, ?role=host|guest&token=...
  * Everything else is the static site in /public.
  */
 
 import * as Pool from './pool.js';
 import * as Chess from './public/chess.js';
+import * as Sea from './public/battleships.js';
 import * as Towers from './towers.js';
 import * as Cards from './public/towers-cards.js';
 
@@ -41,7 +53,7 @@ const TICK_MS      = 200;     // how often the room checks its own deadlines
 const NAME_MAX     = 16;
 // every mini game gets an entry here; the lobby, test mode and leaving all
 // work the same whichever one is picked
-const MODES        = { pool: 'Pool', chess: 'Chess', towers: 'Towers' };
+const MODES        = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers' };
 
 // ---- Pool ----
 // every shot is earned: the shooter answers a question first, and a miss
@@ -57,6 +69,16 @@ const CHESS_CLOCK_MS  = 5 * 60 * 1000;   // each player's clock
 const CHESS_PENALTY_MS = 15000;          // off your clock for a wrong answer or no answer
 const CHESS_RESULT_MS = 1500;            // pause on right/wrong; the clock stops for it
 const HINT_STREAK     = 3;               // right answers in a row that unlock the best move
+
+// ---- Battleships ----
+// a wrong answer never costs the shot: it gives away one of your empty
+// squares and you get another question. turns always alternate
+const SEA_PLACE_MS  = 90000;   // to lay out a fleet; whatever's on the board then is locked in
+const SEA_RESULT_MS = 1500;    // pause on right/wrong before firing or the next question
+const SEA_AIM_MS    = 20000;   // to pick a square once a question is answered right
+const SEA_SHOT_MS   = 1700;    // pause on a splash or a hit before the next turn
+const SEA_SUNK_MS   = 2400;    // a little longer when a ship goes down
+const SEA_STREAK    = 3;       // right answers in a row that clear one of their squares
 
 // ---- Towers ----
 // no turns: the battle runs in real time and both players answer their own
@@ -94,6 +116,53 @@ function randomId(bytes) {
   let s = '';
   raw.forEach((b) => { s += String.fromCharCode(b); });
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+// 100000-999999, so a code never starts with a zero someone might drop
+function randomCode() {
+  const n = crypto.getRandomValues(new Uint32Array(1))[0];
+  return String(100000 + (n % 900000));
+}
+
+function codeBook(env, code) {
+  return env.CODES.get(env.CODES.idFromName(code));
+}
+
+// One tiny Durable Object per join code, holding the room id it points at.
+// Claiming a code happens inside the object, so two rooms can never end up
+// with the same one. A code lasts as long as a room would, and is let go as
+// soon as someone takes the guest seat.
+export class JoinCode {
+  constructor(state) {
+    this.state = state;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+    const now = Date.now();
+    let entry = await this.state.storage.get('entry');
+    if (entry && entry.until < now) entry = null;
+
+    if (url.pathname === '/claim') {
+      if (entry && entry.id !== body.id) return json({ ok: false });
+      await this.state.storage.put('entry', { id: body.id, until: now + ROOM_TTL_MS });
+      await this.state.storage.setAlarm(now + ROOM_TTL_MS);
+      return json({ ok: true });
+    }
+    if (url.pathname === '/lookup') {
+      return entry ? json({ id: entry.id }) : err(404, 'no such code');
+    }
+    if (url.pathname === '/release') {
+      if (entry && entry.id === body.id) await this.state.storage.deleteAll();
+      return json({ ok: true });
+    }
+    return err(404, 'not found');
+  }
+
+  async alarm() {
+    await this.state.storage.deleteAll();
+  }
 }
 
 function clean(str, max) {
@@ -147,6 +216,7 @@ export class GameRoom {
     this.lobby = null;          // { hostName, hostToken, guestName, guestToken, guestReady, mode, ... }
     this.game = null;           // in-memory while a match is running
     this.loop = null;
+    this.codeClaim = null;      // a code request in flight, so two at once share it
   }
 
   async loadLobby() {
@@ -192,6 +262,20 @@ export class GameRoom {
       return json({ token: this.lobby.hostToken });
     }
 
+    if (url.pathname === '/code') {
+      const body = await request.json().catch(() => ({}));
+      const lobby = await this.loadLobby();
+      if (!lobby || !body.token || body.token !== lobby.hostToken) return err(403, 'not the host');
+      if (lobby.vsBot) return err(400, 'test matches have no code');
+      if (lobby.guestToken) return err(409, 'the guest seat is taken');
+      if (lobby.code) return json({ code: lobby.code });
+      if (!this.codeClaim) {
+        this.codeClaim = this.claimCode(body.id).finally(() => { this.codeClaim = null; });
+      }
+      const code = await this.codeClaim;
+      return code ? json({ code }) : err(503, 'no free code, try again');
+    }
+
     if (url.pathname === '/ws') {
       if (request.headers.get('upgrade') !== 'websocket') return err(426, 'expected websocket');
       const pair = new WebSocketPair();
@@ -200,6 +284,24 @@ export class GameRoom {
     }
 
     return err(404, 'not found');
+  }
+
+  async claimCode(id) {
+    for (let i = 0; i < 8; i++) {
+      const code = randomCode();
+      const res = await codeBook(this.env, code).fetch('https://code/claim', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if ((await res.json()).ok) {
+        this.lobby.code = code;
+        this.lobby.id = id;
+        await this.saveLobby();
+        return code;
+      }
+    }
+    return null;
   }
 
   async accept(ws, params) {
@@ -224,6 +326,14 @@ export class GameRoom {
       } else if (!lobby.guestToken) {
         lobby.guestToken = randomId(18);      // first arrival claims the seat
         await this.saveLobby();
+        // the seat's gone, so the code has nothing left to open
+        if (lobby.code) {
+          codeBook(this.env, lobby.code).fetch('https://code/release', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: lobby.id }),
+          }).catch(() => {});
+        }
         role = 'guest';
       }
     }
@@ -257,13 +367,13 @@ export class GameRoom {
     // the snapshot carries its own t:'state', so it has to be spread first or
     // it overwrites the welcome tag and the client never stores its token
     ws.send(JSON.stringify({
-      ...this.snapshot(),
+      ...this.snapshot(role),
       t: 'welcome',
       you: role,
       token: role === 'host' ? lobby.hostToken : lobby.guestToken,
       questionMs: QUESTION_MS,
     }));
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   async onMessage(role, msg) {
@@ -278,7 +388,7 @@ export class GameRoom {
       lobby.guestDeck = Cards.cleanDeck(msg.deck);
       lobby.guestReady = true;
       await this.saveLobby();
-      this.broadcast(this.snapshot());
+      this.sendState();
       return;
     }
 
@@ -292,7 +402,10 @@ export class GameRoom {
     if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
     if (msg.t === 'cans') { this.chessAnswer(role, msg.choice); return; }
     if (msg.t === 'move') { this.chessMove(role, msg); return; }
-    if (msg.t === 'bans') { this.towersAnswer(role, msg.choice, msg.id); return; }
+    if (msg.t === 'place' || msg.t === 'sready') { this.seaPlace(role, msg); return; }
+    if (msg.t === 'bans') { this.seaAnswer(role, msg.choice); return; }
+    if (msg.t === 'fire') { this.seaFire(role, msg); return; }
+    if (msg.t === 'tans') { this.towersAnswer(role, msg.choice, msg.id); return; }
     if (msg.t === 'play') { this.towersPlay(role, msg); return; }
 
     if (msg.t === 'leave') { this.playerLeft(role); return; }
@@ -325,7 +438,7 @@ export class GameRoom {
       this.game.tq = { host: this.towersQ0(), guest: this.towersQ0() };
       this.game.bt = 0;
       this.game.botLast = -99;
-      this.broadcast(this.snapshot());
+      this.sendState();
       this.towersSend();
       this.startLoop(TOWERS_TICK_MS);
       return;
@@ -348,7 +461,36 @@ export class GameRoom {
         penalty: null,          // { role, id } so both screens can flash the -15s
         penalties: 0,
       };
-      this.broadcast(this.snapshot());
+      this.sendState();
+      this.startLoop();
+      return;
+    }
+    if (mode === 'battleships') {
+      // both fleets start out placed at random, so there's always a legal
+      // layout to lock in, even if someone never touches theirs
+      const board = () => ({
+        fleet: Sea.randomFleet(),
+        shots: Array(Sea.SIZE * Sea.SIZE).fill('.'),   // landed here: 'o' miss, 'x' hit
+        marks: Array(Sea.SIZE * Sea.SIZE).fill('.'),   // shown to be empty: 'r' gave away, 'b' streak
+      });
+      this.game.phase = 'place';
+      this.game.deadline = now + SEA_PLACE_MS;
+      this.game.sea = {
+        turn: breaker,
+        boards: { host: board(), guest: board() },
+        // the stand-in is happy with its random layout
+        ready: { host: false, guest: !!this.lobby.vsBot },
+        call: 'Place your ships.',
+        stats: { host: { asked: 0, right: 0, shots: 0, hits: 0 }, guest: { asked: 0, right: 0, shots: 0, hits: 0 } },
+        streak: { host: 0, guest: 0 },
+        bqResult: null,
+        last: null,       // the latest shot, so both screens can play it
+        reveal: null,     // the latest square given away
+        shots: 0,
+        reveals: 0,
+        after: null,
+      };
+      this.sendState();
       this.startLoop();
       return;
     }
@@ -367,7 +509,7 @@ export class GameRoom {
       stats: { host: { asked: 0, right: 0 }, guest: { asked: 0, right: 0 } },
       pqResult: null,
     };
-    this.broadcast(this.snapshot());
+    this.sendState();
     this.startLoop();
   }
 
@@ -385,7 +527,7 @@ export class GameRoom {
       g.botDueAt = Date.now() + 1500 + rnd(1500);
       g.botChoice = Math.random() < .75 ? g.q.answer : (g.q.answer + 1 + rnd(3)) % 4;
     }
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   poolAnswer(role, choice) {
@@ -399,7 +541,7 @@ export class GameRoom {
     T.pqResult = { choice: picked, right };
     g.phase = 'pqres';
     g.deadline = Date.now() + POOL_RESULT_MS;
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   // hand the table to the other player. the cue ball can only be in hand if
@@ -473,7 +615,7 @@ export class GameRoom {
     };
     g.phase = 'rolling';
     g.deadline = Date.now() + Math.ceil(sim.frames.length * 1000 / Pool.FPS) + ROLL_PAD_MS;
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   poolTick(g) {
@@ -497,7 +639,7 @@ export class GameRoom {
         g.deadline = Date.now() + AIM_MS;
         if (g.vsBot && T.turn === 'guest') g.botDueAt = Date.now() + 1200 + rnd(1300);
         T.call = g[T.turn].name + (!T.broken ? ' is breaking.' : ' is taking their shot.');
-        this.broadcast(this.snapshot());
+        this.sendState();
       } else {
         const them = g[T.turn === 'host' ? 'guest' : 'host'].name;
         this.poolPass((T.pqResult && T.pqResult.choice != null ? 'Wrong answer. ' : 'No answer. ') + 'Over to ' + them + '.');
@@ -518,7 +660,7 @@ export class GameRoom {
         g.over = { winner: a.win, why: a.winWhy };
         T.call = a.call;
         this.stopLoop();
-        this.broadcast(this.snapshot());
+        this.sendState();
         return;
       }
       T.turn = a.turn;
@@ -569,7 +711,7 @@ export class GameRoom {
       g.botDueAt = Date.now() + 1500 + rnd(1500);
       g.botChoice = Math.random() < .75 ? g.q.answer : (g.q.answer + 1 + rnd(3)) % 4;
     }
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   chessAnswer(role, choice) {
@@ -592,7 +734,7 @@ export class GameRoom {
     C.cqResult = { choice: picked, right };
     g.phase = 'cqres';
     g.deadline = Date.now() + CHESS_RESULT_MS;
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   chessMove(role, msg) {
@@ -633,7 +775,7 @@ export class GameRoom {
     g.over = { winner, draw: !winner, why };
     g.chess.call = why;
     this.stopLoop();
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   // out of time loses, unless the other side couldn't ever mate
@@ -678,7 +820,7 @@ export class GameRoom {
         C.call = C.streak[turn] >= HINT_STREAK
           ? name + ' is on a streak of ' + C.streak[turn] + ' and gets the best move.'
           : name + ' is choosing a move.';
-        this.broadcast(this.snapshot());
+        this.sendState();
       } else {
         C.call = (C.cqResult && C.cqResult.choice != null ? 'Wrong answer. ' : 'No answer. ')
           + name + ' loses ' + (CHESS_PENALTY_MS / 1000) + ' seconds. Another question.';
@@ -687,7 +829,170 @@ export class GameRoom {
     }
   }
 
-  // ---- Towers ----
+  // ---- Battleships ----
+  // first both players lay out their fleets. then a turn is: question →
+  // (right) fire → the other player's question. a wrong answer or a timeout
+  // gives away one of your empty squares and asks again
+
+  seaPlace(role, msg) {
+    const g = this.game;
+    if (!g || g.mode !== 'battleships' || g.phase !== 'place') return;
+    const S = g.sea;
+    if (S.ready[role]) return;
+    const fleet = Sea.cleanFleet(msg.ships);
+    if (fleet) S.boards[role].fleet = fleet;
+    // a layout change only matters to the room; nobody else gets to see it
+    if (msg.t !== 'sready') return;
+    S.ready[role] = true;
+    if (S.ready.host && S.ready.guest) this.seaCountdown();
+    else this.sendState();
+  }
+
+  seaCountdown() {
+    const g = this.game, S = g.sea;
+    S.ready.host = S.ready.guest = true;
+    g.phase = 'countdown';
+    g.deadline = Date.now() + COUNTDOWN_MS;
+    S.call = g[S.turn].name + ' fires first.';
+    this.sendState();
+  }
+
+  seaAsk() {
+    const g = this.game, S = g.sea;
+    g.q = makeQuestion();
+    S.bqResult = null;
+    g.phase = 'bq';
+    g.deadline = Date.now() + QUESTION_MS;
+    if (g.vsBot && S.turn === 'guest') {
+      g.botDueAt = Date.now() + 1500 + rnd(1500);
+      g.botChoice = Math.random() < .75 ? g.q.answer : (g.q.answer + 1 + rnd(3)) % 4;
+    }
+    this.sendState();
+  }
+
+  // mark one empty square on this board that nobody has fired at or been
+  // shown yet, for the other player to see
+  seaReveal(owner, kind) {
+    const S = this.game.sea, B = S.boards[owner], open = [];
+    for (let sq = 0; sq < Sea.SIZE * Sea.SIZE; sq++) {
+      if (B.shots[sq] === '.' && B.marks[sq] === '.' && Sea.shipAt(B.fleet, sq) < 0) open.push(sq);
+    }
+    if (!open.length) return null;
+    const sq = open[rnd(open.length)];
+    B.marks[sq] = kind;
+    S.reveals += 1;
+    S.reveal = { board: owner, sq, kind, id: S.reveals };
+    return S.reveal;
+  }
+
+  seaAnswer(role, choice) {
+    const g = this.game;
+    if (!g || g.mode !== 'battleships' || g.phase !== 'bq' || role !== g.sea.turn) return;
+    const S = g.sea, other = role === 'host' ? 'guest' : 'host';
+    const picked = choice == null ? null : Number(choice);
+    const right = picked === g.q.answer;
+    S.stats[role].asked += 1;
+    let reveal = null;
+    if (right) {
+      S.stats[role].right += 1;
+      S.streak[role] += 1;
+      if (S.streak[role] % SEA_STREAK === 0) reveal = this.seaReveal(other, 'b');
+    } else {
+      S.streak[role] = 0;
+      reveal = this.seaReveal(role, 'r');
+    }
+    S.bqResult = { choice: picked, right, reveal };
+    g.phase = 'bqres';
+    g.deadline = Date.now() + SEA_RESULT_MS;
+    this.sendState();
+  }
+
+  seaFire(role, msg) {
+    const g = this.game;
+    if (!g || g.mode !== 'battleships' || g.phase !== 'fire' || role !== g.sea.turn) return;
+    const S = g.sea, other = role === 'host' ? 'guest' : 'host', B = S.boards[other];
+    const sq = Number(msg.sq);
+    if (!Number.isInteger(sq) || sq < 0 || sq >= Sea.SIZE * Sea.SIZE) return;
+    if (B.shots[sq] !== '.' || B.marks[sq] !== '.') return;
+
+    const ship = Sea.shipAt(B.fleet, sq);
+    B.shots[sq] = ship >= 0 ? 'x' : 'o';
+    S.stats[role].shots += 1;
+    if (ship >= 0) S.stats[role].hits += 1;
+    const sunk = Sea.sunkList(B.fleet, B.shots);
+    const down = ship >= 0 && sunk[ship] ? ship : -1;
+    const won = sunk.every(Boolean);
+    S.shots += 1;
+    S.last = { by: role, sq, hit: ship >= 0, sunk: down, id: S.shots };
+
+    const me = g[role].name, them = g[other].name, at = Sea.coord(sq);
+    const name = down >= 0 ? Sea.FLEET[down].name : '';
+    if (won) S.call = me + ' sinks the ' + name + ', the last of ' + them + "'s fleet.";
+    else if (down >= 0) S.call = me + ' fires at ' + at + ' and sinks the ' + name + '.';
+    else S.call = me + ' fires at ' + at + (ship >= 0 ? '. Hit!' : '. Miss.');
+    S.after = won ? { win: role, why: S.call } : null;
+    g.phase = 'shot';
+    g.deadline = Date.now() + (down >= 0 ? SEA_SUNK_MS : SEA_SHOT_MS);
+    this.sendState();
+  }
+
+  seaTick(g) {
+    const S = g.sea, now = Date.now();
+    const other = S.turn === 'host' ? 'guest' : 'host';
+    // the stand-in opponent's turns: answer after a moment, then fire
+    if (g.vsBot && S.turn === 'guest' && g.botDueAt && now >= g.botDueAt) {
+      if (g.phase === 'bq') { g.botDueAt = 0; this.seaAnswer('guest', g.botChoice); return; }
+      if (g.phase === 'fire') {
+        g.botDueAt = 0;
+        const B = S.boards.host, sunkCells = new Set();
+        Sea.sunkList(B.fleet, B.shots).forEach((down, i) => {
+          if (down) Sea.cells(B.fleet[i], Sea.FLEET[i].len).forEach((c) => sunkCells.add(c));
+        });
+        this.seaFire('guest', { sq: Sea.botFire(B.shots, B.marks, sunkCells) });
+        return;
+      }
+    }
+    if (now < g.deadline) return;
+    if (g.phase === 'place') { this.seaCountdown(); return; }
+    if (g.phase === 'countdown') { this.seaAsk(); return; }
+    if (g.phase === 'bq') { this.seaAnswer(S.turn, null); return; }
+    if (g.phase === 'bqres') {
+      const r = S.bqResult || {}, name = g[S.turn].name;
+      if (r.right) {
+        g.phase = 'fire';
+        g.q = null;
+        g.deadline = now + SEA_AIM_MS;
+        if (g.vsBot && S.turn === 'guest') g.botDueAt = now + 1000 + rnd(1300);
+        S.call = name + ' is picking a square to fire at.';
+        this.sendState();
+      } else {
+        S.call = (r.choice != null ? 'Wrong answer. ' : 'No answer. ')
+          + (r.reveal ? name + ' gives away an empty square. ' : '') + 'Another question.';
+        this.seaAsk();
+      }
+      return;
+    }
+    if (g.phase === 'fire') {
+      S.call = 'Out of time. Over to ' + g[other].name + '.';
+      S.turn = other;
+      this.seaAsk();
+      return;
+    }
+    if (g.phase === 'shot') {
+      if (S.after) {
+        g.phase = 'over';
+        g.q = null;
+        g.over = { winner: S.after.win, why: S.after.why };
+        this.stopLoop();
+        this.sendState();
+        return;
+      }
+      S.turn = other;
+      this.seaAsk();
+    }
+  }
+
+    // ---- Towers ----
   // the room steps the battle every 100ms and sends each player the shared
   // picture plus their own hand, elixir and question. a question's answer
   // only goes out once it's been answered
@@ -792,7 +1097,7 @@ export class GameRoom {
         g.phase = 'battle';
         this.towersAsk('host');
         this.towersAsk('guest');
-        this.broadcast(this.snapshot());
+        this.sendState();
       }
       this.towersSend();
       return;
@@ -816,7 +1121,7 @@ export class GameRoom {
     if (g.phase === 'battle' && g.bt >= TOWERS_REG_TICKS) {
       if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'time'); return; }
       g.phase = 'overtime';
-      this.broadcast(this.snapshot());
+      this.sendState();
     } else if (g.phase === 'overtime') {
       // sudden death: the first tower to fall settles it
       if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'overtime'); return; }
@@ -846,7 +1151,7 @@ export class GameRoom {
     g.over = { winner, draw: !winner, why, crowns: cr };
     this.stopLoop();
     this.towersSend();
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   towersSnapshot(mode) {
@@ -896,16 +1201,17 @@ export class GameRoom {
     if (!g) return;
     const other = role === 'host' ? 'guest' : 'host';
     if (g.phase === 'over') {
-      if (g.over && !g.over.left) { g.over.left = role; this.broadcast(this.snapshot()); }
+      if (g.over && !g.over.left) { g.over.left = role; this.sendState(); }
       return;
     }
     g.phase = 'over';
     g.over = { winner: other, left: role, why: g[role].name + ' left the game.' };
     g.q = null;
     if (g.chess) { if (g.chess.since) this.chessStop(); g.chess.call = g.over.why; }
+    else if (g.sea) g.sea.call = g.over.why;
     else if (g.table) { g.table.shot = null; g.table.after = null; g.table.call = g.over.why; }
     this.stopLoop();
-    this.broadcast(this.snapshot());
+    this.sendState();
   }
 
   // the room only has to enforce its own deadlines; each browser runs the
@@ -919,11 +1225,13 @@ export class GameRoom {
       }
     }
     if (g.mode === 'chess') this.chessTick(g);
+    else if (g.mode === 'battleships') this.seaTick(g);
     else if (g.mode === 'towers') this.towersTick(g);
     else this.poolTick(g);
   }
 
-  snapshot() {
+  // role says whose eyes it's for. only battleships keeps secrets per seat
+  snapshot(role) {
     const lobby = this.lobby;
     const g = this.game;
     const mode = lobby && MODES[lobby.mode] ? lobby.mode : 'pool';
@@ -945,6 +1253,7 @@ export class GameRoom {
     }
 
     if (g.chess) return this.chessSnapshot(mode);
+    if (g.sea) return this.seaSnapshot(mode, role);
     if (g.battle) return this.towersSnapshot(mode);
 
     const T = g.table;
@@ -1022,9 +1331,64 @@ export class GameRoom {
     return snap;
   }
 
-  broadcast(msg) {
-    const payload = JSON.stringify(msg);
+  seaSnapshot(mode, role) {
+    const g = this.game, S = g.sea;
+    const me = role === 'guest' ? 'guest' : 'host', op = me === 'host' ? 'guest' : 'host';
+    const mine = S.boards[me], theirs = S.boards[op];
+    const theirSunk = Sea.sunkList(theirs.fleet, theirs.shots);
+    const snap = {
+      t: 'state',
+      phase: g.phase,
+      mode,
+      modeName: MODES[mode],
+      test: !!g.test,
+      ms: Math.max(0, g.deadline - Date.now()),
+      host: { name: g.host.name, char: g.host.char },
+      guest: { name: g.guest.name, char: g.guest.char },
+      over: g.over,
+      sea: {
+        // who fires first stays a secret until both fleets are in
+        turn: g.phase === 'place' ? null : S.turn,
+        call: S.call,
+        ready: S.ready,
+        stats: S.stats,
+        streak: S.streak,
+        streakAt: SEA_STREAK,
+        aimMs: SEA_AIM_MS,
+        placeMs: SEA_PLACE_MS,
+        bqResult: S.bqResult,
+        last: S.last,
+        reveal: S.reveal,
+        mine: {
+          fleet: mine.fleet,
+          shots: mine.shots.join(''),
+          marks: mine.marks.join(''),
+          sunk: Sea.sunkList(mine.fleet, mine.shots),
+        },
+        // their ships stay hidden until they're sunk, or the match is over
+        theirs: {
+          fleet: theirs.fleet.map((s, i) => (g.phase === 'over' || theirSunk[i] ? s : null)),
+          shots: theirs.shots.join(''),
+          marks: theirs.marks.join(''),
+          sunk: theirSunk,
+        },
+      },
+    };
+    // never ship the answer index while the question is still live
+    if (g.q && (g.phase === 'bq' || g.phase === 'bqres')) {
+      snap.q = g.phase === 'bq'
+        ? { text: g.q.text, choices: g.q.choices }
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+    }
+    return snap;
+  }
+
+  // each seat gets its own copy of the state, because in battleships the two
+  // players must never see each other's fleets
+  sendState() {
+    const made = {};
     for (const conn of [...this.sockets]) {
+      const payload = made[conn.role] || (made[conn.role] = JSON.stringify(this.snapshot(conn.role)));
       try { conn.ws.send(payload); } catch (e) { this.sockets.delete(conn); }
     }
   }
@@ -1033,6 +1397,11 @@ export class GameRoom {
 async function api(request, env) {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').filter(Boolean);   // ['api','games', id?, 'ws'?]
+
+  if (parts[1] === 'codes' && parts.length === 3 && request.method === 'GET') {
+    if (!/^\d{6}$/.test(parts[2])) return err(404, 'no such code');
+    return codeBook(env, parts[2]).fetch('https://code/lookup');
+  }
 
   if (parts[1] !== 'games') return err(404, 'not found');
 
@@ -1047,6 +1416,16 @@ async function api(request, env) {
     });
     const created = await res.json();
     return json({ id, token: created.token }, { status: 201 });
+  }
+
+  if (parts.length === 4 && parts[3] === 'code' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const room = env.GAMES.get(env.GAMES.idFromName(parts[2]));
+    return room.fetch('https://room/code', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: parts[2], token: body.token }),
+    });
   }
 
   if (parts.length === 4 && parts[3] === 'ws') {

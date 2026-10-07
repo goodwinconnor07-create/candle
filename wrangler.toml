@@ -12,7 +12,16 @@ binding = "ASSETS"
 name = "GAMES"
 class_name = "GameRoom"
 
+# One tiny Durable Object per 6-digit join code, pointing at its room.
+[[durable_objects.bindings]]
+name = "CODES"
+class_name = "JoinCode"
+
 # SQLite-backed classes are the ones the free plan allows.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["JoinCode"]
