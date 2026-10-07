@@ -1322,13 +1322,12 @@
   .game{ max-height:calc(var(--cardw) * 1.72); align-self:center; height:100%; }
   .game:not(.on){ scale:.93; opacity:.5; }
   .game.on{ cursor:default; }
-  /* motion blur: blurMotion() sets --mb from how fast the strip is moving and
-     only adds .moving while there's something to blur */
-  .games.moving .game{ filter:blur(var(--mb, 0px)); }
-  /* with a mouse the strip drags like a touch screen */
-  @media (hover:hover) and (pointer:fine){
-    .games, .game, .game.on{ cursor:grab; }
-    .games.dragging, .games.dragging .game{ cursor:grabbing; -webkit-user-select:none; user-select:none; }
+  /* moving the strip moves the cards: they lean into the direction, stretch a
+     touch and leave a soft sideways trail (#cardSmear), all from how fast the
+     strip is going (see smearMotion). .moving is only on while it's in motion */
+  .games.moving .game{
+    transform:skewX(var(--lean, 0deg)) scaleX(var(--stretch, 1));
+    filter:url(#cardSmear);
   }
   .game::before{   /* a soft sheen across the top, like light on glass */
     content:""; position:absolute; inset:0 0 auto; height:46%; pointer-events:none;
@@ -1456,7 +1455,7 @@
     .sc-hop, .sc-hint, .sc-taken, .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint, .sc-flag, .lobbyside.waiting .pod{ animation:none; }
     .sc-hint{ opacity:.9; }
     .game{ transition:none; }
-    .games.moving .game{ filter:none; }
+    .games.moving .game{ transform:none; filter:none; }
   }
 
   /* a new question's answers rise in one after another */
@@ -1616,6 +1615,14 @@
 </style>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <filter id="cardSmear" x="-25%" y="0" width="150%" height="100%" color-interpolation-filters="sRGB">
+      <feGaussianBlur id="smearBlur" in="SourceGraphic" stdDeviation="0 0" result="b"/>
+      <feOffset id="smearOff" in="b" dx="0" dy="0" result="o"/>
+      <feComponentTransfer in="o" result="t"><feFuncA type="linear" slope=".4"/></feComponentTransfer>
+      <feMerge><feMergeNode in="t"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </svg>
   <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="tint" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
@@ -7508,79 +7515,37 @@
     st.setProperty('--tint2', `color-mix(in srgb, ${a[1]}, ${b[1]} ${pc}%)`);
   }
 
-  // motion blur: the faster the strip moves, the softer the cards get, then
-  // they sharpen as it settles. one frame loop that runs only while moving
-  const MB_MAX = 5, MB_PER_PX_MS = 3.4;
-  let mbCur = 0, mbRaf = 0, mbLeft = 0, mbT = 0, mbStill = 0;
-  function blurMotion(now){
+  // moving the strip moves the cards: they lean into the direction, stretch a
+  // little and drag a soft trail behind them, then settle as the strip slows.
+  // one frame loop that runs only while there's motion
+  const smearBlur = $('smearBlur'), smearOff = $('smearOff');
+  let smV = 0, smRaf = 0, smLeft = 0, smT = 0, smStill = 0;
+  function smearMotion(now){
     const box = $('games');
-    const dt = Math.max(1, now - mbT), v = Math.abs(box.scrollLeft - mbLeft) / dt;
-    mbLeft = box.scrollLeft; mbT = now;
-    const target = Math.min(MB_MAX, v * MB_PER_PX_MS);
-    mbCur += (target - mbCur) * (target > mbCur ? .5 : .16);
-    mbStill = target < .05 ? mbStill + 1 : 0;
-    if(mbCur < .05 && mbStill > 8){
-      mbCur = 0; mbRaf = 0; mbStill = 0;
-      box.classList.remove('moving'); box.style.removeProperty('--mb');
+    const dt = Math.max(1, now - smT), v = (box.scrollLeft - smLeft) / dt;   // px per ms, + = cards go left
+    smLeft = box.scrollLeft; smT = now;
+    smV += (v - smV) * (Math.abs(v) > Math.abs(smV) ? .45 : .14);
+    const a = Math.abs(smV), dir = smV < 0 ? -1 : 1;
+    smStill = a < .02 ? smStill + 1 : 0;
+    if(smStill > 8){
+      smV = 0; smRaf = 0; smStill = 0;
+      box.classList.remove('moving');
+      box.style.removeProperty('--lean'); box.style.removeProperty('--stretch');
       return;
     }
-    box.classList.add('moving'); box.style.setProperty('--mb', mbCur.toFixed(2) + 'px');
-    mbRaf = requestAnimationFrame(blurMotion);
+    const trail = Math.min(3.5, a * 2.2);
+    box.classList.add('moving');
+    box.style.setProperty('--lean', (dir * Math.min(2.2, a * 1.5)).toFixed(2) + 'deg');
+    box.style.setProperty('--stretch', (1 + Math.min(.015, a * .01)).toFixed(4));
+    smearBlur.setAttribute('stdDeviation', trail.toFixed(2) + ' 0');
+    smearOff.setAttribute('dx', (dir * trail * 1.2).toFixed(2));
+    smRaf = requestAnimationFrame(smearMotion);
   }
   $('games').addEventListener('scroll', () => {
-    if(mbRaf || reduceMotion()) return;
-    mbLeft = $('games').scrollLeft; mbT = performance.now();
-    mbRaf = requestAnimationFrame(blurMotion);
+    if(smRaf || reduceMotion()) return;
+    smLeft = $('games').scrollLeft; smT = performance.now();
+    smRaf = requestAnimationFrame(smearMotion);
   }, { passive: true });
-
-  // click and drag with a mouse. snapping is switched off while you hold the
-  // strip, then on letting go it glides to the card your throw is heading for
-  (function(){
-    const box = $('games');
-    let down = null, dragging = false, justDragged = false, trail = [];
-    box.addEventListener('dragstart', e => e.preventDefault());
-    box.addEventListener('pointerdown', e => {
-      if(e.pointerType !== 'mouse' || e.button !== 0) return;
-      down = { id: e.pointerId, x: e.clientX, left: box.scrollLeft };
-      trail = [{ x: e.clientX, t: e.timeStamp }];
-    });
-    box.addEventListener('pointermove', e => {
-      if(!down || e.pointerId !== down.id) return;
-      const dx = e.clientX - down.x;
-      if(!dragging){
-        if(Math.abs(dx) < 6) return;
-        dragging = true; gameLock = null;
-        box.setPointerCapture(e.pointerId);
-        box.classList.add('dragging'); box.style.scrollSnapType = 'none';
-      }
-      box.scrollLeft = down.left - dx;
-      trail.push({ x: e.clientX, t: e.timeStamp });
-      while(trail.length > 2 && e.timeStamp - trail[0].t > 120) trail.shift();
-    });
-    function release(e){
-      if(!down || e.pointerId !== down.id) return;
-      const was = dragging;
-      down = null; dragging = false;
-      if(!was) return;
-      justDragged = true; setTimeout(() => { justDragged = false; }, 60);
-      box.classList.remove('dragging');
-      // where the throw is heading: current spot plus a bit of the release speed
-      const a = trail[0], b = trail[trail.length - 1];
-      const v = b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0;   // px per ms, finger direction
-      const aim = box.scrollLeft - v * 220 + box.clientWidth / 2;
-      let best = gameCards[0], bd = Infinity;
-      for(const c of gameCards){
-        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - aim);
-        if(d < bd){ bd = d; best = c; }
-      }
-      box.style.scrollSnapType = '';
-      scrollToGame(best.dataset.mode, true);
-    }
-    box.addEventListener('pointerup', release);
-    box.addEventListener('pointercancel', release);
-    // a drag that ends over a card shouldn't also tap it
-    box.addEventListener('click', e => { if(justDragged){ e.stopPropagation(); e.preventDefault(); } }, true);
-  })();
 
   document.addEventListener('keydown', e => {
     if($('scIntro').hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
