@@ -253,6 +253,12 @@ character), and **Join** in the top right takes a 6-digit code.
   answers and plays on its own. A dashed "Practice" tag stays on screen so it's
   never mistaken for a real match.
 
+**Haptics:** taps, answers, your turn and big moments give a small buzz. Android
+and most browsers use the vibration API. On iPhone Safari (iOS 17.4 and later)
+it uses the system's own tick, and only while you're tapping, so some moments
+(like the other player's move arriving) stay silent there. Turn it off under
+your profile.
+
 On an iPhone, **Add to Home Screen** (from Safari's Share menu) installs it as a
 full-screen app with its own icon. Safari suggests this once.
 

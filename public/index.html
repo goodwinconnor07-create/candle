@@ -1514,6 +1514,20 @@
   @media (max-height:600px){
     #scGuest .lobby{ display:none; }
   }
+
+  .togglerow{
+    width:min(320px, 100%); display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:12px 16px; border-radius:var(--r-md); cursor:pointer; text-align:left; color:var(--tallow);
+    font:600 .95rem/1.25 var(--sans); border:1px solid var(--hair); background:rgba(239,227,204,.04);
+    transition:scale var(--settle) var(--spring), filter .2s;
+  }
+  .togglerow:active{ scale:.97; filter:brightness(.9); transition-duration:var(--press); }
+  .togglerow small{ display:block; margin-top:2px; font-weight:400; font-size:.76rem; color:var(--ash); }
+  .switch{ position:relative; flex:0 0 auto; width:46px; height:28px; border-radius:99px; background:rgba(239,227,204,.16); transition:background .25s; }
+  .switch::after{ content:""; position:absolute; left:3px; top:3px; width:22px; height:22px; border-radius:50%; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,.4); transition:translate .3s var(--spring); }
+  .togglerow[aria-checked="true"] .switch{ background:var(--go); }
+  .togglerow[aria-checked="true"] .switch::after{ translate:18px 0; }
+@media (max-height:720px){ #hapticsRow small{ display:none; } #hapticsRow{ padding:9px 14px; } }
 </style>
 </head>
 <body>
@@ -1883,6 +1897,9 @@
       <p class="lead" id="setupLead">Your opponent sees this next to every move.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="Your name" autocomplete="name" aria-label="Your name">
       <div class="chars" id="charGridHost"></div>
+      <button class="togglerow" id="hapticsRow" type="button" role="switch" aria-checked="true" hidden>
+        <span>Haptic feedback<small>A small buzz on taps and answers</small></span><i class="switch"></i>
+      </button>
       <p class="note" id="setupNote"></p>
       <div class="dock"><button class="btn primary" id="setupGo" type="button" disabled>Create a match</button></div>
     </section>
@@ -2248,6 +2265,43 @@
     if(appH() === lastAppH) return;
     setAppH(); window.dispatchEvent(new Event('resize'));
   });
+  /* ---------- haptics ----------
+     Android and most browsers buzz through navigator.vibrate. iPhone Safari
+     has no vibrate, but toggling a native switch input (iOS 17.4 and later)
+     gives the system's own light tick, and only from inside a tap, so it's
+     best-effort and silent when it can't. Kinds: tick for a press, select for
+     a choice, success and error for answers, turn for your move, heavy for a
+     strike. Can be switched off in your profile */
+  const haptics = (() => {
+    let on = true, pad = null;
+    try{ on = localStorage.getItem('sd-haptics') !== '0'; }catch(e){}
+    const PAT = { tick: 8, select: 14, success: [14, 50, 22], error: [40, 40, 40, 40, 70], turn: [20, 40, 30], heavy: 45, hit: [60, 60, 90] };
+    // one invisible switch, built on first use
+    const tickIOS = () => {
+      try{
+        if(!pad){
+          const l = document.createElement('label');
+          l.setAttribute('aria-hidden', 'true');
+          l.style.cssText = 'position:fixed;left:-99px;top:-99px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+          const i = document.createElement('input');
+          i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1;
+          l.appendChild(i); document.body.appendChild(l); pad = l;
+        }
+        pad.click();
+      }catch(e){}
+    };
+    const fire = kind => {
+      if(!on) return;
+      const pat = PAT[kind] || PAT.tick;
+      if(navigator.vibrate){ try{ navigator.vibrate(pat); }catch(e){} return; }
+      const beats = Array.isArray(pat) ? pat.filter((_, i) => i % 2 === 0).length : 1;
+      tickIOS();
+      for(let b = 1; b < beats; b++) setTimeout(tickIOS, b * 70);
+    };
+    fire.isOn = () => on;
+    fire.set = v => { on = !!v; try{ localStorage.setItem('sd-haptics', v ? '1' : '0'); }catch(e){} };
+    return fire;
+  })();
   const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scDead'];
   const GAME_NAMES = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers', golf: 'Mini Golf' };
   const GAME_ICON = { pool: 'pool', chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' };
@@ -2296,7 +2350,7 @@
     if(turn === myRole && lastTurn !== myRole){
       const el = $('yourTurn');
       el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
-      try{ if(navigator.vibrate) navigator.vibrate(35); }catch(e){}
+      haptics('turn');
     }
     lastTurn = turn;
   }
@@ -3515,6 +3569,7 @@
     ws.send(JSON.stringify(msg));
     pv.sent = true;
     const now = performance.now();
+    haptics('heavy');
     pv.strike = { c: { x: c.x, y: c.y }, aim: { x: pv.aim.x, y: pv.aim.y }, p0: pv.power, t0: now };
     // run the shot here and now, exactly as the room will, so the ball
     // leaves the instant the stick reaches it rather than a round trip later
@@ -4812,7 +4867,7 @@
       sv.fx.set(view + S.last.sq, { cls: S.last.hit ? 'boom' : 'splash', until: now + 900 });
       if(S.last.hit && S.last.by !== myRole){
         rattle = true;
-        try{ if(navigator.vibrate) navigator.vibrate(S.last.sunk >= 0 ? [60, 60, 90] : 60); }catch(e){}
+        haptics(S.last.sunk >= 0 ? 'hit' : 'heavy');
       }
     }
     const qKey = s.q ? s.q.text + '|' + s.q.choices.join(',') : '';
@@ -6657,6 +6712,7 @@
         : "That's off the arena.");
       return;
     }
+    haptics('select');
     ws.send(JSON.stringify({ t:'play', slot, card: bv.me.hand[slot], x: hx, y: hy }));
     bv.sel = null; bv.hover = null;
     bv.fx.push({ type: 'drop', x, y, t0: performance.now() });
@@ -6881,7 +6937,7 @@
     const was = phase;
     phase = s.phase;
     // a win you just watched happen gets a little confetti
-    if(s.phase === 'over' && was && was !== 'over' && s.over && !s.over.left && s.over.winner === myRole) setTimeout(confetti, 300);
+    if(s.phase === 'over' && was && was !== 'over' && s.over && !s.over.left && s.over.winner === myRole){ haptics('success'); setTimeout(confetti, 300); }
     curState = s;
     $('testChip').hidden = !s.test;
     // a test match has no one to wait for, so the lobby starts itself
@@ -7127,7 +7183,7 @@
         const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
         if(d < bd){ bd = d; best = c; }
       }
-      if(best && best.dataset.mode !== pickedMode) pickGame(best.dataset.mode);
+      if(best && best.dataset.mode !== pickedMode){ pickGame(best.dataset.mode); haptics('tick'); }
     });
   }, { passive: true });
 
@@ -7144,6 +7200,11 @@
     $('profileChip').classList.toggle('empty', !pickedChar);
   }
   $('profileChip').addEventListener('click', () => openSetup('profile'));
+  $('hapticsRow').addEventListener('click', () => {
+    haptics.set(!haptics.isOn());
+    $('hapticsRow').setAttribute('aria-checked', String(haptics.isOn()));
+    haptics('select');
+  });
 
   let setupFor = 'invite';
   function openSetup(why){
@@ -7155,6 +7216,8 @@
     $('setupGo').disabled = !pickedChar;
     $('setupNote').className = 'note';
     $('setupNote').textContent = pickedChar ? '' : 'Pick a character to continue.';
+    $('hapticsRow').hidden = !profile;
+    $('hapticsRow').setAttribute('aria-checked', String(haptics.isOn()));
     show(['scSetup']);
   }
 
@@ -7414,6 +7477,7 @@
 
   function quitHoldStart(){
     if(quitTimer) return;
+    haptics('tick');
     $('quitBtn').classList.add('holding');
     const ring = $('quitRing');
     ring.style.transition = 'stroke-dashoffset ' + QUIT_HOLD_MS + 'ms linear';
@@ -7421,6 +7485,7 @@
     quitTimer = setTimeout(() => {
       quitTimer = null;
       if($('quitBtn').hidden) return;   // the match ended on its own mid-hold
+      haptics('heavy');
       // tell the room first, so the other player's game ends now rather
       // than after the dropped-connection grace period
       try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
@@ -7594,6 +7659,30 @@
     }, 2500);
   })();
   document.addEventListener('touchstart', () => {}, { passive: true });
+
+  // a light tick for any tap on a control, a firmer one for answers
+  document.addEventListener('click', e => {
+    const t = e.target.closest && e.target.closest('button, .game, .deckcard, .bcard, a.btn');
+    if(!t || t.disabled || t.classList.contains('quitbtn')) return;
+    if(t.classList.contains('game') && t.classList.contains('on')) return;
+    haptics(t.classList.contains('choice') ? 'select' : 'tick');
+  }, true);
+
+  // right and wrong answers: watch for the colour landing on your own choice
+  (function answerHaptics(){
+    const was = new WeakMap();
+    new MutationObserver(list => {
+      for(const m of list){
+        const el = m.target;
+        if(!el.classList || !el.classList.contains('choice')) continue;
+        const now = el.classList.contains('right') ? 'r' : el.classList.contains('wrong') ? 'w' : '';
+        if(was.get(el) === now) continue;
+        was.set(el, now);
+        if(!now || el.closest('.qcard-theirs')) continue;
+        haptics(now === 'r' ? 'success' : 'error');
+      }
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  })();
   window.addEventListener('hashchange', route);
   route();
 })();
