@@ -1322,6 +1322,14 @@
   .game{ max-height:calc(var(--cardw) * 1.72); align-self:center; height:100%; }
   .game:not(.on){ scale:.93; opacity:.5; }
   .game.on{ cursor:default; }
+  /* motion blur: blurMotion() sets --mb from how fast the strip is moving and
+     only adds .moving while there's something to blur */
+  .games.moving .game{ filter:blur(var(--mb, 0px)); }
+  /* with a mouse the strip drags like a touch screen */
+  @media (hover:hover) and (pointer:fine){
+    .games, .game, .game.on{ cursor:grab; }
+    .games.dragging, .games.dragging .game{ cursor:grabbing; -webkit-user-select:none; user-select:none; }
+  }
   .game::before{   /* a soft sheen across the top, like light on glass */
     content:""; position:absolute; inset:0 0 auto; height:46%; pointer-events:none;
     background:linear-gradient(180deg, rgba(255,255,255,.1), transparent);
@@ -1448,6 +1456,7 @@
     .sc-hop, .sc-hint, .sc-taken, .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint, .sc-flag, .lobbyside.waiting .pod{ animation:none; }
     .sc-hint{ opacity:.9; }
     .game{ transition:none; }
+    .games.moving .game{ filter:none; }
   }
 
   /* a new question's answers rise in one after another */
@@ -7498,6 +7507,80 @@
     st.setProperty('--tint', `color-mix(in srgb, ${a[0]}, ${b[0]} ${pc}%)`);
     st.setProperty('--tint2', `color-mix(in srgb, ${a[1]}, ${b[1]} ${pc}%)`);
   }
+
+  // motion blur: the faster the strip moves, the softer the cards get, then
+  // they sharpen as it settles. one frame loop that runs only while moving
+  const MB_MAX = 5, MB_PER_PX_MS = 3.4;
+  let mbCur = 0, mbRaf = 0, mbLeft = 0, mbT = 0, mbStill = 0;
+  function blurMotion(now){
+    const box = $('games');
+    const dt = Math.max(1, now - mbT), v = Math.abs(box.scrollLeft - mbLeft) / dt;
+    mbLeft = box.scrollLeft; mbT = now;
+    const target = Math.min(MB_MAX, v * MB_PER_PX_MS);
+    mbCur += (target - mbCur) * (target > mbCur ? .5 : .16);
+    mbStill = target < .05 ? mbStill + 1 : 0;
+    if(mbCur < .05 && mbStill > 8){
+      mbCur = 0; mbRaf = 0; mbStill = 0;
+      box.classList.remove('moving'); box.style.removeProperty('--mb');
+      return;
+    }
+    box.classList.add('moving'); box.style.setProperty('--mb', mbCur.toFixed(2) + 'px');
+    mbRaf = requestAnimationFrame(blurMotion);
+  }
+  $('games').addEventListener('scroll', () => {
+    if(mbRaf || reduceMotion()) return;
+    mbLeft = $('games').scrollLeft; mbT = performance.now();
+    mbRaf = requestAnimationFrame(blurMotion);
+  }, { passive: true });
+
+  // click and drag with a mouse. snapping is switched off while you hold the
+  // strip, then on letting go it glides to the card your throw is heading for
+  (function(){
+    const box = $('games');
+    let down = null, dragging = false, justDragged = false, trail = [];
+    box.addEventListener('dragstart', e => e.preventDefault());
+    box.addEventListener('pointerdown', e => {
+      if(e.pointerType !== 'mouse' || e.button !== 0) return;
+      down = { id: e.pointerId, x: e.clientX, left: box.scrollLeft };
+      trail = [{ x: e.clientX, t: e.timeStamp }];
+    });
+    box.addEventListener('pointermove', e => {
+      if(!down || e.pointerId !== down.id) return;
+      const dx = e.clientX - down.x;
+      if(!dragging){
+        if(Math.abs(dx) < 6) return;
+        dragging = true; gameLock = null;
+        box.setPointerCapture(e.pointerId);
+        box.classList.add('dragging'); box.style.scrollSnapType = 'none';
+      }
+      box.scrollLeft = down.left - dx;
+      trail.push({ x: e.clientX, t: e.timeStamp });
+      while(trail.length > 2 && e.timeStamp - trail[0].t > 120) trail.shift();
+    });
+    function release(e){
+      if(!down || e.pointerId !== down.id) return;
+      const was = dragging;
+      down = null; dragging = false;
+      if(!was) return;
+      justDragged = true; setTimeout(() => { justDragged = false; }, 60);
+      box.classList.remove('dragging');
+      // where the throw is heading: current spot plus a bit of the release speed
+      const a = trail[0], b = trail[trail.length - 1];
+      const v = b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0;   // px per ms, finger direction
+      const aim = box.scrollLeft - v * 220 + box.clientWidth / 2;
+      let best = gameCards[0], bd = Infinity;
+      for(const c of gameCards){
+        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - aim);
+        if(d < bd){ bd = d; best = c; }
+      }
+      box.style.scrollSnapType = '';
+      scrollToGame(best.dataset.mode, true);
+    }
+    box.addEventListener('pointerup', release);
+    box.addEventListener('pointercancel', release);
+    // a drag that ends over a card shouldn't also tap it
+    box.addEventListener('click', e => { if(justDragged){ e.stopPropagation(); e.preventDefault(); } }, true);
+  })();
 
   document.addEventListener('keydown', e => {
     if($('scIntro').hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
