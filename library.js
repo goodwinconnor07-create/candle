@@ -4,6 +4,8 @@
  * touch this file; the room only reads questions from it (stage 5).
  */
 
+import { squash } from './generate.js';
+
 const enc = new TextEncoder();
 
 async function sha256(text) {
@@ -18,12 +20,22 @@ function randomHex(bytes) {
 }
 
 // a new anonymous player. The secret is returned once and never stored.
-export async function createDevice(db) {
+export const MAX_DEVICES_PER_IP_DAY = 10;
+
+// ip is only used to stop one network minting endless devices; it's stored
+// hashed. Returns null when that network has made too many today.
+export async function createDevice(db, ip) {
+  const ipHash = ip ? await sha256('ip:' + ip) : null;
+  const now = Date.now();
+  if (ipHash) {
+    const r = await db.prepare('SELECT COUNT(*) AS n FROM devices WHERE ip_hash = ? AND created_at >= ?')
+      .bind(ipHash, now - 86400000).first();
+    if (r && r.n >= MAX_DEVICES_PER_IP_DAY) return null;
+  }
   const id = randomHex(5);
   const secret = randomHex(24);
-  const now = Date.now();
-  await db.prepare('INSERT INTO devices (id, secret_hash, created_at, last_seen) VALUES (?, ?, ?, ?)')
-    .bind(id, await sha256(secret), now, now).run();
+  await db.prepare('INSERT INTO devices (id, secret_hash, created_at, last_seen, ip_hash) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, await sha256(secret), now, now, ipHash).run();
   return { id, secret };
 }
 
@@ -39,9 +51,156 @@ export async function deviceFrom(db, request) {
 
 export async function listSets(db, deviceId) {
   const { results } = await db.prepare(
-    `SELECT s.id, s.name, s.updated_at AS updatedAt,
-            (SELECT COUNT(*) FROM questions q WHERE q.set_id = s.id AND q.active = 1) AS questions
+    `SELECT s.id, s.name, s.updated_at AS updatedAt, s.status, s.gen_note AS note,
+            (SELECT COUNT(*) FROM questions q WHERE q.set_id = s.id AND q.active = 1) AS questions,
+            (SELECT COALESCE(SUM(LENGTH(c.body)), 0) FROM source_chunks c WHERE c.set_id = s.id) AS chars
        FROM study_sets s WHERE s.owner = ? ORDER BY s.updated_at DESC`
   ).bind(deviceId).all();
   return results;
+}
+
+// ---- study sets ----
+export const MAX_SETS = 20;           // per device, for now
+export const MAX_TEXT = 200000;       // characters of source per upload
+export const MAX_NAME = 60;
+const CHUNK = 3000;                   // about this many characters per source chunk
+
+function newId() { return randomHex(8); }
+
+// cut source text into chunks of about CHUNK characters, at paragraph breaks
+// where it can and at spaces where a single paragraph is too long
+export function chunkText(text) {
+  const chunks = [];
+  let cur = '';
+  const flush = () => { if (cur.trim()) chunks.push(cur.trim()); cur = ''; };
+  for (let para of text.split(/\n+/)) {
+    para = para.trim();
+    if (!para) continue;
+    while (para.length > CHUNK * 1.3) {
+      let cut = para.lastIndexOf(' ', CHUNK);
+      if (cut < CHUNK / 2) cut = CHUNK;
+      if (cur) flush();
+      chunks.push(para.slice(0, cut).trim());
+      para = para.slice(cut).trim();
+    }
+    if (cur && cur.length + para.length + 1 > CHUNK) flush();
+    cur += (cur ? '\n' : '') + para;
+  }
+  flush();
+  return chunks;
+}
+
+export async function countSets(db, deviceId) {
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM study_sets WHERE owner = ?').bind(deviceId).first();
+  return r ? r.n : 0;
+}
+
+// a new set from pasted or extracted text. This is the first generation
+// event for the set (batch 1); adding more later gets the next batch number.
+export async function createSet(db, deviceId, name, text) {
+  const id = newId();
+  const now = Date.now();
+  const chunks = chunkText(text);
+  const stmts = [db.prepare('INSERT INTO study_sets (id, owner, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, deviceId, name, now, now)];
+  chunks.forEach((body, i) => stmts.push(
+    db.prepare('INSERT INTO source_chunks (id, set_id, seq, batch, body, created_at) VALUES (?, ?, ?, 1, ?, ?)')
+      .bind(newId(), id, i, body, now)));
+  await db.batch(stmts);
+  return { id, name, chunks: chunks.length };
+}
+
+export async function deleteSet(db, deviceId, setId) {
+  const r = await db.prepare('DELETE FROM study_sets WHERE id = ? AND owner = ?').bind(setId, deviceId).run();
+  return r.meta.changes > 0;
+}
+
+// ---- making questions: reading a set, the spending caps, saving results ----
+
+export async function getSet(db, deviceId, setId) {
+  return db.prepare('SELECT id, name, status, gen_started AS genStarted FROM study_sets WHERE id = ? AND owner = ?')
+    .bind(setId, deviceId).first();
+}
+
+export async function getChunks(db, setId) {
+  const { results } = await db.prepare('SELECT id, body FROM source_chunks WHERE set_id = ? ORDER BY seq').bind(setId).all();
+  return results;
+}
+
+const DAY = 86400000;
+export const STALE_RUN_MS = 10 * 60 * 1000;   // a run still going after this is treated as dead
+
+// what's been spent (or is set aside for runs still going) since midnight UTC
+export async function spentToday(db, now) {
+  const r = await db.prepare(
+    `SELECT COALESCE(SUM(CASE WHEN status = 'running' THEN est_micro ELSE cost_micro END), 0) AS micro
+       FROM gen_runs WHERE started >= ?`
+  ).bind(now - now % DAY).first();
+  return r ? r.micro : 0;
+}
+
+export async function runsToday(db, deviceId, now) {
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM gen_runs WHERE device = ? AND started >= ?')
+    .bind(deviceId, now - now % DAY).first();
+  return r ? r.n : 0;
+}
+
+// takes the set for a run: only one run at a time, and only for a set that
+// hasn't got questions yet. A run that's been going too long is written off
+// (at its estimate, since we can't know) so the set can be tried again.
+export async function startRun(db, deviceId, setId, estMicro, now) {
+  await db.prepare(`UPDATE gen_runs SET status = 'failed', finished = ?, cost_micro = est_micro
+                     WHERE set_id = ? AND status = 'running' AND started < ?`).bind(now, setId, now - STALE_RUN_MS).run();
+  const claim = await db.prepare(
+    `UPDATE study_sets SET status = 'generating', gen_started = ?, gen_note = NULL, updated_at = ?
+      WHERE id = ? AND owner = ? AND (status IN ('new', 'failed') OR (status = 'generating' AND gen_started < ?))`
+  ).bind(now, now, setId, deviceId, now - STALE_RUN_MS).run();
+  if (!claim.meta.changes) return null;
+  const runId = newId();
+  await db.prepare('INSERT INTO gen_runs (id, set_id, device, started, status, est_micro) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(runId, setId, deviceId, now, 'running', estMicro).run();
+  return runId;
+}
+
+async function batched(db, stmts) {
+  for (let i = 0; i < stmts.length; i += 50) await db.batch(stmts.slice(i, i + 50));
+}
+
+// writes a finished run: the questions, the facts and the template wording,
+// then marks the set ready. Questions replace any earlier ones from batch 1.
+export async function saveRun(db, setId, runId, out, chunks, costMicroTotal) {
+  const now = Date.now();
+  const norm = c => c.norm || (c.norm = squash(c.body));
+  const stmts = [
+    db.prepare('DELETE FROM questions WHERE set_id = ? AND batch = 1').bind(setId),
+    db.prepare('DELETE FROM facts WHERE set_id = ? AND batch = 1').bind(setId),
+  ];
+  for (const q of out.questions) {
+    const quote = squash(q.quote);
+    const home = chunks.find(c => norm(c).includes(quote));
+    stmts.push(db.prepare(
+      `INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, batch, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+    ).bind(newId(), setId, home ? home.id : null, q.text, JSON.stringify(q.choices), q.answer, q.why, q.diff, now));
+  }
+  for (const f of out.facts) {
+    stmts.push(db.prepare('INSERT INTO facts (id, set_id, kind, a, b, batch, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)')
+      .bind(newId(), setId, f.kind, f.a, f.b, now));
+  }
+  await batched(db, stmts);
+  await db.batch([
+    db.prepare(`UPDATE study_sets SET status = 'ready', gen_note = NULL, subject = ?, templates = ?, updated_at = ? WHERE id = ?`)
+      .bind(out.subject, JSON.stringify(out.templates), now, setId),
+    db.prepare(`UPDATE gen_runs SET status = 'done', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`)
+      .bind(now, costMicroTotal, JSON.stringify({ calls: out.calls.map(c => ({ kind: c.kind, model: c.model, usage: c.usage, cost: c.cost })), dropped: out.dropped, failed: out.failed }), runId),
+  ]);
+}
+
+export async function failRun(db, setId, runId, note, costMicroTotal, detail) {
+  const now = Date.now();
+  await db.batch([
+    db.prepare(`UPDATE study_sets SET status = 'failed', gen_note = ?, updated_at = ? WHERE id = ?`).bind(note, now, setId),
+    db.prepare(`UPDATE gen_runs SET status = 'failed', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`)
+      .bind(now, costMicroTotal, detail ? JSON.stringify(detail) : null, runId),
+  ]);
 }

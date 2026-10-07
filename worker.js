@@ -51,6 +51,8 @@ import * as Cards from './public/towers-cards.js';
 import * as Golf from './public/golf.js';
 import { Feed } from './questions.js';
 import * as Library from './library.js';
+import * as Generate from './generate.js';
+export { SetJob } from './setjob.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
@@ -1772,13 +1774,60 @@ async function api(request, env) {
   // anonymous players: no account needed to hold study sets. Registering is
   // on demand (first time someone makes a set), not on every page load.
   if (parts[1] === 'device' && parts.length === 2 && request.method === 'POST') {
-    const d = await Library.createDevice(env.DB);
+    const d = await Library.createDevice(env.DB, request.headers.get('cf-connecting-ip'));
+    if (!d) return err(429, 'too many new devices from this network today');
     return json({ id: d.id, secret: d.secret }, { status: 201 });
   }
   if (parts[1] === 'me' && parts.length === 2 && request.method === 'GET') {
     const id = await Library.deviceFrom(env.DB, request);
     if (!id) return err(401, 'unknown device');
     return json({ id, sets: await Library.listSets(env.DB, id) });
+  }
+
+  if (parts[1] === 'sets') {
+    const me = await Library.deviceFrom(env.DB, request);
+    if (!me) return err(401, 'unknown device');
+    if (parts.length === 2 && request.method === 'GET') return json({ sets: await Library.listSets(env.DB, me) });
+    if (parts.length === 2 && request.method === 'POST') {
+      const raw = await request.text();
+      if (raw.length > Library.MAX_TEXT * 3 + 1000) return err(413, 'too much text');
+      let body;
+      try { body = JSON.parse(raw); } catch (e) { return err(400, 'bad request'); }
+      const name = String(body.name || '').replace(/\s+/g, ' ').trim().slice(0, Library.MAX_NAME);
+      const text = String(body.text || '').trim();
+      if (!name) return err(400, 'give the set a name');
+      if (text.length < 20) return err(400, 'add some text first');
+      if (text.length > Library.MAX_TEXT) return err(413, 'too much text');
+      if (await Library.countSets(env.DB, me) >= Library.MAX_SETS) return err(409, 'you have the most sets allowed');
+      return json(await Library.createSet(env.DB, me, name, text), { status: 201 });
+    }
+    // make the questions for a set. Everything that can say no happens here,
+    // before any money is spent
+    if (parts.length === 4 && parts[3] === 'generate' && request.method === 'POST') {
+      const set = await Library.getSet(env.DB, me, parts[2]);
+      if (!set) return err(404, 'no such set');
+      if (set.status === 'ready') return err(409, 'that set already has questions');
+      if (env.GENERATION_ENABLED === 'false') return err(503, 'making questions is switched off right now');
+      if (env.AI_MOCK !== '1' && !env.ANTHROPIC_API_KEY) return err(503, 'making questions is not set up yet');
+      const chunks = await Library.getChunks(env.DB, set.id);
+      const chars = chunks.reduce((n, c) => n + c.body.length, 0);
+      if (chars < Generate.MIN_SOURCE) return err(422, 'there is not enough in that set yet. Add more notes');
+      const now = Date.now();
+      const est = Generate.makeSlices(chunks).length * Generate.EST_PER_SLICE;
+      const perDay = Number(env.DEVICE_RUNS_PER_DAY) || 5;
+      if (await Library.runsToday(env.DB, me, now) >= perDay) return err(429, 'you have used all your question runs for today. Try again tomorrow');
+      const budget = Math.round((Number(env.DAILY_BUDGET_USD) || 5) * 1e6);
+      if (await Library.spentToday(env.DB, now) + est > budget) return err(429, 'making questions is paused for today. Try again tomorrow');
+      const runId = await Library.startRun(env.DB, me, set.id, est, now);
+      if (!runId) return err(409, 'that set is already being made');
+      const job = env.SETJOB.get(env.SETJOB.idFromName(set.id));
+      await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ setId: set.id, runId }) });
+      return json({ status: 'generating' }, { status: 202 });
+    }
+    if (parts.length === 3 && request.method === 'DELETE') {
+      return (await Library.deleteSet(env.DB, me, parts[2])) ? json({ ok: true }) : err(404, 'no such set');
+    }
+    return err(404, 'not found');
   }
 
   if (parts[1] !== 'games') return err(404, 'not found');
