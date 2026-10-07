@@ -1,8 +1,8 @@
 # Study Duel — notes for Claude
 
 Two-player study mini games: a familiar game where every move is earned by
-answering a question right. Pool (8-ball), chess, battleships and Towers (a Clash
-Royale-style tower battle) so far. Live at
+answering a question right. Pool (8-ball), chess, battleships, Towers (a Clash
+Royale-style tower battle) and mini golf so far. Live at
 https://candle-timer.candle-timer.workers.dev. See README.md for how the game
 plays and DEPLOY.md for deploy details.
 
@@ -39,6 +39,12 @@ plays and DEPLOY.md for deploy details.
   Tester's card picker (`botPlay()`).
 - `public/towers-cards.js`: Towers cards, arena geometry, tower stats and the
   drop rules (`placeOk()`), shared by the room and the browser.
+- `public/golf.js`: mini golf courses (rows of characters in `COURSE`),
+  ball physics (`simulate()`, putts and 45-degree chips), the fog
+  (`reveal()`), the stroke check (`shotFrom()`) and Tester's picker
+  (`botShot()`). Shared by the room and the browser, with the same rule as
+  `pool.js`: only `+ - * /`, `Math.sqrt`, `Math.floor`, `Math.abs`, no
+  randomness, so every engine lands on the same bits.
 - `public/index.html`: the whole front end in one file (styles, SVG characters,
   script). No build step, no framework. Towers card art is the `ART` table
   in the script, drawn in the same style as the player characters.
@@ -99,10 +105,16 @@ PR to the default branch, merge, deploy, then check the live site.
   well under a millisecond with ~40 troops). For balance changes, run bots
   against each other in Node with `newBattle()`, `botPlay()` and `step()`
   before trying it in the browser.
+- Mini golf: turns alternate like pool. A wrong answer adds a penalty stroke
+  and asks the same player again; it never hands over the turn. Water and
+  out of bounds cost a stroke and the ball goes back where it was hit from.
+  The fog (`seen`) is shared by both players. When changing a course, run
+  Tester on it in Node (`botShot()` + `simulate()`) to check it plays in
+  roughly par.
 - The page never scrolls (`html, body` are `overflow:hidden`, body is
   `100dvh`). Every screen has to fit, down to a 360x640 phone. Pool sizes its
   table in `poolResize()`, chess its board in `chessResize()` and battleships
-  its sea in `seaResize()`, from the space left over, so anything added above or below them is accounted
+  its sea in `seaResize()`, golf its course view in `golfResize()`, from the space left over, so anything added above or below them is accounted
   for automatically. Check new screens at 360x640 and 1280x720.
 - Match the existing style: dark "soot" background, tallow text, amber accent,
   Fraunces serif for headings, the iMessage-inspired pool table.

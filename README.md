@@ -2,7 +2,7 @@
 
 Two-player study mini games. You play a simple game everyone already knows,
 but every move has to be earned by answering a question right. Pool, chess,
-battleships and Towers so far.
+battleships, Towers and mini golf so far.
 
 Live at https://candle-timer.candle-timer.workers.dev
 
@@ -187,6 +187,42 @@ player. The cards, the arena and the drop rules live in
 Tester plays a random deck, answers about three in four right, defends what
 crosses the river and pushes a lane when it has saved up.
 
+## Mini golf
+
+Top-down mini golf over three holes, picked at random from six. The courses
+are much bigger than the screen, and they start out hidden under fog. The
+camera follows the ball, and the fog lifts wherever a ball has been, so you
+find out what's round the corner as you play. A flag on the edge of the view
+always points at the cup, with how far away it is.
+
+- Players take turns, one stroke each, and a right answer earns the stroke.
+  A wrong answer, or running out the 10 seconds, adds a penalty stroke and
+  asks you again. Once a player has holed out, the other keeps going alone.
+- To swing, drag back from anywhere on the course and let go. The further
+  you pull, the harder you hit. You get 30 seconds once you've answered, and
+  running out costs a stroke.
+- Two clubs. **Putt** rolls the ball along the ground. **Chip** lofts it at 45
+  degrees, so it flies in a real arc: its shadow slides away as it climbs, it
+  sails over walls and water if it's high enough, then bounces and rolls. The
+  aim preview shows a chip's flight and a ring where it first comes down.
+- Sand grabs the ball and kills a landing dead. Slopes (the chevrons) pull the
+  ball downhill. Orange bumper posts bounce it back. Water, or anything off
+  the course, is a penalty stroke, and the ball goes back where you hit it
+  from.
+- A ball that comes in too fast lips out of the cup. A slow one near the edge
+  falls in. Eight strokes on a hole is the most you can take, and then you
+  pick up.
+- The better score on a hole tees off first on the next. Fewest strokes over
+  the three holes wins, and a tie is a tie.
+
+Like pool, the room decides every stroke and sends its inputs, and both
+browsers run it through the same `simulate()` in `public/golf.js`. The player
+who swings sees their ball leave straight away. The courses are drawn as rows
+of characters at the top of that file, which also has Tester's shot picker:
+it tries a spread of directions, strengths and both clubs, keeps whichever
+leaves it closest to the cup by the route a ball would have to roll, then
+wobbles the aim a little.
+
 ## Whose turn is it?
 
 Every game puts a banner over the board that says whose turn it is, with that
@@ -259,7 +295,7 @@ pool's table physics and 8-ball rules are split out into `public/pool.js`.
 Chess rules and the hint engine are in `public/chess.js`. Both sit in
 `public/` because the room and the browser load them. The Towers battle is in
 `towers.js`, and its cards and arena in `public/towers-cards.js` for the
-same reason.
+same reason. Mini golf's courses and physics are in `public/golf.js`.
 
 ## Tuning
 
@@ -285,11 +321,16 @@ The knobs are constants at the top of `worker.js` and `public/pool.js`:
 | `ROLL_DECEL`, `DRAG` (public/pool.js) | how quickly balls slow down |
 | `FOLLOW`, `NATURAL`, `SLIDE_ACC` (public/pool.js) | how strong follow and draw are, how much a plain shot rolls on, and how quickly the cue ball's path bends after a hit |
 | `CORNER_GAP`, `SIDE_GAP` (public/pool.js) | pocket sizes |
+| `GOLF_HOLES`, `GOLF_AIM_MS` | holes per golf match, and the time to swing |
+| `PUTT_MAX`, `CHIP_MAX` (public/golf.js) | how hard a full putt and a full chip are |
+| `ROLL`, `SLOPE`, `G`, `LAND` (public/golf.js) | rolling resistance on turf and sand, slope pull, gravity, and what a landing keeps |
+| `MAX_STROKES` (public/golf.js) | strokes on one hole before you pick up |
+| `COURSE` (public/golf.js) | the holes themselves, drawn as rows of characters |
 
 ## Adding another mini game
 
 `MODES` in `worker.js` lists the games. A new one needs an entry there, a card
 in `#modeGrid` in `public/index.html`, and its own game loop in the room
-alongside the others. The grid is two by two with four games, so a fifth
-means rethinking it (check it still fits a 360x640 phone). The lobby, test
+alongside the others. The grid is two columns; an odd card out on the last
+row spans both. Check it still fits a 360x640 phone. The lobby, test
 mode, leaving and the hold-to-quit button are shared and don't need to change.

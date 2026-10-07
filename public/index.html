@@ -414,6 +414,8 @@
   .mode.on b{ color:var(--tallow); }
   .mode .soon{ display:inline-flex; align-items:center; gap:4px; font-size:.68rem; color:var(--ash) }
   .mode .soon svg{ width:10px; height:10px; fill:var(--ash) }
+  /* an odd card out on the last row of two gets the whole row */
+  .modes:not(.cols3) > .mode:last-child:nth-child(odd){ grid-column:1 / -1; }
   .modes.cols3{ grid-template-columns:repeat(3,minmax(0,1fr)); }
   .modes.cols3 .mode{ padding:14px 7px; gap:5px; }
   .modes.cols3 .mode span{ font-size:.7rem; }
@@ -870,6 +872,48 @@
     .ship{ transition:none; }
   }
 
+  /* ---------- mini golf ---------- */
+  #scGolf{ gap:8px; }
+  .app[data-screen="scGolf"]{ margin-top:0; }
+  body.testing .app[data-screen="scGolf"]{ padding-bottom:30px; }
+  /* which hole, sitting on the course in the top-left corner */
+  .ghole{
+    position:absolute; left:10px; top:10px; pointer-events:none;
+    display:flex; flex-direction:column; gap:1px; padding:6px 10px; border-radius:10px;
+    background:rgba(13,10,8,.8); border:1px solid var(--hair);
+    font:600 .6rem/1.2 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ash);
+  }
+  .ghole b{ font:500 .86rem/1.15 var(--serif); letter-spacing:0; text-transform:none; color:var(--tallow); white-space:nowrap; }
+  .gscore{ font:500 .74rem/1.2 var(--sans); color:var(--ash); font-variant-numeric:tabular-nums; position:relative; }
+  .gscore b{ color:var(--tallow); font-weight:600; }
+  .gpen{
+    position:absolute; top:-4px; left:100%; margin-left:4px; pointer-events:none; opacity:0;
+    font:700 .8rem/1 var(--sans); color:var(--ember);
+  }
+  .pside.them .gpen{ left:auto; right:100%; margin:0 4px 0 0; }
+  .gpen.go{ animation:gainup 1.3s ease-out; }
+  .gwrap{ position:relative; width:100%; flex:0 0 auto; }
+  #gCanvas{ display:block; width:100%; touch-action:none; border-radius:16px; background:#0a0806; }
+  .gclubs{
+    position:absolute; left:10px; bottom:10px; display:inline-flex; padding:3px; gap:2px;
+    border:1px solid var(--hair); border-radius:999px; background:rgba(13,10,8,.82);
+  }
+  .gclubs button{
+    font:500 .8rem/1 var(--sans); color:var(--ash); background:transparent; border:0;
+    border-radius:999px; padding:9px 14px; cursor:pointer; transition:background .2s, color .2s;
+  }
+  .gclubs button.on{ background:rgba(255,179,71,.16); color:var(--tallow); box-shadow:inset 0 0 0 1px var(--amber); }
+  .gclubs button:disabled{ opacity:.45; cursor:default; }
+  .gclubs button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .gcard{ max-height:calc(100% - 16px); overflow:hidden; }
+  .gsc{ width:100%; border-collapse:collapse; font:400 .8rem/1.3 var(--sans); color:var(--tallow); font-variant-numeric:tabular-nums; }
+  .gsc th, .gsc td{ padding:5px 4px; text-align:center; border-bottom:1px solid var(--hair); }
+  .gsc th{ font-weight:500; color:var(--ash); font-size:.7rem; letter-spacing:.04em; }
+  .gsc td:first-child, .gsc th:first-child{ text-align:left; max-width:9ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gsc td.tot{ font-weight:650; color:var(--amber); }
+  .gsc td.cur{ color:var(--amber); }
+  .gsc .par td{ color:var(--ash); }
+
   /* ---------- towers ---------- */
   #scBattle{ gap:6px; }
   .app[data-screen="scBattle"]{ margin-top:0; }
@@ -1229,6 +1273,11 @@
         <rect x="5.2" y="19.2" width="13.6" height="2.8" rx="1"/>
       </symbol>
 
+      <symbol id="i-golf" viewBox="0 0 24 24">
+        <path d="M7 2h1.6l9.4 4.2-9.4 4.2V17H7z"/>
+        <ellipse cx="8" cy="19.6" rx="7" ry="2.4"/>
+        <circle cx="16.5" cy="17.4" r="2"/>
+      </symbol>
       <symbol id="i-ship" viewBox="0 0 24 24">
         <path d="M11 2.5h2v3.2h2.6v3.6H18l-.2 3.2h3.7l-2.6 5.4H5.1L2.5 12.5h3.7L6 9.3h2.4V5.7H11z"/>
         <path d="M2 20.3q2.5-1.5 5 0t5 0 5 0 5 0V22q-2.5 1.5-5 0t-5 0-5 0-5 0z"/>
@@ -1454,6 +1503,11 @@
           <svg><use href="#i-towers"/></svg>
           <b>Towers</b>
           <span>Answer for elixir. Knock their towers down.</span>
+        </button>
+        <button class="mode" type="button" data-mode="golf">
+          <svg><use href="#i-golf"/></svg>
+          <b>Mini Golf</b>
+          <span>Answer to swing. Wrong is a penalty stroke.</span>
         </button>
       </div>
       <button class="btn primary" id="introGo">Go</button>
@@ -1777,6 +1831,56 @@
       </div>
     </section>
 
+    <section class="panel" id="scGolf" hidden>
+      <div class="pbar">
+        <div class="pside" id="gSideMine">
+          <div class="pod" id="gPodMine" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+          <div class="pmeta">
+            <div class="pname" id="gNameMine">You</div>
+            <div class="gscore"><span id="gScoreMine"></span><span class="gpen" id="gPenMine">+1</span></div>
+          </div>
+        </div>
+        <div class="pside them" id="gSideTheirs">
+          <div class="pmeta">
+            <div class="pname" id="gNameTheirs">Them</div>
+            <div class="gscore"><span id="gScoreTheirs"></span><span class="gpen" id="gPenTheirs">+1</span></div>
+          </div>
+          <div class="pod" id="gPodTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+        </div>
+      </div>
+      <div class="turnbar" id="gTurn">
+        <div class="pod" id="gTurnPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+        <div class="turnbar-txt">
+          <span class="turnbar-who" id="gTurnWho"></span>
+          <span class="pcall" id="gCall" aria-live="polite"></span>
+        </div>
+      </div>
+      <div class="fuse pshot off" id="gShot"><i id="gShotBar"></i></div>
+      <div class="gwrap" id="gWrap">
+        <canvas id="gCanvas" aria-label="Mini golf course"></canvas>
+        <div class="ghole" id="gHole"><span id="gHoleN">Hole 1/3</span><b id="gHolePar">Par 3</b></div>
+        <div class="gclubs" id="gClubs" role="group" aria-label="Club">
+          <button type="button" class="on" data-club="putt" aria-pressed="true">Putt</button>
+          <button type="button" data-club="chip" aria-pressed="false">Chip</button>
+        </div>
+        <div class="pcard gcard" id="gCard" hidden>
+          <div class="qhead"><div class="pod" id="gcPod" data-char="boy" hidden><svg class="head"><use href="#char-boy"/></svg></div><p class="pcard-who" id="gcWho"></p></div>
+          <div class="fuse" id="gcFuse"><i id="gcBar"></i></div>
+          <div class="pcard-q" id="gcQ"></div>
+          <div class="qbox">
+            <div class="choices pcard-choices" id="gcChoices"></div>
+            <div class="qwait" id="gcWait" hidden><div class="pod" id="gcWaitPod" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div><span id="gcWaitTxt"></span></div>
+          </div>
+          <table class="gsc" id="gcScore" hidden></table>
+          <p class="pcard-note" id="gcNote"></p>
+          <div class="row" id="gcOver" hidden>
+            <button class="btn primary" id="gcAgain" hidden>Run it back</button>
+            <a class="btn leavelink" href="./">New opponent</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="scDead" hidden>
       <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
@@ -1790,7 +1894,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scCode','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scDeck','scDead'];
+  const PANELS = ['scIntro','scCode','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   let ws = null, gameId = null, myRole = null, pickedMode = 'pool', pickedChar = '';
@@ -1938,7 +2042,7 @@
     app.dataset.screen = ids[0] || '';
     document.body.classList.toggle('testing', !$('testChip').hidden);
     document.body.classList.toggle('home', ids.includes('scIntro'));
-    const inMatch = ids.includes('scPool') || ids.includes('scChess') || ids.includes('scSea') || ids.includes('scBattle');
+    const inMatch = ids.includes('scPool') || ids.includes('scChess') || ids.includes('scSea') || ids.includes('scBattle') || ids.includes('scGolf');
     $('wordmark').hidden = inMatch;
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
     // a finished match has its own way out ("New opponent") on the end card,
@@ -2372,9 +2476,10 @@
   }
   document.addEventListener('keydown', e => {
     const n = Number(e.key);
-    if(n >= 1 && n <= 4 && ((phase === 'pq' && !poolMine()) || (phase === 'cq' && !chessMine()) || (phase === 'bq' && !seaMine()))){
-      nudge("It's " + theirName() + "'s question. Yours is next.", { pq: 'pcWait', cq: 'ccWait', bq: 'bcWait' }[phase]);
+    if(n >= 1 && n <= 4 && ((phase === 'pq' && !poolMine()) || (phase === 'cq' && !chessMine()) || (phase === 'bq' && !seaMine()) || (phase === 'gq' && !golfMine()))){
+      nudge("It's " + theirName() + "'s question. Yours is next.", { pq: 'pcWait', cq: 'ccWait', bq: 'bcWait', gq: 'gcWait' }[phase]);
     }
+    else if(phase === 'gq' && n >= 1 && n <= 4) golfPick(n - 1);
     else if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
     else if(phase === 'cq' && n >= 1 && n <= 4) chessPick(n - 1);
     else if(phase === 'bq' && n >= 1 && n <= 4) seaPick(n - 1);
@@ -4396,6 +4501,767 @@
   });
 
 
+  // ---------- mini golf ----------
+  // the course is far bigger than the screen. the camera follows the ball,
+  // and the course stays under fog until a ball has been near it, so each
+  // hole gets discovered as it's played. the room decides every stroke and
+  // sends its inputs; both browsers run it through the same simulate() from
+  // /golf.js, and the player's own browser runs it the moment they let go
+  let Golf = null;
+  const GOLF_FPS = 240, GOLF_AIM_MS = 30000;
+  const gv = {
+    s: null, H: null, holeId: '', seen: '', seenFinal: '', fog: null, course: null, courseK: 0,
+    anim: null, played: 0, pred: null, waiting: null, picked: null, qKey: '', sent: false,
+    club: 'putt', drag: null, aim: null, power: 0,
+    w: 0, h: 0, dpr: 1, scale: 1, cam: null, last: 0, fx: [], penSeen: 0, cardWanted: false,
+  };
+  import('/golf.js').then(m => { Golf = m; if(gv.waiting) golfPlay(gv.waiting); if(gv.s && !$('scGolf').hidden) applyGolf(gv.s); }).catch(() => {});
+
+  const golfMine = () => !!gv.s && gv.s.golf.turn === myRole;
+  const canSwing = () => !!Golf && phase === 'aim' && golfMine() && !gv.sent && !gv.anim;
+  const golfTotal = (s, r) => (s.golf.strokes[r] || []).reduce((a, b) => a + (b || 0), 0);
+
+  function golfResize(){
+    const panel = $('scGolf'), wrap = $('gWrap');
+    if(panel.hidden) return;
+    const kids = [...panel.children].filter(el => !el.hidden && getComputedStyle(el).display !== 'none');
+    const others = kids.filter(el => el !== wrap).reduce((a, el) => a + el.offsetHeight, 0);
+    const gaps = 8 * (kids.length - 1);
+    const bs = getComputedStyle(document.body), as = getComputedStyle(app);
+    const top = panel.getBoundingClientRect().top;
+    const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
+    const w = Math.floor(panel.clientWidth);
+    const h = Math.floor(Math.max(220, window.innerHeight - top - others - gaps - below - 2));
+    if(w === gv.w && h === gv.h) return;
+    const c = $('gCanvas'), dpr = Math.min(window.devicePixelRatio || 1, 3);
+    gv.w = w; gv.h = h; gv.dpr = dpr;
+    // about ten tiles across, and never fewer than eight top to bottom
+    gv.scale = Math.min(w / (10 * 32), h / (8 * 32));
+    c.style.height = h + 'px';
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    wrap.style.height = h + 'px';
+    gv.course = null;
+  }
+  window.addEventListener('resize', () => { if(!$('scGolf').hidden) golfResize(); });
+
+  // ---- the course, painted once per hole ----
+  function golfCourse(){
+    const H = gv.H, T = Golf.TILE;
+    const k = Math.min(gv.scale * gv.dpr, 2.6);
+    if(gv.course && gv.courseK === k) return gv.course;
+    const c = document.createElement('canvas');
+    c.width = Math.ceil(H.w * T * k); c.height = Math.ceil(H.h * T * k);
+    const ctx = c.getContext('2d');
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    const cell = (x, y) => Golf.cellAt(H, x, y);
+    const ground = ch => ch !== ' ' && ch !== '#';
+    let seed = 7;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
+    // turf everywhere there's ground, mown in broad stripes
+    for(let y = 0; y < H.h; y++) for(let x = 0; x < H.w; x++){
+      const ch = cell(x, y);
+      if(!ground(ch)) continue;
+      ctx.fillStyle = (Math.floor(y / 2) % 2) ? '#3f9a4e' : '#46a556';
+      ctx.fillRect(x * T - .5, y * T - .5, T + 1, T + 1);
+    }
+    // a lighter, close-cut green round the cup
+    {
+      const g = ctx.createRadialGradient(H.cup.x, H.cup.y, 4, H.cup.x, H.cup.y, T * 2.4);
+      g.addColorStop(0, 'rgba(120,205,120,.55)'); g.addColorStop(.75, 'rgba(110,200,110,.3)'); g.addColorStop(1, 'rgba(110,200,110,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(H.cup.x, H.cup.y, T * 2.4, 0, Math.PI * 2); ctx.fill();
+    }
+    for(let y = 0; y < H.h; y++) for(let x = 0; x < H.w; x++){
+      const ch = cell(x, y), X = x * T, Y = y * T;
+      if(ch === ':'){
+        ctx.fillStyle = '#dcc48c';
+        ctx.beginPath(); ctx.roundRect(X + 1, Y + 1, T - 2, T - 2, 9); ctx.fill();
+        // join neighbouring sand into one bunker
+        if(cell(x + 1, y) === ':') ctx.fillRect(X + T / 2, Y + 1, T, T - 2);
+        if(cell(x, y + 1) === ':') ctx.fillRect(X + 1, Y + T / 2, T - 2, T);
+        ctx.fillStyle = 'rgba(150,120,70,.35)';
+        for(let i = 0; i < 7; i++){ ctx.beginPath(); ctx.arc(X + 4 + rnd() * (T - 8), Y + 4 + rnd() * (T - 8), .9, 0, Math.PI * 2); ctx.fill(); }
+      }else if(ch === '~'){
+        ctx.fillStyle = '#2a6fae';
+        ctx.fillRect(X - .5, Y - .5, T + 1, T + 1);
+      }else if(Golf.slopeOf(ch)){
+        const [dx, dy] = Golf.slopeOf(ch);
+        const g = ctx.createLinearGradient(X + T / 2 - dx * T / 2, Y + T / 2 - dy * T / 2, X + T / 2 + dx * T / 2, Y + T / 2 + dy * T / 2);
+        g.addColorStop(0, 'rgba(255,255,255,.07)'); g.addColorStop(1, 'rgba(0,0,0,.12)');
+        ctx.fillStyle = g; ctx.fillRect(X, Y, T, T);
+        // a chevron pointing downhill
+        ctx.save();
+        ctx.translate(X + T / 2, Y + T / 2); ctx.rotate(Math.atan2(dy, dx));
+        ctx.strokeStyle = 'rgba(235,255,225,.32)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(3, 0); ctx.lineTo(-4, 6); ctx.stroke();
+        ctx.restore();
+      }else if(ch === 'S'){
+        ctx.fillStyle = 'rgba(20,70,30,.45)';
+        ctx.beginPath(); ctx.roundRect(X + 3, Y + 5, T - 6, T - 10, 5); ctx.fill();
+        ctx.fillStyle = '#efe3cc';
+        for(const ox of [6, T - 6]){ ctx.beginPath(); ctx.arc(X + ox, Y + T / 2, 2.4, 0, Math.PI * 2); ctx.fill(); }
+      }
+    }
+    // water banks: a dark lip where the water meets ground
+    ctx.strokeStyle = 'rgba(10,30,50,.55)'; ctx.lineWidth = 2;
+    for(let y = 0; y < H.h; y++) for(let x = 0; x < H.w; x++){
+      if(cell(x, y) !== '~') continue;
+      const X = x * T, Y = y * T;
+      ctx.beginPath();
+      if(cell(x, y - 1) !== '~') { ctx.moveTo(X, Y + 1); ctx.lineTo(X + T, Y + 1); }
+      if(cell(x, y + 1) !== '~') { ctx.moveTo(X, Y + T - 1); ctx.lineTo(X + T, Y + T - 1); }
+      if(cell(x - 1, y) !== '~') { ctx.moveTo(X + 1, Y); ctx.lineTo(X + 1, Y + T); }
+      if(cell(x + 1, y) !== '~') { ctx.moveTo(X + T - 1, Y); ctx.lineTo(X + T - 1, Y + T); }
+      ctx.stroke();
+    }
+    // walls: a shadow cast down and to the right, then a bevelled timber top
+    ctx.fillStyle = 'rgba(0,0,0,.32)';
+    for(let y = 0; y < H.h; y++) for(let x = 0; x < H.w; x++) if(cell(x, y) === '#') ctx.fillRect(x * T + 4, y * T + 6, T, T);
+    for(let y = 0; y < H.h; y++) for(let x = 0; x < H.w; x++){
+      if(cell(x, y) !== '#') continue;
+      const X = x * T, Y = y * T;
+      ctx.fillStyle = '#8b5a3a'; ctx.fillRect(X - .5, Y - .5, T + 1, T + 1);
+      ctx.fillStyle = 'rgba(60,30,15,.35)';
+      for(let i = 0; i < 3; i++) ctx.fillRect(X, Y + 4 + rnd() * (T - 8), T, .8);
+      // light catches the edges that face the open course
+      ctx.fillStyle = 'rgba(255,214,170,.28)';
+      if(cell(x, y - 1) !== '#') ctx.fillRect(X, Y, T, 2.5);
+      if(cell(x - 1, y) !== '#') ctx.fillRect(X, Y, 2.5, T);
+      ctx.fillStyle = 'rgba(30,12,4,.45)';
+      if(cell(x, y + 1) !== '#') ctx.fillRect(X, Y + T - 2.5, T, 2.5);
+      if(cell(x + 1, y) !== '#') ctx.fillRect(X + T - 2.5, Y, 2.5, T);
+    }
+    // bumper posts
+    for(let y = 0; y < H.h; y++) for(let x = 0; x < H.w; x++){
+      if(cell(x, y) !== 'o') continue;
+      const cx = (x + .5) * T, cy = (y + .5) * T;
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 4, 9, 0, Math.PI * 2); ctx.fill();
+      const g = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 9);
+      g.addColorStop(0, '#ffcf8a'); g.addColorStop(.5, '#f0913a'); g.addColorStop(1, '#a8501e');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,240,220,.6)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.stroke();
+    }
+    // the cup
+    {
+      const { x, y } = H.cup;
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(x, y, Golf.CUP_R + 1.4, 0, Math.PI * 2); ctx.fill();
+      const g = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, Golf.CUP_R);
+      g.addColorStop(0, '#000'); g.addColorStop(.7, '#0b0b0b'); g.addColorStop(1, '#2b2b2b');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, Golf.CUP_R, 0, Math.PI * 2); ctx.fill();
+    }
+    gv.course = c; gv.courseK = k;
+    return c;
+  }
+
+  // ---- the fog ----
+  // a small canvas, eight pixels a tile, with soft holes cut where the
+  // course has been seen. drawn scaled up, it gives a cloudy edge for free
+  const FOG_PX = 8;
+  function fogFresh(){
+    const H = gv.H, c = document.createElement('canvas');
+    c.width = H.w * FOG_PX; c.height = H.h * FOG_PX;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#0d0a08'; ctx.fillRect(0, 0, c.width, c.height);
+    gv.fog = c;
+    fogOpen([...gv.seen].map((v, i) => v === '1' ? i : -1).filter(i => i >= 0));
+  }
+  function fogOpen(tiles){
+    if(!gv.fog || !tiles.length) return;
+    const ctx = gv.fog.getContext('2d'), H = gv.H;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    for(const i of tiles){
+      const cx = (i % H.w + .5) * FOG_PX, cy = (Math.floor(i / H.w) + .5) * FOG_PX;
+      const g = ctx.createRadialGradient(cx, cy, FOG_PX * .3, cx, cy, FOG_PX * 1.15);
+      g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - FOG_PX * 1.2, cy - FOG_PX * 1.2, FOG_PX * 2.4, FOG_PX * 2.4);
+    }
+    ctx.restore();
+  }
+  // move the fog from one seen-string to the next, opening only what's new
+  function fogTo(next){
+    if(next === gv.seen) return;
+    const open = [];
+    for(let i = 0; i < next.length; i++) if(next[i] === '1' && gv.seen[i] !== '1') open.push(i);
+    gv.seen = next;
+    fogOpen(open);
+  }
+
+  // ---- strokes ----
+  function golfKey(sh){ return JSON.stringify([sh.x, sh.y, sh.dx, sh.dy, sh.power, sh.club]); }
+
+  function golfRun(sh){
+    const sim = Golf.simulate(gv.H, sh.x, sh.y, Golf.shotFrom(sh), { fps: GOLF_FPS, exact: true });
+    return { frames: sim.frames, marks: sim.marks, result: sim.result, role: sh.role, from: { x: sh.x, y: sh.y }, opened: 0 };
+  }
+
+  // a stroke the room sent: run it and start drawing it
+  function golfPlay(sh){
+    if(!Golf || !gv.H){ gv.waiting = sh; return; }
+    gv.waiting = null;
+    gv.anim = { ...golfRun(sh), t0: performance.now() + 120 };
+    golfSwingFx(sh);
+  }
+
+  function golfSwing(){
+    if(!canSwing() || gv.power < .04 || !gv.aim) return;
+    const b = gv.s.golf.balls[myRole];
+    const msg = { t:'stroke', dx: gv.aim.x, dy: gv.aim.y, power: gv.power, club: gv.club };
+    ws.send(JSON.stringify(msg));
+    gv.sent = true;
+    const shot = Golf.shotFrom(msg);
+    if(shot){
+      const sh = { ...shot, x: b.x, y: b.y, role: myRole };
+      gv.pred = { key: golfKey(sh) };
+      gv.anim = { ...golfRun(sh), t0: performance.now() + 120 };
+      golfSwingFx(sh);
+    }
+    gv.power = 0; gv.drag = null;
+  }
+
+  function golfSwingFx(sh){
+    gv.fx.push({ type: 'swing', x: sh.x, y: sh.y, dx: sh.dx, dy: sh.dy, p: sh.power, t0: performance.now() });
+  }
+
+  function golfDone(){
+    const a = gv.anim;
+    gv.anim = null;
+    if(!a) return;
+    const last = a.frames[a.frames.length - 1];
+    if(a.result === 'water') gv.fx.push({ type: 'splash', x: last[0], y: last[1], t0: performance.now() });
+    else if(a.result === 'out') gv.fx.push({ type: 'drop', x: last[0], y: last[1], t0: performance.now() });
+    else if(a.result === 'holed') gv.fx.push({ type: 'holed', x: last[0], y: last[1], t0: performance.now() });
+    // the room's version of the fog, which this run should already match
+    if(gv.seenFinal) fogTo(gv.seenFinal);
+    if(gv.s){
+      const b = gv.s.golf.balls[a.role];
+      const settled = a.result === 'holed' || a.result === 'water' || a.result === 'out'
+        || (b && Math.abs(b.x - last[0]) < .01 && Math.abs(b.y - last[1]) < .01);
+      if(!settled && gv.s.phase === 'rolling') console.warn('golf: this browser\'s stroke ended somewhere other than the room\'s');
+    }
+    golfCall(gv.s);
+  }
+
+  // ---- input: drag back from anywhere to aim, let go to swing ----
+  (function golfInput(){
+    const cv = $('gCanvas');
+    cv.addEventListener('pointerdown', e => {
+      if(!canSwing()){
+        if(gv.s && (phase === 'aim' || phase === 'rolling') && !golfMine()) nudge(theirName() + ' is taking their shot.');
+        return;
+      }
+      e.preventDefault();
+      try{ cv.setPointerCapture(e.pointerId); }catch(err){}
+      gv.drag = { x0: e.clientX, y0: e.clientY };
+      gv.power = 0;
+    });
+    cv.addEventListener('pointermove', e => {
+      if(!gv.drag || !canSwing()) return;
+      const dx = gv.drag.x0 - e.clientX, dy = gv.drag.y0 - e.clientY, l = Math.hypot(dx, dy);
+      const full = Math.min(gv.w, gv.h) * .42;
+      gv.power = Math.min(1, l / full);
+      if(l > 6) gv.aim = { x: dx / l, y: dy / l };
+    });
+    cv.addEventListener('pointerup', () => {
+      if(!gv.drag) return;
+      gv.drag = null;
+      if(gv.power >= .04 && canSwing()) golfSwing(); else gv.power = 0;
+    });
+    cv.addEventListener('pointercancel', () => { gv.drag = null; gv.power = 0; });
+    $('gClubs').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if(!b || b.disabled) return;
+      gv.club = b.dataset.club;
+      golfClubs();
+    });
+  })();
+
+  function golfClubs(){
+    [...$('gClubs').children].forEach(b => {
+      const on = b.dataset.club === gv.club;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+      b.disabled = !canSwing();
+    });
+  }
+
+  // ---- drawing ----
+  const GBALL = 6;          // drawn a touch bigger than the physics ball, so it reads on a phone
+
+  // where every ball is right now: the rolling one from the animation
+  function golfBalls(now){
+    const G = gv.s.golf, out = {};
+    for(const r of ['host', 'guest']){
+      const b = G.balls[r];
+      out[r] = b && !b.picked && !(b.done && !(gv.anim && gv.anim.role === r)) ? { x: b.x, y: b.y, z: 0 } : null;
+    }
+    const a = gv.anim;
+    if(a){
+      const f = a.frames, t = Math.max(0, (now - a.t0) * GOLF_FPS / 1000), i = Math.floor(t);
+      // before the swing lands, the ball sits where it was hit from
+      if(now < a.t0) out[a.role] = { x: a.from.x, y: a.from.y, z: 0 };
+      else if(i >= f.length - 1){
+        // finished. hold the last frame until the room has confirmed the stroke
+        const l = f[f.length - 1];
+        out[a.role] = a.result === 'rest' ? { x: l[0], y: l[1], z: 0 } : null;
+        if(!gv.pred) golfDone();
+      }else{
+        const p = f[i], q = f[i + 1], k = t - i;
+        out[a.role] = { x: p[0] + (q[0] - p[0]) * k, y: p[1] + (q[1] - p[1]) * k, z: p[2] + (q[2] - p[2]) * k };
+        // the fog lifts as the ball travels
+        const m = Math.min(a.marks.length, Math.floor((now - a.t0) / 100) + 1);
+        if(m > a.opened){
+          const next = Golf.reveal(gv.H, gv.seen, a.marks.slice(a.opened, m));
+          a.opened = m;
+          fogTo(next);
+        }
+        if(a.trail) a.trail.push([out[a.role].x, out[a.role].y, out[a.role].z]); else a.trail = [];
+        if(a.trail.length > 26) a.trail.shift();
+      }
+    }
+    return out;
+  }
+
+  function golfFocus(balls){
+    const G = gv.s.golf;
+    if(gv.anim && balls[gv.anim.role]) return balls[gv.anim.role];
+    if(gv.anim) return gv.anim.from;
+    const b = balls[G.turn] || balls[G.turn === 'host' ? 'guest' : 'host'];
+    return b || gv.H.tee;
+  }
+
+  function drawGolfBall(ctx, b, mine, now){
+    const z = b.z || 0, r = GBALL * (1 + z / 70);
+    // the shadow stays on the ground and slides away as the ball climbs
+    ctx.fillStyle = 'rgba(0,0,0,' + (.34 - Math.min(.2, z / 300)).toFixed(3) + ')';
+    ctx.beginPath(); ctx.ellipse(b.x + 1.5 + z * .35, b.y + 2 + z * .5, GBALL * 1.05, GBALL * .8, 0, 0, Math.PI * 2); ctx.fill();
+    if(z < 1){
+      // whose ball: a ring on the turf
+      ctx.strokeStyle = mine ? 'rgba(255,179,71,.95)' : 'rgba(108,212,255,.9)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(b.x, b.y, GBALL + 3.5, 0, Math.PI * 2); ctx.stroke();
+    }
+    const g = ctx.createRadialGradient(b.x - r * .35, b.y - r * .4, r * .1, b.x, b.y, r);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(.6, '#ecebe6'); g.addColorStop(1, '#a9a69c');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawFlag(ctx, now){
+    const { x, y } = gv.H.cup;
+    // a pole leaning towards the viewer, so it reads as standing up
+    const tx = x - 4, ty = y - 30;
+    ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 14, y + 20); ctx.stroke();
+    ctx.strokeStyle = '#e9e1cf'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+    const wave = Math.sin(now / 260) * 2.5;
+    ctx.fillStyle = '#ff6a2a';
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + 9, ty + 2 + wave, tx + 17, ty + 5 + wave * .5);
+    ctx.quadraticCurveTo(tx + 9, ty + 7 + wave, tx + .6, ty + 11); ctx.closePath(); ctx.fill();
+  }
+
+  function drawWater(ctx, now, view){
+    const H = gv.H, T = Golf.TILE;
+    const x0 = Math.max(0, Math.floor(view.x0 / T)), x1 = Math.min(H.w - 1, Math.floor(view.x1 / T));
+    const y0 = Math.max(0, Math.floor(view.y0 / T)), y1 = Math.min(H.h - 1, Math.floor(view.y1 / T));
+    ctx.strokeStyle = 'rgba(190,225,255,.22)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for(let y = y0; y <= y1; y++) for(let x = x0; x <= x1; x++){
+      if(Golf.cellAt(H, x, y) !== '~') continue;
+      const X = x * T, Y = y * T, ph = now / 900 + x * 1.7 + y * 2.3;
+      for(let i = 0; i < 2; i++){
+        const yy = Y + 8 + i * 15 + Math.sin(ph + i) * 2, xx = X + 6 + ((now / 60 + x * 13 + i * 9) % 14);
+        ctx.moveTo(xx, yy); ctx.lineTo(xx + 7, yy);
+      }
+    }
+    ctx.stroke();
+  }
+
+  // the aim: an arrow from the ball, and a guess at where it'll go. a putt
+  // gets a dotted line; a chip gets its flight drawn as shadow dots that
+  // swell with height, and a ring where it first comes down
+  function drawAim(ctx, b){
+    if(!gv.aim || gv.power < .02) return;
+    const d = gv.aim, p = gv.power;
+    ctx.save();
+    ctx.lineCap = 'round';
+    if(gv.club === 'putt'){
+      const len = 40 + p * p * 300;
+      ctx.fillStyle = 'rgba(255,248,230,.85)';
+      for(let s = 12; s < len; s += 9){ ctx.beginPath(); ctx.arc(b.x + d.x * s, b.y + d.y * s, 1.6 * (1 - s / len * .6), 0, Math.PI * 2); ctx.fill(); }
+    }else{
+      const v = Golf.CHIP_MAX * p * .7071, tFlight = 2 * v / 980, range = v * tFlight;
+      for(let i = 1; i <= 16; i++){
+        const u = i / 17, t = tFlight * u, z = v * t - 490 * t * t;
+        ctx.fillStyle = 'rgba(255,248,230,' + (.55 + z / 200).toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(b.x + d.x * range * u, b.y + d.y * range * u, 1.4 + z / 18, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(255,248,230,.85)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(b.x + d.x * range, b.y + d.y * range, 7, 0, Math.PI * 2); ctx.stroke();
+    }
+    // power arrow pulling back from the ball, amber turning ember near full
+    const col = p > .85 ? '#ff6a2a' : '#ffb347';
+    ctx.strokeStyle = col; ctx.lineWidth = 2.6;
+    const ex = b.x - d.x * (12 + p * 46), ey = b.y - d.y * (12 + p * 46);
+    ctx.beginPath(); ctx.moveTo(b.x - d.x * 9, b.y - d.y * 9); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawGolfFx(ctx, now){
+    for(let i = gv.fx.length - 1; i >= 0; i--){
+      const f = gv.fx[i], el = now - f.t0;
+      if(f.type === 'swing'){
+        // a putter head swinging through the ball
+        if(el > 360){ gv.fx.splice(i, 1); continue; }
+        const u = el / 120, back = u < 1 ? (1 - u * u) * (10 + f.p * 22) : -(u - 1) * 6;
+        const hx = f.x - f.dx * (GBALL + 3 + back), hy = f.y - f.dy * (GBALL + 3 + back);
+        ctx.save(); ctx.globalAlpha = Math.max(0, 1 - Math.max(0, el - 160) / 200);
+        ctx.translate(hx, hy); ctx.rotate(Math.atan2(f.dy, f.dx));
+        ctx.fillStyle = '#c9ced6'; ctx.beginPath(); ctx.roundRect(-3, -9, 6, 18, 2); ctx.fill();
+        ctx.fillStyle = '#3b2416'; ctx.fillRect(-1.5, -26, 3, 18);
+        ctx.restore();
+      }else if(f.type === 'splash'){
+        if(el > 900){ gv.fx.splice(i, 1); continue; }
+        const u = el / 900;
+        for(let k = 0; k < 3; k++){
+          const r = 4 + (u * 26) * (1 - k * .25);
+          ctx.strokeStyle = 'rgba(220,240,255,' + ((1 - u) * (.8 - k * .2)).toFixed(2) + ')'; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.ellipse(f.x, f.y, r, r * .75, 0, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(230,245,255,' + (1 - u).toFixed(2) + ')';
+        for(let k = 0; k < 6; k++){
+          const a = k * 1.05, rr = u * 18;
+          ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr - Math.sin(u * Math.PI) * 10, 1.6, 0, Math.PI * 2); ctx.fill();
+        }
+      }else if(f.type === 'drop'){
+        if(el > 500){ gv.fx.splice(i, 1); continue; }
+        const u = el / 500;
+        ctx.fillStyle = 'rgba(240,238,230,' + (1 - u).toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(f.x, f.y, GBALL * (1 - u * .8), 0, Math.PI * 2); ctx.fill();
+      }else if(f.type === 'holed'){
+        if(el > 1400){ gv.fx.splice(i, 1); continue; }
+        const u = el / 1400;
+        // the ball dropping in, then a little burst of confetti
+        if(el < 220){
+          ctx.fillStyle = '#f4f2ec';
+          ctx.beginPath(); ctx.arc(f.x, f.y, GBALL * (1 - el / 220 * .7), 0, Math.PI * 2); ctx.fill();
+        }
+        const cols = ['#ffb347', '#ff6a2a', '#6cd4ff', '#efe3cc', '#7fd6a2'];
+        for(let k = 0; k < 18; k++){
+          const a = k * 0.349, sp = 22 + (k % 5) * 9, rr = sp * Math.min(1, u * 2.2);
+          ctx.fillStyle = cols[k % cols.length];
+          ctx.globalAlpha = Math.max(0, 1 - u);
+          ctx.fillRect(f.x + Math.cos(a) * rr - 1.5, f.y + Math.sin(a) * rr + u * u * 30 - 1.5, 3, 3);
+        }
+        ctx.globalAlpha = 1;
+      }else if(f.type === 'dust'){
+        if(el > 500){ gv.fx.splice(i, 1); continue; }
+        const u = el / 500;
+        ctx.fillStyle = 'rgba(220,196,140,' + (.6 * (1 - u)).toFixed(2) + ')';
+        for(let k = 0; k < 5; k++){ const a = k * 1.26; ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * u * 12, f.y + Math.sin(a) * u * 9, 2.4 * (1 - u * .5), 0, Math.PI * 2); ctx.fill(); }
+      }
+    }
+  }
+
+  // an arrow on the edge of the view pointing at the flag, with how far it is
+  function drawFlagPointer(ctx, cam){
+    const H = gv.H, s = gv.scale;
+    const cx = (H.cup.x - cam.x) * s + gv.w / 2, cy = (H.cup.y - cam.y) * s + gv.h / 2;
+    if(cx > 18 && cx < gv.w - 18 && cy > 18 && cy < gv.h - 18) return;
+    const ox = cx - gv.w / 2, oy = cy - gv.h / 2;
+    const k = Math.min((gv.w / 2 - 26) / Math.abs(ox || 1e-6), (gv.h / 2 - (oy < 0 ? 40 : 30)) / Math.abs(oy || 1e-6));
+    const px = gv.w / 2 + ox * k, py = gv.h / 2 + oy * k, a = Math.atan2(oy, ox);
+    const ball = gv.s.golf.balls[gv.s.golf.turn];
+    const tiles = ball ? Math.round(Math.hypot(H.cup.x - ball.x, H.cup.y - ball.y) / Golf.TILE) : 0;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.fillStyle = 'rgba(13,10,8,.85)'; ctx.strokeStyle = 'rgba(255,179,71,.8)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ff6a2a';
+    ctx.beginPath(); ctx.moveTo(-3, -8); ctx.lineTo(6, -5); ctx.lineTo(-3, -2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#efe3cc'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-3, -8); ctx.lineTo(-3, 6); ctx.stroke();
+    ctx.rotate(a);
+    ctx.fillStyle = 'rgba(255,179,71,.95)';
+    ctx.beginPath(); ctx.moveTo(21, 0); ctx.lineTo(15, -5); ctx.lineTo(15, 5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(239,227,204,.85)'; ctx.font = '600 10px system-ui, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(tiles + ' m', px, py + 28 > gv.h - 4 ? py - 22 : py + 28);
+  }
+
+  function golfFrame(now){
+    requestAnimationFrame(golfFrame);
+    if(!gv.s || !gv.H || !Golf || $('scGolf').hidden || !gv.w) return;
+    const dt = Math.min(.05, (now - (gv.last || now)) / 1000); gv.last = now;
+    const balls = golfBalls(now);
+    if(!gv.s) return;
+    const ctx = $('gCanvas').getContext('2d');
+
+    // the camera eases after the ball; while aiming it leans the way you're
+    // aiming, so you can see what you're hitting towards
+    const f = golfFocus(balls);
+    let tx = f.x, ty = f.y;
+    if(canSwing() && gv.aim && gv.power > 0){ tx += gv.aim.x * gv.power * 110; ty += gv.aim.y * gv.power * 110; }
+    if(!gv.cam) gv.cam = { x: tx, y: ty };
+    const ease = 1 - Math.exp(-dt * (gv.anim ? 7 : 4));
+    gv.cam.x += (tx - gv.cam.x) * ease; gv.cam.y += (ty - gv.cam.y) * ease;
+    const s = gv.scale, k = s * gv.dpr, H = gv.H, T = Golf.TILE;
+    const halfW = gv.w / 2 / s, halfH = gv.h / 2 / s;
+    const cam = {
+      x: Math.min(Math.max(gv.cam.x, halfW - T), H.w * T - halfW + T),
+      y: Math.min(Math.max(gv.cam.y, halfH - T), H.h * T - halfH + T),
+    };
+    if(H.w * T + 2 * T < halfW * 2) cam.x = H.w * T / 2;
+    if(H.h * T + 2 * T < halfH * 2) cam.y = H.h * T / 2;
+    const view = { x0: cam.x - halfW, x1: cam.x + halfW, y0: cam.y - halfH, y1: cam.y + halfH };
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#0a0806'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.setTransform(k, 0, 0, k, (gv.w / 2 - cam.x * s) * gv.dpr, (gv.h / 2 - cam.y * s) * gv.dpr);
+    const course = golfCourse();
+    ctx.drawImage(course, 0, 0, H.w * T, H.h * T);
+    drawWater(ctx, now, view);
+
+    const G = gv.s.golf;
+    const mineB = balls[myRole], op = myRole === 'host' ? 'guest' : 'host', theirB = balls[op];
+    // the trail of a ball in flight
+    if(gv.anim && gv.anim.trail){
+      gv.anim.trail.forEach((p, i) => {
+        if(p[2] < 1) return;
+        ctx.fillStyle = 'rgba(255,255,255,' + (i / gv.anim.trail.length * .35).toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(p[0], p[1], 1.5 + p[2] / 40, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+    if(canSwing() && mineB) drawAim(ctx, mineB);
+    // the ball that's higher is closer to the camera, so it goes on top
+    const order = [[theirB, false], [mineB, true]].filter(x => x[0]).sort((a, b) => (a[0].z || 0) - (b[0].z || 0));
+    for(const [b, mine] of order){
+      drawGolfBall(ctx, b, mine, now);
+      // a puff of sand where a flying ball lands in a bunker
+      if(gv.anim && b === balls[gv.anim.role]){
+        const z = b.z || 0, was = gv.anim.lastZ || 0;
+        if(was > 2 && z <= .5 && Golf.cellAt(H, Math.floor(b.x / T), Math.floor(b.y / T)) === ':') gv.fx.push({ type: 'dust', x: b.x, y: b.y, t0: now });
+        gv.anim.lastZ = z;
+      }
+    }
+    drawFlag(ctx, now);
+    drawGolfFx(ctx, now);
+
+    // the fog, over everything on the course
+    if(gv.fog){
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(gv.fog, 0, 0, H.w * T, H.h * T);
+      // and past the edges of the hole, plain dark
+    }
+
+    ctx.setTransform(gv.dpr, 0, 0, gv.dpr, 0, 0);
+    drawFlagPointer(ctx, cam);
+
+    // the shot clock and the clubs
+    const left = Math.max(0, deadlineAt - now);
+    $('gShot').classList.toggle('off', phase !== 'aim' || !!gv.anim);
+    if(phase === 'aim'){
+      $('gShotBar').style.width = (left / GOLF_AIM_MS * 100).toFixed(1) + '%';
+      $('gShot').classList.toggle('low', left < 8000);
+    }
+    $('gCard').hidden = !(gv.cardWanted && !gv.anim);
+    if(phase === 'countdown') $('gcQ').textContent = String(Math.min(3, Math.max(1, Math.ceil(left / 1000))));
+    if(phase === 'gq'){
+      $('gcBar').style.width = (left / questionMs * 100).toFixed(1) + '%';
+      $('gcFuse').classList.toggle('low', left < 3000);
+    }
+    const sw = canSwing();
+    if(sw !== gv.swingShown){ gv.swingShown = sw; golfClubs(); golfCall(gv.s); }
+  }
+  requestAnimationFrame(golfFrame);
+
+  // ---- the bar, the banner and the card ----
+  function golfBar(s){
+    const G = s.golf, op = myRole === 'host' ? 'guest' : 'host', H = gv.H;
+    for(const [key, role] of [['Mine', myRole], ['Theirs', op]]){
+      const p = s[role] || {};
+      $('gName' + key).textContent = p.name || (key === 'Mine' ? 'You' : 'Them');
+      wearChar($('gPod' + key), p.char);
+      $('gSide' + key).classList.toggle('turn', G.turn === role && s.phase !== 'over' && s.phase !== 'holeend');
+      const here = (G.strokes[role] || [])[G.n - 1] || 0, b = G.balls[role];
+      const tag = b && b.done ? (b.picked ? ' up' : ' \u2713') : '';
+      $('gScore' + key).innerHTML = 'Hole <b>' + here + tag + '</b> · Total <b>' + golfTotal(s, role) + '</b>';
+      $('gScore' + key).title = b && b.picked ? 'Picked up after ' + here : '';
+    }
+    $('gHoleN').textContent = 'Hole ' + G.n + ' of ' + G.of + (H ? ' · Par ' + H.par : '');
+    $('gHolePar').textContent = H ? H.name : '';
+    // a penalty stroke pops up by the name it was added to
+    if(G.pen && G.pen.id !== gv.penSeen){
+      gv.penSeen = G.pen.id;
+      const el = $('gPen' + (G.pen.role === myRole ? 'Mine' : 'Theirs'));
+      if(el){ el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
+    }
+  }
+
+  function golfCall(s){
+    if(!s) return;
+    const G = s.golf;
+    let text = G.call || '';
+    if(gv.anim) text = gv.anim.role === myRole ? 'Nice swing.' : ((s[gv.anim.role] || {}).name || 'They') + ' swings.';
+    else if(s.phase === 'aim' && G.turn === myRole){
+      text = 'Your swing. Drag back from anywhere, let go to hit. Chip to fly over walls and water.';
+    }
+    $('gCall').textContent = text;
+  }
+
+  function golfScorecard(s){
+    const G = s.golf, op = myRole === 'host' ? 'guest' : 'host';
+    const holes = G.holes.map(id => Golf.hole(id));
+    let h = '<tr><th></th>' + holes.map((x, i) => '<th>' + (i + 1) + '</th>').join('') + '<th>Total</th></tr>';
+    h += '<tr class="par"><td>Par</td>' + holes.map(x => '<td>' + x.par + '</td>').join('') + '<td>' + holes.reduce((a, x) => a + x.par, 0) + '</td></tr>';
+    for(const r of [myRole, op]){
+      const name = r === myRole ? 'You' : ((s[r] || {}).name || 'Them');
+      h += '<tr><td>' + name.replace(/[<>&]/g, '') + '</td>' + holes.map((x, i) => {
+        const v = (G.strokes[r] || [])[i];
+        return '<td' + (i === G.n - 1 && s.phase !== 'over' ? ' class="cur"' : '') + '>' + (i < G.n ? (v || 0) : '–') + '</td>';
+      }).join('') + '<td class="tot">' + golfTotal(s, r) + '</td></tr>';
+    }
+    $('gcScore').innerHTML = h;
+  }
+
+  function golfCard(s){
+    const G = s.golf, mine = G.turn === myRole, who = (s[G.turn] || {}).name || 'They';
+    gv.cardWanted = s.phase === 'gq' || s.phase === 'gqres' || s.phase === 'over' || s.phase === 'countdown' || s.phase === 'holeend';
+    $('gcOver').hidden = s.phase !== 'over';
+    $('gcScore').hidden = s.phase !== 'over' && s.phase !== 'holeend';
+    $('gcChoices').hidden = !(s.phase === 'gq' || s.phase === 'gqres');
+    $('gcQ').classList.toggle('result', s.phase === 'over' || s.phase === 'holeend');
+    $('gcQ').classList.toggle('countnum', s.phase === 'countdown');
+    $('gcNote').className = 'pcard-note';
+    questionLook('gc', $('gCard'), s, G.turn, s.phase === 'gq' || s.phase === 'gqres', s.phase === 'gqres');
+    $('gcFuse').hidden = s.phase !== 'gq';
+
+    if(s.phase === 'countdown'){
+      $('gcWho').textContent = 'Hole 1 · ' + (gv.H ? gv.H.name + ', par ' + gv.H.par : '');
+      $('gcNote').textContent = mine ? 'You tee off first. Answer right to swing.' : who + ' tees off first.';
+      $('gcQ').textContent = String(Math.min(3, Math.max(1, Math.ceil(s.ms / 1000))));
+      return;
+    }
+    if(s.phase === 'holeend'){
+      golfScorecard(s);
+      $('gcWho').textContent = 'Hole ' + G.n + ' done';
+      $('gcQ').textContent = gv.H ? gv.H.name : '';
+      $('gcNote').textContent = 'Next hole coming up.';
+      return;
+    }
+    if(s.phase === 'over'){
+      golfScorecard(s);
+      const left = s.over && s.over.left;
+      const win = s.over && s.over.winner;
+      $('gcWho').textContent = 'Game over';
+      $('gcQ').textContent = left ? (left === myRole ? 'You' : ((s[left] || {}).name || 'They')) + ' left'
+        : !win ? 'All square' : win === myRole ? 'You win' : ((s[win] || {}).name || 'They') + ' wins';
+      const st = G.stats[myRole] || { asked: 0, right: 0 };
+      $('gcNote').textContent = ((s.over && s.over.why) || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
+      $('gcAgain').hidden = myRole !== 'host' || !!left;
+      $('gcAgain').disabled = false;
+      return;
+    }
+    if(!s.q) return;
+    $('gcWho').textContent = mine ? 'Your question. Answer right to swing' : who + "'s question";
+    $('gcQ').textContent = s.q.text;
+    const box = $('gcChoices');
+    if(box.dataset.key !== gv.qKey){
+      box.innerHTML = '';
+      s.q.choices.forEach((n, i) => {
+        const b = document.createElement('button');
+        b.className = 'choice'; b.type = 'button';
+        const kb = document.createElement('kbd'); kb.textContent = i + 1;
+        b.append(kb, document.createTextNode(String(n)));
+        b.addEventListener('click', () => golfPick(i));
+        box.appendChild(b);
+      });
+      box.dataset.key = gv.qKey;
+    }
+    const r = s.phase === 'gqres' ? G.gqResult : null;
+    const picked = r ? r.choice : gv.picked;
+    [...box.children].forEach((b, i) => {
+      b.disabled = !(mine && s.phase === 'gq' && gv.picked == null);
+      b.classList.toggle('picked', !r && picked === i);
+      b.classList.remove('right', 'wrong', 'dim');
+      if(r){
+        if(i === s.q.answer) b.classList.add('right');
+        else if(i === picked) b.classList.add('wrong');
+        else b.classList.add('dim');
+      }
+    });
+    if(r){
+      $('gcNote').classList.add(r.right ? 'good' : 'bad');
+      $('gcNote').textContent = r.right
+        ? (mine ? 'Correct. Take your swing.' : who + ' got it right and swings next.')
+        : (r.choice == null ? 'Out of time. ' : 'Not quite. ') + 'It was ' + s.q.choices[s.q.answer] + '. That’s a penalty stroke.';
+    }else{
+      $('gcNote').textContent = mine && gv.picked != null ? 'Locked in.' : '';
+    }
+  }
+
+  $('gCard').addEventListener('pointerdown', () => {
+    if(phase === 'gq' && !golfMine()) nudge("It's " + theirName() + "'s question. Yours is next.", 'gcWait');
+  });
+  $('gcAgain').addEventListener('click', () => {
+    $('gcAgain').disabled = true;
+    try{ ws.send(JSON.stringify({ t:'again' })); }catch(e){}
+  });
+
+  function golfPick(i){
+    if(phase !== 'gq' || !golfMine() || gv.picked != null || !ws) return;
+    gv.picked = i;
+    ws.send(JSON.stringify({ t:'gans', choice:i }));
+    golfCard(gv.s);
+  }
+
+  function applyGolf(s){
+    const G = s.golf, prev = gv.s;
+    gv.s = s;
+    if(s.ms != null) deadlineAt = performance.now() + s.ms;
+    show(['scGolf']);
+    golfResize();
+    if(!Golf){ golfBar(s); return; }
+    // a new hole (or a new match): fresh course, fresh fog, camera on the tee
+    if(G.hole !== gv.holeId || (s.phase === 'countdown' && (!prev || prev.phase !== 'countdown'))){
+      gv.holeId = G.hole; gv.H = Golf.hole(G.hole);
+      gv.course = null; gv.cam = null; gv.anim = null; gv.pred = null; gv.fx = [];
+      gv.seen = G.seen; gv.seenFinal = G.seen;
+      if(s.phase === 'countdown') gv.played = 0;
+      fogFresh();
+    }
+    if(G.shot && G.shot.id !== gv.played){
+      gv.played = G.shot.id;
+      // already rolling it here since the player let go: carry on, unless
+      // the room's stroke is any different, in which case play the room's
+      const same = gv.pred && gv.pred.key === golfKey(G.shot);
+      gv.pred = null;
+      gv.seenFinal = G.seen;
+      if(!same) golfPlay(G.shot);
+    }else if(gv.pred && s.phase !== 'aim' && s.phase !== 'rolling'){
+      // the room never took that stroke (time ran out first), so drop it
+      gv.pred = null; gv.anim = null;
+    }
+    if(!gv.anim){ gv.seenFinal = G.seen; fogTo(G.seen); }
+    if(s.phase === 'aim' && (!prev || prev.phase !== 'aim')){
+      gv.sent = false; gv.power = 0; gv.drag = null; gv.club = 'putt';
+      // point the first aim at the flag, which is a fair place to start
+      const b = G.balls[G.turn], H = gv.H;
+      if(b){ const dx = H.cup.x - b.x, dy = H.cup.y - b.y, l = Math.hypot(dx, dy) || 1; gv.aim = { x: dx / l, y: dy / l }; }
+    }
+    const qKey = s.q ? s.q.text + '|' + s.q.choices.join(',') : '';
+    if(qKey !== gv.qKey){ gv.qKey = qKey; gv.picked = null; }
+    golfBar(s);
+    golfCall(s);
+    turnBar('g', s, G.turn);
+    if(s.phase === 'holeend'){ $('gTurn').className = 'turnbar'; $('gTurnWho').textContent = 'Hole ' + G.n + ' done'; }
+    turnCue(s, G.turn);
+    golfCard(s);
+    golfClubs();
+  }
+
   // ---------- towers: the characters ----------
   // one picture per card, drawn in the same flat style as the player
   // characters. the same art goes on the card in your hand and walks the
@@ -5614,7 +6480,7 @@
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
         $('guestMode').querySelector('span').textContent = s.modeName || 'Pool';
-        $('guestMode').querySelector('use').setAttribute('href', '#i-' + ({ chess: 'chess', battleships: 'ship', towers: 'towers' }[s.mode] || 'pool'));
+        $('guestMode').querySelector('use').setAttribute('href', '#i-' + ({ chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' }[s.mode] || 'pool'));
         $('deckRowGuest').hidden = s.mode !== 'towers' || !!s.guest.ready;
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
@@ -5633,6 +6499,7 @@
     if(s.mode === 'chess') applyChess(s);
     else if(s.mode === 'battleships') applySea(s);
     else if(s.mode === 'towers') applyTowers(s);
+    else if(s.mode === 'golf') applyGolf(s);
     else applyPool(s);
   }
 
@@ -5768,6 +6635,7 @@
       chess: 'Answer right to earn your move. Get it wrong and your clock pays for it.',
       battleships: 'Answer right to fire. Get it wrong and they see where your ships aren’t.',
       towers: 'Every right answer is elixir. Spend it on troops and knock their towers down.',
+      golf: 'Answer right to take your swing. Get it wrong and it costs you a stroke.',
     }[pickedMode] || "Answer right to earn your shot. Get it wrong and the table's theirs.";
   }
 
@@ -5882,6 +6750,7 @@
         chess: 'Chess, but every move has to be earned. Fancy a game?',
         battleships: 'Battleships, but every shot has to be earned. Fancy a game?',
         towers: 'A tower battle where every right answer is elixir. Fancy a game?',
+        golf: 'Mini golf, but every swing has to be earned. Fancy a round?',
       }[pickedMode] || 'Pool, but every shot has to be earned. Fancy a game?';
       if(shareKind === 'code' && hostCode){
         const site = location.href.split('#')[0];
@@ -5971,7 +6840,7 @@
       $('introName').value = localStorage.getItem('sd-name') || '';
       savedMode = localStorage.getItem('sd-mode') || '';
     }catch(e){}
-    if(['pool', 'chess', 'battleships', 'towers'].includes(savedMode)) pickedMode = savedMode;
+    if(['pool', 'chess', 'battleships', 'towers', 'golf'].includes(savedMode)) pickedMode = savedMode;
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
     introLead();
     opponentType = 'friend';
