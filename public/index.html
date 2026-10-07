@@ -14,9 +14,7 @@
     --hair:rgba(239,227,204,.16);
     --serif:Fraunces, Georgia, "Times New Roman", serif;
     --sans:system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-robe:#2a221b; --ch-shirt:#2a221b;
-    --tube-h:clamp(108px, 18dvh, 158px);
-    --lvl:0;
+    --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-shirt:#2a221b;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
   html,body{ height:100%; }
@@ -138,19 +136,14 @@
      gap under every character — pin the height to the artwork's own ratio */
   .head{ display:block; width:100%; height:auto; aspect-ratio:64/72; }
 
-  /* the judge's jaw. custom properties reach into the <use> shadow tree where
-     plain selectors can't, so this is what lets the mouth move at all. the
-     flap itself is set from JS rather than a keyframe, so it doesn't depend on
-     @property interpolation being supported */
-  @property --mouth{ syntax:'<length>'; inherits:true; initial-value:0px; }
   .pod{ position:relative; }
   .pod::after{
     content:""; position:absolute; left:50%; bottom:-9px; transform:translateX(-50%);
     width:64%; height:7px; border-radius:50%;
     background:radial-gradient(ellipse, rgba(239,227,204,.16), transparent 70%);
   }
-  /* only the shirt changes per character — the judge keeps his own grey robe.
-     the dino is the one that recolours its skin and crest too */
+  /* only the shirt changes per character. the dino is the one that
+     recolours its skin and crest too */
   [data-char="boy"]     { --ch-shirt:#3f74d4; }
   [data-char="girl"]    { --ch-shirt:#e46fa4; }
   [data-char="shades"]  { --ch-shirt:#171412; }
@@ -179,14 +172,36 @@
   .charcard.on{ border-color:var(--amber); background:rgba(255,179,71,.09); }
   .charcard.on b{ color:var(--tallow); }
 
-  /* ---------- the looping demo on the intro ---------- */
-  .demo{ width:100%; max-width:390px; display:flex; flex-direction:column; gap:11px; }
-  .demo-bench{ display:flex; align-items:center; gap:9px; }
-  .demo-bench .pod{ width:clamp(42px,12vw,50px); flex:0 0 auto; }
-  .demo .bubble{ min-height:44px; font-size:.83rem; padding:9px 12px; }
-  .demo-players{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:clamp(14px,6vw,40px); }
+  /* ---------- the looping pool demo on the intro ---------- */
+  .demo{ width:100%; max-width:390px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .demo-call{
+    width:100%; min-height:2.8em; padding:0 6px;
+    display:flex; align-items:center; justify-content:center;
+    font:400 .84rem/1.4 var(--sans); color:var(--tallow); opacity:.88;
+  }
+  /* the full line sits in the box invisibly to hold it open, and the typed
+     copy is laid over it, so nothing shifts while it types */
+  .say-wrap{ position:relative; display:inline-block; text-align:left; }
+  .ghost{ visibility:hidden; }
+  .typed{ position:absolute; inset:0; }
+  .demo-call.typing .typed::after{
+    content:""; display:inline-block; width:2px; height:.95em;
+    margin-left:2px; vertical-align:-2px; background:var(--amber);
+    animation:blink .7s steps(2,start) infinite;
+  }
+  @keyframes blink{ 50%{ opacity:0 } }
+  .demo-table{
+    display:block; width:100%; max-width:calc(30dvh * 664 / 364); aspect-ratio:664/364;
+    border-radius:12px; transition:opacity .45s ease;
+  }
+  .demo-table.fade{ opacity:0; }
+  .demo-players{ width:100%; max-width:320px; display:grid; grid-template-columns:1fr 1fr; gap:clamp(14px,6vw,40px); }
   .demo-side{ display:flex; flex-direction:column; align-items:center; gap:6px; }
-  .demo-side .pod{ width:clamp(40px,11vw,48px); }
+  .demo-side .pod{ width:clamp(40px,11vw,48px); transition:transform .3s ease; }
+  .demo-side .pod::after{ transition:background .3s ease; }
+  /* whoever's turn it is stands up a little, with a warm glow underfoot */
+  .demo-side.turn .pod{ transform:translateY(-3px); }
+  .demo-side.turn .pod::after{ background:radial-gradient(ellipse, rgba(255,179,71,.55), transparent 70%); }
   .answer{
     position:relative; min-width:46px; min-height:28px; padding:4px 10px;
     display:flex; align-items:center; justify-content:center;
@@ -199,15 +214,7 @@
   .answer.on{ opacity:1; transform:none; border-color:var(--hair); color:var(--tallow); }
   .answer.right{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
   .answer.wrong{ border-color:var(--ember); color:var(--ember); background:rgba(255,106,42,.08); }
-  /* the debate preview reuses these pills for a side, then for a grade */
-  .answer.word{ font:600 .66rem/1 var(--sans); letter-spacing:.06em; }
-  .answer.for{ color:#7fd6a2; border-color:#7fd6a2; background:rgba(127,214,162,.08); }
-  .answer.against{ color:#ff9d7a; border-color:#ff9d7a; background:rgba(255,157,122,.08); }
-  .answer.grade{ background:var(--tallow); color:var(--soot); border-color:var(--tallow); }
-  .answer.for::after{ background:#14201a; border-right-color:#7fd6a2; border-bottom-color:#7fd6a2; }
-  .answer.against::after{ background:#20140f; border-right-color:#ff9d7a; border-bottom-color:#ff9d7a; }
-  .answer.grade::after{ background:var(--tallow); border-right-color:var(--tallow); border-bottom-color:var(--tallow); }
-  /* a tail pointing at whoever said it, same as the judge's bubble */
+  /* a tail pointing at whoever said it */
   .answer::after{
     content:""; position:absolute; bottom:-5px; left:50%; margin-left:-4.5px;
     width:9px; height:9px; transform:rotate(45deg);
@@ -217,74 +224,6 @@
   .answer.on::after{ opacity:1; border-right-color:var(--hair); border-bottom-color:var(--hair); }
   .answer.right::after{ background:var(--tallow); border-right-color:var(--tallow); border-bottom-color:var(--tallow); }
   .answer.wrong::after{ background:#1b1210; border-right-color:var(--ember); border-bottom-color:var(--ember); }
-
-  /* ---------- the judge's bench ---------- */
-  .bench{ width:100%; display:flex; align-items:center; justify-content:center; gap:12px; }
-  .bench .pod{ width:clamp(52px,14vw,68px); flex:0 0 auto; }
-  .bubble{
-    position:relative; flex:1 1 auto; max-width:330px; min-height:52px;
-    display:flex; align-items:center; text-align:left;
-    padding:11px 15px; border:1px solid var(--hair); border-radius:12px;
-    background:rgba(239,227,204,.04);
-    font:400 .9rem/1.4 var(--sans); color:var(--tallow);
-  }
-  /* the full line sits in the bubble invisibly to hold the box open, and the
-     typed copy is laid over it — so the bubble never resizes mid-sentence */
-  .say-wrap{ position:relative; display:block; flex:1 1 auto; }
-  .ghost{ visibility:hidden; }
-  .typed{ position:absolute; inset:0; }
-  .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-  .bubble.typing .typed::after{
-    content:""; display:inline-block; width:2px; height:.95em;
-    margin-left:2px; vertical-align:-2px; background:var(--amber);
-    animation:blink .7s steps(2,start) infinite;
-  }
-  @keyframes blink{ 50%{ opacity:0 } }
-  .bubble::before{
-    content:""; position:absolute; left:-7px; top:50%; margin-top:-6px;
-    width:12px; height:12px; transform:rotate(45deg);
-    background:rgba(239,227,204,.04);
-    border-left:1px solid var(--hair); border-bottom:1px solid var(--hair);
-  }
-
-  /* ---------- the two players ---------- */
-  .players{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:clamp(14px,6vw,40px); }
-  .side{ display:flex; flex-direction:column; align-items:center; gap:7px; min-width:0; }
-  .side.you{ --accent:var(--amber); }
-  .side.them{ --accent:var(--cold); }
-  .side .pod{ width:clamp(46px,13vw,62px); }
-  .side .pod::after{ bottom:-7px; height:6px; }
-  .name{
-    font:500 .84rem/1.3 var(--sans); color:var(--tallow); opacity:.8;
-    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .gpa{
-    font:500 clamp(1.6rem,7vw,2.1rem)/1 var(--serif);
-    font-variant-numeric:lining-nums tabular-nums; color:var(--accent);
-    transition:color .3s ease;
-  }
-  .gpa.none{ color:rgba(141,129,113,.6); }
-  .tube{
-    position:relative; width:clamp(42px,12vw,58px); height:var(--tube-h);
-    border:1px solid var(--hair); border-radius:5px; overflow:hidden;
-    background:
-      repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px),
-        rgba(239,227,204,.1) calc(25% - 1px), rgba(239,227,204,.1) 25%);
-  }
-  .tube i{
-    position:absolute; left:0; right:0; bottom:0; display:block;
-    height:calc(var(--lvl) * 100%);
-    background:linear-gradient(to top, color-mix(in srgb, var(--accent) 45%, transparent), var(--accent));
-    box-shadow:0 0 18px -2px var(--accent);
-    transition:height .7s cubic-bezier(.3,1,.4,1);
-  }
-  .tube.up i{ animation:jolt .6s ease-out; }
-  .tube.down i{ animation:sink .6s ease-out; }
-  @keyframes jolt{ 0%{ filter:brightness(2.4) } 100%{ filter:none } }
-  @keyframes sink{ 0%{ filter:grayscale(1) brightness(1.6) } 100%{ filter:none } }
-  .band{ font:400 .7rem/1.3 var(--sans); color:var(--ash); text-align:center; min-height:1.3em; }
-  .locked-in{ font:400 .68rem/1 var(--sans); color:var(--accent); opacity:0; transition:opacity .2s ease; }
-  .locked-in.on{ opacity:.9; }
 
   /* ---------- pre-match lobby ---------- */
   .lobby{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:clamp(14px,6vw,40px); }
@@ -311,17 +250,12 @@
   .lobbystatus.here::before{ background:var(--amber); animation:pulse-dot 1.4s ease-in-out infinite; }
   @keyframes pulse-dot{ 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
 
-  /* ---------- quiz ---------- */
+  /* ---------- panels, timers and answer buttons ---------- */
   .panel{ width:100%; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; }
   .fuse{ width:min(400px,100%); height:2px; background:rgba(239,227,204,.12); }
   .fuse i{ display:block; height:100%; width:100%; background:var(--amber); }
   .fuse.low i{ background:var(--ember); }
   .fuse.off{ opacity:0; }
-  .qtext{
-    font:500 clamp(1.9rem,8.5vw,2.5rem)/1.15 var(--serif); color:var(--tallow);
-    font-variant-numeric:lining-nums tabular-nums; min-height:1.15em;
-  }
-  .qtext.count{ font-size:clamp(3rem,16vw,4.4rem); color:var(--amber); }
   .choices{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; width:min(400px,100%); }
   .choice{
     position:relative; min-height:58px; padding:13px 10px;
@@ -340,59 +274,6 @@
   .choice kbd{ position:absolute; top:6px; left:8px; font:500 .6rem/1 var(--sans); color:var(--ash); }
   .choice.right kbd{ color:rgba(13,10,8,.5); }
   @media (pointer:coarse){ .choice kbd{ display:none } }
-  .qnote{ font:400 .85rem/1.4 var(--sans); color:var(--ash); min-height:1.4em; }
-
-  /* ---------- debate mode ---------- */
-  .topic{
-    font:500 clamp(1.1rem,4.6vw,1.35rem)/1.35 var(--serif);
-    color:var(--tallow); max-width:32ch;
-  }
-  .stance{ font:400 .85rem/1.3 var(--sans); color:var(--ash); }
-  .sidebadge{
-    display:inline-block; padding:2px 9px; border-radius:999px;
-    font:600 .72rem/1.5 var(--sans); letter-spacing:.06em;
-    border:1px solid currentColor;
-  }
-  .sidebadge.for{ color:#7fd6a2; }
-  .sidebadge.against{ color:#ff9d7a; }
-  .argbox{
-    width:100%; max-width:440px; padding:12px 14px; resize:vertical; min-height:96px;
-    font:400 .98rem/1.55 var(--sans); color:var(--tallow);
-    background:rgba(239,227,204,.04); border:1px solid var(--hair); border-radius:10px;
-  }
-  .argbox::placeholder{ color:rgba(239,227,204,.3); }
-  .argbox:focus{ outline:none; border-color:var(--amber); }
-  .argbox:disabled{ opacity:.5; }
-  .argfoot{
-    width:100%; max-width:440px; display:flex; align-items:center;
-    justify-content:space-between; gap:12px; flex-wrap:wrap;
-  }
-  .wc{ font:400 .8rem/1.3 var(--sans); color:var(--ash); font-variant-numeric:tabular-nums; }
-  .wc.over{ color:var(--ember); }
-
-  .cases{ width:100%; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .case{
-    display:flex; flex-direction:column; gap:7px; min-width:0; text-align:left;
-    padding:11px 12px; border:1px solid var(--hair); border-radius:10px;
-  }
-  .case.you{ --accent:var(--amber); }
-  .case.them{ --accent:var(--cold); }
-  .casehd{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-  .casename{ font:500 .8rem/1.2 var(--sans); color:var(--tallow); opacity:.8; overflow:hidden; text-overflow:ellipsis; }
-  .casetext{ font:400 .84rem/1.5 var(--sans); color:rgba(239,227,204,.72); overflow-wrap:anywhere; }
-  .chip{
-    align-self:flex-start; min-width:52px; padding:3px 11px; border-radius:8px;
-    font:500 1.15rem/1.3 var(--serif); font-variant-numeric:lining-nums tabular-nums;
-    color:var(--soot); background:var(--accent); box-shadow:0 0 20px -4px var(--accent);
-    opacity:0; transform:translateY(6px) scale(.9);
-    transition:opacity .35s ease, transform .45s cubic-bezier(.2,1.4,.4,1);
-  }
-  .chip.on{ opacity:1; transform:none; }
-  @media (max-width:430px){ .cases{ grid-template-columns:1fr } }
-
-  /* while writing, the meters shrink out of the way so the box has room */
-  .players.compact .tube, .players.compact .band, .players.compact .locked-in{ display:none; }
-
   /* ---------- chrome ---------- */
   .hd{ font:500 clamp(1.4rem,5.4vw,1.8rem)/1.2 var(--serif); max-width:22ch; }
   .lead{ font:400 .93rem/1.55 var(--sans); color:var(--ash); max-width:36ch; }
@@ -458,13 +339,6 @@
   .modes.cols3 .mode{ padding:14px 7px; gap:5px; }
   .modes.cols3 .mode span{ font-size:.7rem; }
   .modes.cols3 .mode b{ font-size:.84rem; }
-
-  /* ---------- result ---------- */
-  .verdict{ display:flex; align-items:baseline; justify-content:center; gap:14px; font-variant-numeric:lining-nums tabular-nums }
-  .reveal .hd{ animation:appear .6s .35s ease-out both }
-  .reveal .status{ animation:appear .6s .6s ease-out both }
-  .reveal .row{ animation:appear .6s .85s ease-out both }
-  @keyframes appear{ from{ opacity:0; transform:translateY(7px) } to{ opacity:1; transform:none } }
 
   /* ---------- pool ---------- */
   #scPool{ gap:8px; }
@@ -573,23 +447,17 @@
   @media (max-width:360px){
     .choice{ font-size:1.15rem; min-height:52px }
     .app{ gap:14px }
-    .bubble{ font-size:.84rem; min-height:46px; padding:9px 12px }
   }
   @media (max-height:680px){
-    :root{ --tube-h:clamp(86px,14dvh,120px) }
     .app{ gap:13px }
   }
   /* reduced motion means less travel across the screen, not a dead page. the
-     judge still types and works his jaw and the demo still cycles — those are
-     small and they carry the meaning. what goes is the sliding and scaling */
+     demo still plays its shots, since that's the point of it. what goes is
+     the sliding and bobbing */
   @media (prefers-reduced-motion: reduce){
-    .chip{ transition:opacity .2s ease; transform:none !important }
     .answer{ transform:none !important; transition:opacity .2s ease, background .3s ease, border-color .3s ease, color .3s ease; }
-    .tube.up i, .tube.down i{ animation:none !important }
-    .tube i{ transition:height .2s linear }
+    .demo-side .pod{ transform:none !important; }
     .lobbystatus.here::before{ animation:none !important }
-    .reveal .hd, .reveal .status, .reveal .row{ animation-name:plain }
-    @keyframes plain{ from{ opacity:0 } to{ opacity:1 } }
   }
 </style>
 </head>
@@ -608,21 +476,6 @@
 
   <svg class="sprite" aria-hidden="true">
     <defs>
-      <symbol id="i-gavel" viewBox="0 0 24 24">
-        <rect x="3.6" y="2.6" width="16.8" height="6.4" rx="2.2"/>
-        <rect x="10.2" y="9" width="3.6" height="8.2"/>
-        <rect x="4.6" y="18" width="14.8" height="3.4" rx="1.7"/>
-      </symbol>
-      <symbol id="i-bolt" viewBox="0 0 24 24">
-        <path d="M13.6 1.5 4.2 13.8h5.5l-1.3 8.7 9.4-12.6h-5.4z"/>
-      </symbol>
-      <symbol id="i-hourglass" viewBox="0 0 24 24">
-        <path d="M5 2h14v2.2h-1.3v2.1c0 2-1.4 3.9-3.3 5.7 1.9 1.8 3.3 3.7 3.3 5.7v2.1H19V22H5v-2.2h1.3v-2.1c0-2 1.4-3.9 3.3-5.7C7.7 10.2 6.3 8.3 6.3 6.3V4.2H5z"/>
-      </symbol>
-      <symbol id="i-debate" viewBox="0 0 24 24">
-        <path d="M2 4.9A2.3 2.3 0 0 1 4.3 2.6h8.1a2.3 2.3 0 0 1 2.3 2.3v3.9a2.3 2.3 0 0 1-2.3 2.3H7.1L3.5 13.8v-2.7A2.3 2.3 0 0 1 2 8.8z"/>
-        <path d="M16.6 8.9h3.1A2.3 2.3 0 0 1 22 11.2v4a2.3 2.3 0 0 1-1.5 2.2v2.8l-3.6-2.6h-4.3a2.3 2.3 0 0 1-2.3-2.3v-2.1h1.9a3.9 3.9 0 0 0 3.9-3.9z"/>
-      </symbol>
       <symbol id="i-people" viewBox="0 0 24 24">
         <circle cx="8.4" cy="7.2" r="3.7"/><circle cx="16.6" cy="8.4" r="3"/>
         <path d="M1.6 20.4c0-3.8 3-6.4 6.8-6.4s6.8 2.6 6.8 6.4z"/>
@@ -725,25 +578,6 @@
         </g>
         <path d="M22.4 33.2q2.2-1 4.4-.2" stroke="rgba(255,255,255,.5)" stroke-width="1.4" stroke-linecap="round" fill="none"/>
         <path d="M27.4 43.8q4.6 3.4 9.2 0" stroke="var(--ch-ink)" stroke-width="2.3" stroke-linecap="round" fill="none"/>
-      </symbol>
-
-      <symbol id="char-judge" viewBox="0 0 64 72">
-        <path d="M15 72v-6q0-5 7-7.6l10-3.6 10 3.6q7 2.6 7 7.6v6z" fill="var(--ch-robe)"/>
-        <path d="M28.6 55.2h6.8v10L32 68.6l-3.4-3.4z" fill="var(--ch-hair)"/>
-        <ellipse cx="32" cy="28.6" rx="18" ry="16.4" fill="var(--ch-hair)"/>
-        <g fill="var(--ch-hair)">
-          <ellipse cx="15.8" cy="36.6" rx="6.6" ry="4"/>
-          <ellipse cx="16.6" cy="44" rx="5.8" ry="3.8"/>
-          <ellipse cx="48.2" cy="36.6" rx="6.6" ry="4"/>
-          <ellipse cx="47.4" cy="44" rx="5.8" ry="3.8"/>
-        </g>
-        <ellipse cx="32" cy="34.8" rx="12.8" ry="14.4" fill="var(--ch-skin)"/>
-        <g fill="none" stroke="var(--ch-ink)" stroke-width="1.7">
-          <circle cx="26.6" cy="34.4" r="4.2"/><circle cx="37.4" cy="34.4" r="4.2"/>
-          <path d="M30.8 34.4h2.4" stroke-linecap="round"/>
-        </g>
-        <path d="M29 43.9q3 2.1 6 0" stroke="var(--ch-ink)" stroke-width="2" stroke-linecap="round" fill="none"/>
-        <ellipse cx="32" cy="44.7" rx="4.1" fill="var(--ch-ink)" style="ry:var(--mouth, 0px)"/>
       </symbol>
 
       <symbol id="char-nerd" viewBox="0 0 64 72">
@@ -857,42 +691,35 @@
 
     <section class="panel" id="scIntro" hidden>
       <div class="demo" id="demo" aria-hidden="true">
-        <div class="demo-bench">
-          <div class="pod" id="demoPod"><svg class="head"><use href="#char-judge"/></svg></div>
-          <p class="bubble" id="demoBubble">
-            <span class="say-wrap">
-              <span class="ghost" id="demoGhost"></span>
-              <span class="typed" id="demoTyped"></span>
-            </span>
-          </p>
-        </div>
+        <p class="demo-call" id="demoCall">
+          <span class="say-wrap">
+            <span class="ghost" id="demoGhost"></span>
+            <span class="typed" id="demoTyped"></span>
+          </span>
+        </p>
+        <canvas class="demo-table" id="demoTable"></canvas>
         <div class="demo-players">
-          <div class="demo-side">
+          <div class="demo-side" id="demoSideL">
             <div class="answer" id="demoAnsL"></div>
             <div class="pod" id="demoPodL" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
           </div>
-          <div class="demo-side">
+          <div class="demo-side" id="demoSideR">
             <div class="answer" id="demoAnsR"></div>
             <div class="pod" id="demoPodR" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
           </div>
         </div>
       </div>
-      <p class="lead">Two players, one judge, every answer graded from 3 to 7.</p>
-      <div class="modes cols3" id="modeGrid">
-        <button class="mode on" type="button" data-mode="judge">
-          <svg><use href="#i-gavel"/></svg>
-          <b>Judge Mode</b>
-          <span>Ten questions. The judge marks every answer.</span>
-        </button>
-        <button class="mode" type="button" data-mode="debate">
-          <svg><use href="#i-debate"/></svg>
-          <b>Debate Mode</b>
-          <span>Three topics. Take a side and argue it.</span>
-        </button>
-        <button class="mode" type="button" data-mode="pool">
+      <p class="lead">Answer right to earn your shot. Get it wrong and the table's theirs.</p>
+      <div class="modes" id="modeGrid">
+        <button class="mode on" type="button" data-mode="pool">
           <svg><use href="#i-pool"/></svg>
           <b>Pool</b>
           <span>8-ball. Answer right to take your shot.</span>
+        </button>
+        <button class="mode" type="button" disabled>
+          <svg><use href="#i-lock"/></svg>
+          <b>More games</b>
+          <span>Coming soon.</span>
         </button>
       </div>
       <button class="btn primary" id="introGo">Go</button>
@@ -906,33 +733,15 @@
           <b>Invite a Friend</b>
           <span>Send a link, they join and play live.</span>
         </button>
-        <button class="mode" type="button" data-opp="bot">
+        <button class="mode" type="button" data-opp="bot" disabled>
           <svg><use href="#i-bot"/></svg>
           <b>Play a Bot</b>
-          <span>No waiting around — pick a difficulty and go.</span>
+          <span>Coming soon. Invite a friend for now.</span>
         </button>
         <button class="mode" type="button" data-opp="test">
           <svg><use href="#i-test"/></svg>
           <b>Test Mode</b>
-          <span>Straight in against a stand-in. No AI calls.</span>
-        </button>
-      </div>
-    </section>
-
-    <section class="panel" id="scBotDiff" hidden>
-      <h2 class="hd">Choose a difficulty</h2>
-      <div class="modes cols3" id="diffGrid">
-        <button class="mode" type="button" data-diff="easy">
-          <b>Easy</b>
-          <span>Answers fast, gets a lot wrong.</span>
-        </button>
-        <button class="mode" type="button" data-diff="medium">
-          <b>Medium</b>
-          <span>A fair fight.</span>
-        </button>
-        <button class="mode" type="button" data-diff="hard">
-          <b>Hard</b>
-          <span>Takes its time, rarely misses.</span>
+          <span>Straight in against a stand-in. No link needed.</span>
         </button>
       </div>
     </section>
@@ -969,7 +778,7 @@
 
     <section class="panel" id="scGuest" hidden>
       <h2 class="hd" id="guestHd">You've been challenged</h2>
-      <p class="meta" id="guestMode"><svg><use href="#i-gavel"/></svg><span>Judge Mode</span></p>
+      <p class="meta" id="guestMode"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
       <div class="lobby" id="guestLobby">
         <div class="lobbyside">
           <div class="pod" id="glHostPod"><svg class="head"><use href="#char-boy"/></svg></div>
@@ -986,73 +795,6 @@
       <input class="field" id="guestName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
       <button class="btn primary" id="guestReady" disabled>I'm ready</button>
       <p class="status" id="guestStatus"></p>
-    </section>
-
-    <section class="panel" id="scArena" hidden>
-      <div class="bench">
-        <div class="pod" id="judgePod"><svg class="head"><use href="#char-judge"/></svg></div>
-        <p class="bubble" id="bubble" aria-live="polite">
-          <span class="say-wrap">
-            <span class="ghost" id="bubbleGhost" aria-hidden="true"></span>
-            <span class="typed" id="bubbleTyped" aria-hidden="true"></span>
-          </span>
-          <span class="sr" id="bubbleSr"></span>
-        </p>
-      </div>
-      <div class="players" id="players">
-        <div class="side you" id="sideMine">
-          <div class="pod" id="podMine" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
-          <div class="name" id="nameMine">You</div>
-          <div class="gpa none" id="gpaMine">—</div>
-          <div class="tube" id="tubeMine"><i></i></div>
-          <div class="band" id="bandMine"></div>
-          <div class="locked-in" id="lockMine">locked in</div>
-        </div>
-        <div class="side them" id="sideTheirs">
-          <div class="pod" id="podTheirs" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
-          <div class="name" id="nameTheirs">Them</div>
-          <div class="gpa none" id="gpaTheirs">—</div>
-          <div class="tube" id="tubeTheirs"><i></i></div>
-          <div class="band" id="bandTheirs"></div>
-          <div class="locked-in" id="lockTheirs">locked in</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="panel" id="scQuiz" hidden>
-      <div class="fuse" id="fuse"><i id="fuseBar"></i></div>
-      <div class="qtext" id="qText">—</div>
-      <div class="choices" id="choices"></div>
-      <p class="qnote" id="qNote"></p>
-    </section>
-
-    <section class="panel" id="scDebate" hidden>
-      <div class="fuse" id="debFuse"><i id="debBar"></i></div>
-      <p class="topic" id="debTopic"></p>
-      <p class="stance">You are arguing <b class="sidebadge" id="debSide">FOR</b></p>
-      <textarea class="argbox" id="debText" rows="4" maxlength="800"
-        placeholder="Make your case. Evidence beats volume." aria-label="Your argument"></textarea>
-      <div class="argfoot">
-        <span class="wc" id="debCount">0 / 50 words</span>
-        <span class="wc" id="debClock"></span>
-        <button class="btn primary" id="debSend" disabled>File your argument</button>
-      </div>
-      <p class="qnote" id="debNote"></p>
-    </section>
-
-    <section class="panel" id="scRecap" hidden>
-      <div class="cases">
-        <div class="case you" id="caseMine">
-          <div class="casehd"><span class="sidebadge" id="caseSideMine"></span><span class="casename" id="caseNameMine"></span></div>
-          <p class="casetext" id="caseTextMine"></p>
-          <div class="chip" id="chipMine"></div>
-        </div>
-        <div class="case them" id="caseTheirs">
-          <div class="casehd"><span class="sidebadge" id="caseSideTheirs"></span><span class="casename" id="caseNameTheirs"></span></div>
-          <p class="casetext" id="caseTextTheirs"></p>
-          <div class="chip" id="chipTheirs"></div>
-        </div>
-      </div>
     </section>
 
     <section class="panel" id="scPool" hidden>
@@ -1106,15 +848,6 @@
       </div>
     </section>
 
-    <section class="panel" id="scOver" hidden>
-      <h2 class="hd" id="overHd"></h2>
-      <p class="status" id="overSub"></p>
-      <div class="row">
-        <button class="btn primary" id="overAgain" hidden>Run it back</button>
-        <a class="btn leavelink" href="./">New opponent</a>
-      </div>
-    </section>
-
     <section class="panel" id="scDead" hidden>
       <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
@@ -1128,25 +861,13 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scOpponent','scBotDiff','scSetup','scHost','scGuest','scArena','scQuiz','scDebate','scRecap','scPool','scOver','scDead'];
+  const PANELS = ['scIntro','scOpponent','scSetup','scHost','scGuest','scPool','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
-  // the grade scale everything hangs off: 3 fail, 7 high distinction
-  const FLOOR = 3, CEIL = 7;
-  const BANDS = ['Fail','Pass','Credit','Distinction','High distinction'];
-  const bandOf = g => BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(g) - FLOOR))];
-
-  let ws = null, gameId = null, myRole = null, pickedMode = 'judge', pickedChar = '';
-  let opponentType = 'friend', botDifficulty = 'medium', testStarted = false;
-  let questionMs = 10000, total = 10, debateMs = 180000, wordMax = 50, limitMs = 10000;
-  let recapRound = -1, recapTimers = [], debateRound = -1;
-  let phase = 'intro', round = 0, myAnswer = null, lastQ = null;
-  let deadlineAt = 0, choicesRendered = -1, saidRound = -1, revealed = false;
-
-  const side = {
-    mine:   { el:$('sideMine'),   pod:$('podMine'),   name:$('nameMine'),   gpa:$('gpaMine'),   tube:$('tubeMine'),   band:$('bandMine'),   lock:$('lockMine'),   last:null },
-    theirs: { el:$('sideTheirs'), pod:$('podTheirs'), name:$('nameTheirs'), gpa:$('gpaTheirs'), tube:$('tubeTheirs'), band:$('bandTheirs'), lock:$('lockTheirs'), last:null },
-  };
+  let ws = null, gameId = null, myRole = null, pickedMode = 'pool', pickedChar = '';
+  let opponentType = 'friend', testStarted = false;
+  let questionMs = 10000;
+  let phase = 'intro', deadlineAt = 0;
 
   function wearChar(pod, id){
     if(!pod || !id) return;
@@ -1209,263 +930,447 @@
   }
 
   // back is an escape hatch for anyone not in a match yet — once a match is
-  // running (arena, quiz, debate, recap, over) or the link's already dead
-  // there's nothing sane to back out to, so it stays hidden
-  const BACK_SCREENS = new Set(['scOpponent', 'scBotDiff', 'scSetup', 'scHost', 'scGuest']);
+  // running or the link's already dead there's nothing sane to back out to,
+  // so it stays hidden
+  const BACK_SCREENS = new Set(['scOpponent', 'scSetup', 'scHost', 'scGuest']);
 
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
-    $('wordmark').hidden = ids.includes('scArena') || ids.includes('scPool');
+    $('wordmark').hidden = ids.includes('scPool');
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
-    // scOver already has its own way out ("New opponent"), so the hold-to-quit
-    // button only covers the phases where a match is actually in progress
-    const showQuit = (ids.includes('scArena') || ids.includes('scPool')) && !ids.includes('scOver') && phase !== 'over';
+    // a finished match has its own way out ("New opponent") on the end card,
+    // so the hold-to-quit button only covers a match that's still going
+    const showQuit = ids.includes('scPool') && phase !== 'over';
     if(showQuit && $('quitBtn').hidden) resetQuitRing();
     $('quitBtn').hidden = !showQuit;
     if(ids.includes('scIntro')) demoStart(); else demoStop();
   }
 
-  // a judge who types his line out and works his jaw while it lands, then
-  // shuts it. the arena judge and the demo judge on the intro are both one of
-  // these. screen readers get the whole line at once off the .sr copy, when
-  // there is one, instead of one character at a time
-  function speaker(o){
-    const b = $(o.bubble), ghost = $(o.ghost), typed = $(o.typed), pod = $(o.pod);
-    const sr = o.sr ? $(o.sr) : null;
-    let timer = null, jaw = null;
-
-    function jawOn(){
-      clearInterval(jaw);
-      let open = false;
-      jaw = setInterval(() => {
-        open = !open;
-        pod.style.setProperty('--mouth', open ? '3.2px' : '0.7px');
-      }, 165);
-    }
-    function jawOff(){
-      clearInterval(jaw);
-      jaw = null;
-      pod.style.removeProperty('--mouth');
-    }
-
-    function finish(text){
-      typed.textContent = text;
-      b.classList.remove('typing');
-      pod.classList.remove('talking');
-      jawOff();
-    }
-
-    return {
-      say(text, fresh){
-        if(ghost.textContent === text) return;
-        clearInterval(timer);
-        timer = null;
-        ghost.textContent = text;
-        if(sr) sr.textContent = text;
-        if(!fresh){ finish(text); return; }
-
-        typed.textContent = '';
-        b.classList.add('typing');
-        pod.classList.add('talking');
-        jawOn();
-        let i = 0;
-        timer = setInterval(() => {
-          typed.textContent = text.slice(0, ++i);
-          if(i >= text.length){ clearInterval(timer); timer = null; finish(text); }
-        }, 22);
-      },
-      stop(){
-        clearInterval(timer);
-        timer = null;
-        b.classList.remove('typing');
-        pod.classList.remove('talking');
-        jawOff();
-      },
-    };
-  }
-
-  const judge = speaker({ bubble:'bubble', ghost:'bubbleGhost', typed:'bubbleTyped', sr:'bubbleSr', pod:'judgePod' });
-
   // ---------- the looping demo on the intro ----------
-  const DEMO = [
-    { q:'What is 7 + 5?',  right:'12', wrong:'14' },
-    { q:'What is 13 - 6?', right:'7',  wrong:'9'  },
-    { q:'What is 9 + 8?',  right:'17', wrong:'15' },
+  // a pocket-sized game between two random characters. each turn one of
+  // them gets a sum: a right answer earns a shot and drops a ball, a wrong
+  // one hands the table over. it's all scripted here and never touches the
+  // server. the table is landscape and in its own units, 600 by 300
+  const DT = { W: 600, H: 300, R: 11, CUSH: 9, WOOD: 22 };
+  DT.RAIL = DT.CUSH + DT.WOOD;
+  DT.OW = DT.W + DT.RAIL * 2; DT.OH = DT.H + DT.RAIL * 2;
+  // where a ball aims for, and the hole it drops into just behind that
+  const DEMO_POCKETS = [
+    { at: [0, 0], hole: [-5, -5], r: 18 },       { at: [DT.W / 2, 0], hole: [DT.W / 2, -8], r: 15 },
+    { at: [DT.W, 0], hole: [DT.W + 5, -5], r: 18 }, { at: [0, DT.H], hole: [-5, DT.H + 5], r: 18 },
+    { at: [DT.W / 2, DT.H], hole: [DT.W / 2, DT.H + 8], r: 15 }, { at: [DT.W, DT.H], hole: [DT.W + 5, DT.H + 5], r: 18 },
   ];
-  // the debate preview tells the same story the real mode does: a topic, a side
-  // each, then a grade each
-  const DEBATE_DEMO = [
-    { topic:'Should super pay for a house deposit?',
-      mid:'Fifty words each. Make them count.',
-      call:'You led with real figures. That wins rounds.', l:'6.4', r:'5.1' },
-    { topic:'Should the preservation age stay at 60?',
-      mid:'Three minutes on the clock. Take a side.',
-      call:'Both of you met the other case head on. Close one.', l:'6.1', r:'5.8' },
-  ];
-  const demoJudge = speaker({ bubble:'demoBubble', ghost:'demoGhost', typed:'demoTyped', pod:'demoPod' });
-  let demoTimers = [], demoRound = 0, demoOn = false;
+  const DEMO_COL = ['#fbfbf8', '#f6c40c', '#1f4fc6', '#e2282a', '#5b2c93', '#f3701d', '#138c46', '#7d1e1f', '#121212',
+                    '#f6c40c', '#1f4fc6', '#e2282a', '#5b2c93', '#f3701d', '#138c46', '#7d1e1f'];
+  const dm = {
+    on: false, timers: [], typer: null, raf: 0,
+    balls: [], moves: [], sinks: [], stick: null,
+    chars: ['boy', 'girl'], turn: 0, streak: 0,
+    w: 0, scale: 1, dpr: 1, cache: null,
+  };
+
+  function demoAt(ms, fn){ dm.timers.push(setTimeout(fn, ms)); }
 
   function pickRandomChars(){
     const chars = CHAR_LIST.map(c => c[0]);
     const left = chars[Math.floor(Math.random() * chars.length)];
-    const rightChars = chars.filter(c => c !== left);
-    const right = rightChars[Math.floor(Math.random() * rightChars.length)];
-    return { left, right };
+    const rest = chars.filter(c => c !== left);
+    return [left, rest[Math.floor(Math.random() * rest.length)]];
   }
+  const charName = id => (CHAR_LIST.find(c => c[0] === id) || [id, 'Player'])[1];
+  const owns = name => name + (/s$/i.test(name) ? '’' : '’s');
 
-  function setDemoChars(left, right){
-    wearChar($('demoPodL'), left);
-    wearChar($('demoPodR'), right);
-  }
-
-  function demoAt(ms, fn){ demoTimers.push(setTimeout(fn, ms)); }
-
-  function answerPill(id, text, cls){
-    const el = $(id);
+  function answerPill(i, text, cls){
+    const el = $(i ? 'demoAnsR' : 'demoAnsL');
     el.textContent = text;
     el.className = 'answer' + (cls ? ' ' + cls : '');
   }
 
-  function debateCycle(){
-    const chars = pickRandomChars();
-    setDemoChars(chars.left, chars.right);
-    const d = DEBATE_DEMO[demoRound++ % DEBATE_DEMO.length];
-    answerPill('demoAnsL', '', '');
-    answerPill('demoAnsR', '', '');
-    demoJudge.say(d.topic, true);
-    demoAt(2400,  () => answerPill('demoAnsL', 'FOR', 'on word for'));
-    demoAt(2900,  () => answerPill('demoAnsR', 'AGAINST', 'on word against'));
-    demoAt(4300,  () => demoJudge.say(d.mid, true));
-    demoAt(7200,  () => demoJudge.say(d.call, true));
-    demoAt(10600, () => {
-      answerPill('demoAnsL', d.l, 'on grade');
-      answerPill('demoAnsR', d.r, 'on grade');
-    });
-    demoAt(12800, debateCycle);
+  // the call types itself out, the same way the old judge used to speak
+  function demoCall(text){
+    clearInterval(dm.typer);
+    const box = $('demoCall'), typed = $('demoTyped');
+    $('demoGhost').textContent = text;
+    typed.textContent = '';
+    box.classList.add('typing');
+    let i = 0;
+    dm.typer = setInterval(() => {
+      typed.textContent = text.slice(0, ++i);
+      if(i >= text.length){ clearInterval(dm.typer); dm.typer = null; box.classList.remove('typing'); }
+    }, 22);
   }
 
-  function demoCycle(){
-    if(pickedMode === 'debate') return debateCycle();
-    const chars = pickRandomChars();
-    setDemoChars(chars.left, chars.right);
-    const d = DEMO[demoRound++ % DEMO.length];
-    answerPill('demoAnsL', d.right, '');
-    answerPill('demoAnsR', d.wrong, '');
-    demoJudge.say(d.q, true);
-    demoAt(1400, () => answerPill('demoAnsL', d.right, 'on'));
-    demoAt(1900, () => answerPill('demoAnsR', d.wrong, 'on'));
-    demoAt(2800, () => {
-      answerPill('demoAnsL', d.right, 'on right');
-      answerPill('demoAnsR', d.wrong, 'on wrong');
+  function demoQuestion(){
+    const add = Math.random() < .6;
+    const a = add ? 2 + Math.floor(Math.random() * 10) : 9 + Math.floor(Math.random() * 10);
+    const b = add ? 3 + Math.floor(Math.random() * 9) : 1 + Math.floor(Math.random() * 7);
+    const right = add ? a + b : a - b;
+    const wrong = right + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
+    return { text: a + (add ? ' + ' : ' − ') + b, right: String(right), wrong: String(wrong) };
+  }
+
+  // a mid-game table: the cue ball down the left, six balls spread about
+  function demoRack(){
+    const R = DT.R, balls = [{ n: 0, x: DT.W * .2, y: DT.H * (.3 + Math.random() * .4) }];
+    const nums = [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15].sort(() => Math.random() - .5).slice(0, 6);
+    for(const n of nums){
+      for(let tries = 0; tries < 300; tries++){
+        const x = DT.W * (.36 + Math.random() * .58), y = R * 3 + Math.random() * (DT.H - R * 6);
+        if(balls.every(b => Math.hypot(b.x - x, b.y - y) > R * 3.4)
+           && DEMO_POCKETS.every(p => Math.hypot(p.at[0] - x, p.at[1] - y) > R * 5)){
+          balls.push({ n, x, y });
+          break;
+        }
+      }
+    }
+    dm.balls = balls; dm.moves = []; dm.sinks = []; dm.stick = null;
+  }
+
+  function segDist(px, py, ax, ay, bx, by){
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+    return Math.hypot(px - ax - dx * t, py - ay - dy * t);
+  }
+
+  // pick a shot a real player might take: a clear line to the ghost ball, a
+  // clear run to the pocket, and not too thin a cut. loose allows thinner
+  // cuts and steeper side pockets, for when the table is nearly cleared
+  function demoPlan(loose){
+    const R = DT.R, c = dm.balls[0], opts = [];
+    for(const t of dm.balls){
+      if(t.n === 0) continue;
+      for(const p of DEMO_POCKETS){
+        const ux = p.at[0] - t.x, uy = p.at[1] - t.y, ul = Math.hypot(ux, uy);
+        const u = [ux / ul, uy / ul];
+        // side pockets only take a ball coming in fairly square
+        if(p.at[0] === DT.W / 2 && Math.abs(u[1]) < (loose ? .45 : .6)) continue;
+        if(p.at[0] !== DT.W / 2 && Math.min(Math.abs(u[0]), Math.abs(u[1])) < .2) continue;
+        const gx = t.x - u[0] * 2 * R, gy = t.y - u[1] * 2 * R;
+        if(gx < R || gx > DT.W - R || gy < R || gy > DT.H - R) continue;
+        const vx = gx - c.x, vy = gy - c.y, vl = Math.hypot(vx, vy);
+        if(vl < R * 3) continue;
+        const v = [vx / vl, vy / vl], cos = v[0] * u[0] + v[1] * u[1];
+        if(cos < (loose ? .4 : .62)) continue;
+        const clear = dm.balls.every(b => b === t || b === c
+          || (segDist(b.x, b.y, c.x, c.y, gx, gy) > 2 * R + 1 && segDist(b.x, b.y, t.x, t.y, p.at[0], p.at[1]) > 2 * R + 1));
+        if(!clear) continue;
+        opts.push({ t, p, u, v, gx, gy, vl, ul, cos, score: cos * 2 - (vl + ul) / DT.W });
+      }
+    }
+    opts.sort((a, b) => b.score - a.score);
+    return opts.length ? opts[Math.floor(Math.random() * Math.min(3, opts.length))] : null;
+  }
+
+  const easeOut = k => 1 - (1 - k) * (1 - k);
+
+  function demoMove(ball, x, y, dur, ease){
+    dm.moves = dm.moves.filter(m => m.ball !== ball);
+    dm.moves.push({ ball, x0: ball.x, y0: ball.y, x, y, t0: performance.now(), dur, ease });
+  }
+
+  // stick draws back and strikes, the cue ball runs to the ghost ball, the
+  // object ball runs on into the pocket and the cue ball peels off along
+  // the tangent line, the way a stun shot does
+  function demoShoot(plan, done){
+    const R = DT.R, c = dm.balls[0];
+    dm.stick = { v: plan.v, gx: plan.gx, gy: plan.gy, t0: performance.now() };
+    demoAt(760, () => {
+      dm.stick = null;
+      const travel = Math.max(170, plan.vl * 1.05);
+      demoMove(c, plan.gx, plan.gy, travel, k => k * (1.5 - .5 * k));
+      demoAt(travel, () => {
+        dm.moves = dm.moves.filter(m => m.ball !== c);
+        c.x = plan.gx; c.y = plan.gy;
+        const run = Math.max(280, plan.ul * 1.3);
+        demoMove(plan.t, plan.p.at[0], plan.p.at[1], run, easeOut);
+        demoAt(run, () => demoSink(plan.t, plan.p));
+        const tx = plan.v[0] - plan.cos * plan.u[0], ty = plan.v[1] - plan.cos * plan.u[1], tl = Math.hypot(tx, ty);
+        if(tl > .05){
+          const dx = tx / tl, dy = ty / tl, want = 30 + 240 * tl;
+          let s = 0;
+          for(; s < want; s += 2){
+            const x = c.x + dx * s, y = c.y + dy * s;
+            if(x < R || x > DT.W - R || y < R || y > DT.H - R) break;
+            if(dm.balls.some(b => b !== c && b !== plan.t && Math.hypot(b.x - x, b.y - y) < 2 * R + 1)) break;
+            if(DEMO_POCKETS.some(p => Math.hypot(p.at[0] - x, p.at[1] - y) < R * 3)) break;
+          }
+          const d = Math.max(0, s - 2);
+          demoMove(c, c.x + dx * d, c.y + dy * d, 320 + d * 2.4, easeOut);
+        }
+        demoAt(run + 520, done);
+      });
     });
-    demoAt(3300, () => demoJudge.say('Correct answer was ' + d.right + '.', true));
-    demoAt(6300, demoCycle);
+  }
+
+  function demoSink(ball, pocket){
+    dm.moves = dm.moves.filter(m => m.ball !== ball);
+    dm.balls = dm.balls.filter(b => b !== ball);
+    dm.sinks.push({ n: ball.n, x: pocket.at[0], y: pocket.at[1], hx: pocket.hole[0], hy: pocket.hole[1], t0: performance.now() });
+  }
+
+  function demoSides(){
+    $('demoSideL').classList.toggle('turn', dm.turn === 0);
+    $('demoSideR').classList.toggle('turn', dm.turn === 1);
+  }
+
+  function demoNewGame(){
+    dm.chars = pickRandomChars();
+    wearChar($('demoPodL'), dm.chars[0]);
+    wearChar($('demoPodR'), dm.chars[1]);
+    dm.turn = Math.random() < .5 ? 0 : 1;
+    dm.streak = 0;
+    demoRack();
+  }
+
+  function demoTurn(){
+    if(!dm.on) return;
+    const who = dm.turn, name = charName(dm.chars[who]), other = charName(dm.chars[1 - who]);
+    const plan = demoPlan(false) || demoPlan(true);
+    if(!plan){
+      demoCall('No clean shot left. New rack.');
+      demoAt(1400, demoRerack);
+      return;
+    }
+    demoSides();
+    const q = demoQuestion();
+    // nobody runs the table in the demo: two in a row and the next one misses
+    const ok = dm.streak < 2 && Math.random() < .75;
+    const said = ok ? q.right : q.wrong;
+    answerPill(0, '', ''); answerPill(1, '', '');
+    demoCall(owns(name) + ' shot. What’s ' + q.text + '?');
+    demoAt(1500, () => answerPill(who, said, 'on'));
+    demoAt(2300, () => answerPill(who, said, 'on ' + (ok ? 'right' : 'wrong')));
+    if(!ok){
+      demoAt(2700, () => demoCall('Not quite, it was ' + q.right + '. Over to ' + other + '.'));
+      demoAt(5200, () => { answerPill(who, '', ''); dm.turn = 1 - who; dm.streak = 0; demoTurn(); });
+      return;
+    }
+    demoAt(2700, () => {
+      demoCall('Right. ' + name + ' takes the shot.');
+      demoShoot(plan, () => {
+        const left = dm.balls.length - 1;
+        dm.streak++;
+        demoCall(name + ' sinks the ' + plan.t.n + (left ? ' and goes again.' : '. Table cleared.'));
+        demoAt(1900, () => { answerPill(who, '', ''); if(left) demoTurn(); else demoRerack(); });
+      });
+    });
+  }
+
+  // fade the table out, set up a fresh one with new players, fade back in
+  function demoRerack(){
+    $('demoTable').classList.add('fade');
+    demoAt(480, () => {
+      demoNewGame();
+      demoSides();
+      $('demoTable').classList.remove('fade');
+      demoAt(500, demoTurn);
+    });
+  }
+
+  function demoResize(){
+    const cv = $('demoTable'), w = cv.clientWidth;
+    if(!w || w === dm.w) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    dm.w = w; dm.dpr = dpr; dm.scale = w / DT.OW; dm.cache = null;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(w * DT.OH / DT.OW * dpr);
+  }
+
+  // the same table as the real game, cut down to what reads at this size:
+  // mahogany rails, teal cloth and cushions, black pockets, ivory diamonds
+  function demoTableArt(){
+    const cv = $('demoTable');
+    if(dm.cache && dm.cache.width === cv.width && dm.cache.height === cv.height) return dm.cache;
+    const c = document.createElement('canvas');
+    c.width = cv.width; c.height = cv.height;
+    const ctx = c.getContext('2d'), k = dm.scale * dm.dpr;
+    const { W, H, RAIL, CUSH, WOOD } = DT;
+    ctx.setTransform(k, 0, 0, k, RAIL * k, RAIL * k);
+    let seed = 7;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+
+    ctx.save();
+    ctx.beginPath(); ctx.roundRect(-RAIL, -RAIL, DT.OW, DT.OH, 14); ctx.clip();
+    const wood = ctx.createLinearGradient(0, -RAIL, 0, H + RAIL);
+    wood.addColorStop(0, '#8a3c2c'); wood.addColorStop(.5, '#6f2f23'); wood.addColorStop(1, '#5e261c');
+    ctx.fillStyle = wood; ctx.fillRect(-RAIL, -RAIL, DT.OW, DT.OH);
+    for(let g = 0; g < 60; g++){
+      ctx.fillStyle = rnd() < .6 ? 'rgba(60,20,12,' + (.12 + rnd() * .25).toFixed(2) + ')' : 'rgba(176,94,70,' + (.08 + rnd() * .16).toFixed(2) + ')';
+      ctx.fillRect(-RAIL, -RAIL + rnd() * DT.OH, DT.OW, .5 + rnd() * 1.4);
+    }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,214,188,.16)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(-RAIL + 1, -RAIL + 1, DT.OW - 2, DT.OH - 2, 13); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.45)';
+    ctx.fillRect(-CUSH - 2, -CUSH - 2, W + CUSH * 2 + 4, H + CUSH * 2 + 4);
+
+    const felt = ctx.createRadialGradient(W / 2, H / 2, 30, W / 2, H / 2, W * .6);
+    felt.addColorStop(0, '#23948d'); felt.addColorStop(1, '#1d847e');
+    ctx.fillStyle = felt; ctx.fillRect(-CUSH, -CUSH, W + CUSH * 2, H + CUSH * 2);
+
+    const cushion = pts => {
+      ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
+      ctx.fillStyle = '#137570'; ctx.fill();
+      ctx.strokeStyle = 'rgba(160,240,232,.35)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[3][0], pts[3][1]); ctx.stroke();
+    };
+    const cg = 24, sg = 17, m = W / 2;
+    for(const [y0, yb] of [[0, -CUSH], [H, H + CUSH]]){
+      cushion([[cg, y0], [cg - CUSH, yb], [m - sg + CUSH * .35, yb], [m - sg, y0]]);
+      cushion([[m + sg, y0], [m + sg - CUSH * .35, yb], [W - cg + CUSH, yb], [W - cg, y0]]);
+    }
+    for(const [x0, xb] of [[0, -CUSH], [W, W + CUSH]]){
+      cushion([[x0, cg], [xb, cg - CUSH], [xb, H - cg + CUSH], [x0, H - cg]]);
+    }
+
+    // cream caps round every pocket, same as the real table, then the holes
+    const cap = (x, y, w, h, r) => {
+      const g = ctx.createLinearGradient(x, y, x + w, y + h);
+      g.addColorStop(0, '#f1e9d6'); g.addColorStop(1, '#d9cdb2');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
+      ctx.strokeStyle = 'rgba(60,30,20,.35)'; ctx.lineWidth = 1; ctx.stroke();
+    };
+    const cs = RAIL + 12;
+    cap(-RAIL + 1, -RAIL + 1, cs, cs, [13, 6, 8, 6]);
+    cap(W + RAIL - 1 - cs, -RAIL + 1, cs, cs, [6, 13, 6, 8]);
+    cap(-RAIL + 1, H + RAIL - 1 - cs, cs, cs, [6, 8, 6, 13]);
+    cap(W + RAIL - 1 - cs, H + RAIL - 1 - cs, cs, cs, [8, 6, 13, 6]);
+    cap(m - 24, -RAIL + 1, 48, WOOD - 1, [4, 4, 6, 6]);
+    cap(m - 24, H + CUSH, 48, WOOD - 1, [6, 6, 4, 4]);
+    for(const p of DEMO_POCKETS){
+      const [x, y] = p.hole;
+      const g = ctx.createRadialGradient(x, y, 1, x, y, p.r);
+      g.addColorStop(0, '#000'); g.addColorStop(.8, '#060606'); g.addColorStop(1, '#1d1d1d');
+      ctx.fillStyle = g; circle(ctx, x, y, p.r); ctx.fill();
+    }
+
+    ctx.fillStyle = '#f3ead6';
+    const diamond = (x, y) => {
+      ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x + 2, y); ctx.lineTo(x, y + 3); ctx.lineTo(x - 2, y); ctx.closePath(); ctx.fill();
+    };
+    const mid = CUSH + WOOD / 2;
+    for(const f of [1, 2, 3, 5, 6, 7]){ diamond(W * f / 8, -mid); diamond(W * f / 8, H + mid); }
+    for(const f of [1, 2, 3]){ diamond(-mid, H * f / 4); diamond(W + mid, H * f / 4); }
+    ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(W / 4, 0); ctx.lineTo(W / 4, H); ctx.stroke();
+
+    dm.cache = c;
+    return c;
+  }
+
+  function demoBall(ctx, n, x, y, r){
+    ctx.save();
+    if(r > DT.R * .9){
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      circle(ctx, x + 2, y + 3, r); ctx.fill();
+    }
+    circle(ctx, x, y, r); ctx.clip();
+    const col = DEMO_COL[n];
+    if(n >= 9){
+      ctx.fillStyle = '#f6f3ea'; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      ctx.fillStyle = col; ctx.fillRect(x - r, y - r * .55, r * 2, r * 1.1);
+    }else{
+      ctx.fillStyle = col; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    if(n > 0){
+      ctx.fillStyle = '#fbfaf5';
+      circle(ctx, x, y, r * .42); ctx.fill();
+    }
+    const sh = ctx.createRadialGradient(x - r * .35, y - r * .4, 0, x, y, r * 1.15);
+    sh.addColorStop(0, 'rgba(255,255,255,.6)'); sh.addColorStop(.22, 'rgba(255,255,255,.08)');
+    sh.addColorStop(.65, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.45)');
+    ctx.fillStyle = sh; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.restore();
+  }
+
+  function demoStickArt(ctx, now){
+    const S = dm.stick, c = dm.balls[0], R = DT.R;
+    const el = now - S.t0;
+    // draw back over 650ms, then strike in 110
+    const pull = el < 650 ? 6 + 26 * easeOut(el / 650) : Math.max(0, 32 * (1 - (el - 650) / 110));
+    ctx.save();
+    // the aiming line and ghost ball, faint, the way the real game shows it
+    ctx.strokeStyle = 'rgba(244,239,228,.5)'; ctx.lineWidth = 1.2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(c.x + S.v[0] * R, c.y + S.v[1] * R); ctx.lineTo(S.gx - S.v[0] * R, S.gy - S.v[1] * R); ctx.stroke();
+    ctx.setLineDash([]);
+    circle(ctx, S.gx, S.gy, R); ctx.stroke();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(Math.atan2(S.v[1], S.v[0]));
+    const start = R + 3 + pull, len = 330;
+    const width = t => 4 + (t - start) / len * 4;
+    const seg = (a, b, color) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(-a, -width(a) / 2); ctx.lineTo(-b, -width(b) / 2);
+      ctx.lineTo(-b, width(b) / 2); ctx.lineTo(-a, width(a) / 2);
+      ctx.closePath(); ctx.fill();
+    };
+    ctx.save(); ctx.translate(0, 4); ctx.globalAlpha = .3; seg(start, start + len, '#000'); ctx.restore();
+    seg(start, start + 4, '#6cd4ff');
+    seg(start + 4, start + 9, '#efe3cc');
+    seg(start + 9, start + len * .62, '#d8b98b');
+    seg(start + len * .62, start + len * .64, '#efe3cc');
+    seg(start + len * .64, start + len, '#3b2416');
+    ctx.restore();
+  }
+
+  function demoFrame(now){
+    if(!dm.on) return;
+    dm.raf = requestAnimationFrame(demoFrame);
+    demoResize();
+    if(!dm.w) return;
+    for(let i = dm.moves.length - 1; i >= 0; i--){
+      const m = dm.moves[i], k = Math.min(1, (now - m.t0) / m.dur), e = m.ease(k);
+      m.ball.x = m.x0 + (m.x - m.x0) * e;
+      m.ball.y = m.y0 + (m.y - m.y0) * e;
+      if(k >= 1) dm.moves.splice(i, 1);
+    }
+    const cv = $('demoTable'), ctx = cv.getContext('2d'), k = dm.scale * dm.dpr;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(demoTableArt(), 0, 0);
+    ctx.setTransform(k, 0, 0, k, DT.RAIL * k, DT.RAIL * k);
+    // a dropped ball slides into the dark and shrinks as it goes
+    for(let i = dm.sinks.length - 1; i >= 0; i--){
+      const s = dm.sinks[i], p = (now - s.t0) / 340;
+      if(p >= 1){ dm.sinks.splice(i, 1); continue; }
+      const e = p * p * (3 - 2 * p), r = DT.R * (1 - .55 * e);
+      const x = s.x + (s.hx - s.x) * e, y = s.y + (s.hy - s.y) * e;
+      ctx.save();
+      ctx.globalAlpha = 1 - .5 * e; demoBall(ctx, s.n, x, y, r);
+      ctx.globalAlpha = .75 * e; ctx.fillStyle = '#000'; circle(ctx, x, y, r + .5); ctx.fill();
+      ctx.restore();
+    }
+    for(const b of dm.balls) if(b.n) demoBall(ctx, b.n, b.x, b.y, DT.R);
+    if(dm.balls[0]) demoBall(ctx, 0, dm.balls[0].x, dm.balls[0].y, DT.R);
+    if(dm.stick) demoStickArt(ctx, now);
   }
 
   function demoStop(){
-    demoOn = false;
-    demoTimers.forEach(clearTimeout);
-    demoTimers = [];
-    demoJudge.stop();
+    dm.on = false;
+    dm.timers.forEach(clearTimeout);
+    dm.timers = [];
+    clearInterval(dm.typer); dm.typer = null;
+    $('demoCall').classList.remove('typing');
+    cancelAnimationFrame(dm.raf);
   }
 
   function demoStart(){
-    if(demoOn) return;
-    demoOn = true;
-    demoRound = 0;
-    demoCycle();
+    if(dm.on) return;
+    dm.on = true;
+    $('demoTable').classList.remove('fade');
+    answerPill(0, '', ''); answerPill(1, '', '');
+    demoNewGame();
+    demoSides();
+    dm.raf = requestAnimationFrame(demoFrame);
+    demoAt(400, demoTurn);
   }
-
-  function setSide(key, p, hold){
-    const S = side[key];
-    S.snap = p;
-    S.name.textContent = p.name || (key === 'mine' ? 'You' : 'Them');
-    wearChar(S.pod, p.char);
-    const g = hold ? S.last : p.gpa;
-    if(g == null){
-      S.gpa.textContent = '—';
-      S.gpa.classList.add('none');
-      S.band.textContent = '';
-      S.tube.style.setProperty('--lvl', 0);
-    }else{
-      S.gpa.textContent = g.toFixed(1);
-      S.gpa.classList.remove('none');
-      S.band.textContent = bandOf(g);
-      // a scored 3.0 sits on the floor, but it still gets a sliver so it
-      // reads differently from the empty tube of someone yet to answer
-      const lvl = Math.min(1, Math.max(0, (g - FLOOR) / (CEIL - FLOOR)));
-      S.tube.style.setProperty('--lvl', Math.max(0.035, lvl).toFixed(3));
-      if(S.last != null && g !== S.last){
-        const dir = g > S.last ? 'up' : 'down';
-        S.tube.classList.remove('up','down');
-        void S.tube.offsetWidth;
-        S.tube.classList.add(dir);
-        setTimeout(() => S.tube.classList.remove(dir), 700);
-      }
-      S.last = g;
-    }
-  }
-
-  function paint(){
-    if(phase === 'question'){
-      const left = Math.max(0, deadlineAt - performance.now());
-      $('fuseBar').style.width = (left / limitMs * 100).toFixed(1) + '%';
-      $('fuse').classList.toggle('low', left < 3000);
-    }else if(phase === 'debate'){
-      const left = Math.max(0, deadlineAt - performance.now());
-      $('debBar').style.width = (left / limitMs * 100).toFixed(1) + '%';
-      $('debFuse').classList.toggle('low', left < 30000);
-      const secs = Math.ceil(left / 1000);
-      $('debClock').textContent = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') + ' left';
-      $('debClock').classList.toggle('over', left < 30000);
-    }else if(phase === 'countdown'){
-      $('qText').textContent = String(Math.max(1, Math.ceil((deadlineAt - performance.now()) / 1000) - 0.2 | 0) || 1);
-    }
-    requestAnimationFrame(paint);
-  }
-  requestAnimationFrame(paint);
-
-  function renderChoices(q, locked, result){
-    if(!q){ $('choices').innerHTML = ''; choicesRendered = -1; return; }
-    if(choicesRendered !== round){
-      $('choices').innerHTML = '';
-      q.choices.forEach((n,i) => {
-        const b = document.createElement('button');
-        b.className = 'choice';
-        b.type = 'button';
-        const k = document.createElement('kbd'); k.textContent = i + 1;
-        b.appendChild(k);
-        b.appendChild(document.createTextNode(String(n)));
-        b.addEventListener('click', () => answer(i));
-        $('choices').appendChild(b);
-      });
-      choicesRendered = round;
-    }
-    [...$('choices').children].forEach((b,i) => {
-      b.disabled = locked;
-      b.classList.toggle('picked', myAnswer === i && !result);
-      b.classList.remove('right','wrong','dim');
-      if(result){
-        if(i === result.correct) b.classList.add('right');
-        else if(i === myAnswer) b.classList.add('wrong');
-        else b.classList.add('dim');
-      }
-    });
-  }
-
-  function answer(i){
-    if(phase !== 'question' || myAnswer !== null || !ws) return;
-    myAnswer = i;
-    ws.send(JSON.stringify({ t:'answer', round, choice:i }));
-    renderChoices(lastQ, true, null);
-    $('qNote').textContent = 'Locked in.';
-  }
-
   document.addEventListener('keydown', e => {
     const n = Number(e.key);
-    if(phase === 'question' && n >= 1 && n <= 4) answer(n - 1);
-    else if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
+    if(phase === 'pq' && n >= 1 && n <= 4) poolPick(n - 1);
     else if(phase === 'aim' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) poolNudge(e);
   });
 
@@ -2268,7 +2173,7 @@
   function applyPool(s){
     const T = s.table, prev = pv.s;
     if(s.phase === 'countdown' && (!prev || prev.phase !== 'countdown')){
-      pv.played = 0; pv.anim = null; revealed = false;
+      pv.played = 0; pv.anim = null;
       resetBalls3d();
     }
     pv.s = s;
@@ -2302,8 +2207,6 @@
       testStarted = true;
       ws.send(JSON.stringify({ t:'start' }));
     }
-    if(s.total) total = s.total;
-
     if(phase === 'lobby'){
       const hostName = s.host.name || 'Someone';
       if(myRole === 'host'){
@@ -2324,8 +2227,7 @@
       }else{
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
-        $('guestMode').querySelector('span').textContent = s.modeName || 'Judge Mode';
-        $('guestMode').querySelector('use').setAttribute('href', { debate:'#i-debate', pool:'#i-pool' }[s.mode] || '#i-gavel');
+        $('guestMode').querySelector('span').textContent = s.modeName || 'Pool';
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
           setLobbyCard('glGuest', { char: s.guest.char, name: s.guest.name || 'You', ready: true, statusText: 'Ready' });
@@ -2340,211 +2242,7 @@
       return;
     }
 
-    if(s.mode === 'pool'){ applyPool(s); return; }
-
-    const mine = myRole === 'host' ? s.host : s.guest;
-    const theirs = myRole === 'host' ? s.guest : s.host;
-    const them = theirs.name || 'They';
-
-    const holding = phase === 'recap';
-    setSide('mine', mine, holding);
-    setSide('theirs', theirs, holding);
-
-    if(s.ms != null) deadlineAt = performance.now() + s.ms;
-    if(s.round != null && s.round !== round){ round = s.round; myAnswer = null; }
-
-    if(phase === 'countdown'){
-      show(['scArena','scQuiz']);
-      revealed = false; saidRound = -1; recapRound = -1; debateRound = -1;
-      stopRecap();
-      judge.say('Ten questions. Answer well.', true);
-      $('qText').textContent = '3';
-      $('qText').classList.add('count');
-      $('choices').innerHTML = ''; choicesRendered = -1;
-      $('qNote').textContent = '';
-      $('fuse').classList.add('off');
-      side.mine.lock.classList.remove('on'); side.theirs.lock.classList.remove('on');
-      return;
-    }
-
-    if(phase === 'debate'){
-      show(['scArena','scDebate']);
-      $('players').classList.add('compact');
-      limitMs = debateMs;
-      $('debTopic').textContent = s.topic;
-      const mySide = myRole === 'host' ? s.sides.host : s.sides.guest;
-      badge($('debSide'), mySide);
-      if(debateRound !== s.round){
-        debateRound = s.round;
-        $('debText').value = '';
-        $('debText').disabled = false;
-        updateCount();
-        judge.say('Round ' + s.round + ' of ' + total + '. You are arguing ' +
-          (mySide === 'for' ? 'for' : 'against') + '. Fifty words.', true);
-      }
-      const iFiled = myRole === 'host' ? s.filed.host : s.filed.guest;
-      const theyFiled = myRole === 'host' ? s.filed.guest : s.filed.host;
-      if(iFiled){ $('debText').disabled = true; $('debSend').disabled = true; }
-      $('debNote').textContent = iFiled
-        ? (theyFiled ? 'Both in.' : 'Filed. Waiting for ' + them + '.')
-        : (theyFiled ? them + ' has filed.' : '');
-      return;
-    }
-
-    if(phase === 'judging'){
-      show(['scArena','scRecap']);
-      $('players').classList.remove('compact');
-      $('fuse').classList.add('off');
-      fillCases(s, mine, them);
-      ['chipMine','chipTheirs'].forEach(id => { $(id).classList.remove('on'); });
-      judge.say('Right. Let me read these properly.', recapRound !== s.round);
-      return;
-    }
-
-    if(phase === 'recap'){
-      show(['scArena','scRecap']);
-      $('players').classList.remove('compact');
-      $('fuse').classList.add('off');
-      fillCases(s, mine, them);
-      if(recapRound !== s.round){
-        recapRound = s.round;
-        runRecap(s, mine, theirs, them);
-      }
-      return;
-    }
-
-    if(phase === 'question'){
-      show(['scArena','scQuiz']);
-      $('players').classList.remove('compact');
-      lastQ = s.q;
-      $('qText').classList.remove('count');
-      $('fuse').classList.remove('off');
-      $('qText').textContent = s.q.text;
-      renderChoices(s.q, myAnswer !== null, null);
-      judge.say('Question ' + s.round + ' of ' + total + '.', saidRound !== s.round);
-      saidRound = s.round;
-      side.mine.lock.classList.toggle('on', mine.answered_now);
-      side.theirs.lock.classList.toggle('on', theirs.answered_now);
-      $('qNote').textContent = myAnswer !== null
-        ? 'Locked in.'
-        : (theirs.answered_now ? them + ' has answered.' : 'Pick one, fast.');
-      return;
-    }
-
-    if(phase === 'resolve'){
-      show(['scArena','scQuiz']);
-      $('qText').classList.remove('count');
-      $('fuse').classList.add('off');
-      renderChoices(s.q, true, { correct: s.q.answer });
-      $('qNote').textContent = s.q.text + ' = ' + s.q.choices[s.q.answer];
-      judge.say(s.last.line, true);
-      side.mine.lock.classList.remove('on'); side.theirs.lock.classList.remove('on');
-      return;
-    }
-
-    if(phase === 'over' && s.over && s.over.left){
-      show(['scArena','scOver']);
-      stopRecap();
-      const quitter = s.over.left === myRole ? 'You' : them;
-      $('overHd').textContent = quitter + ' left';
-      $('overSub').textContent = 'The game has ended.';
-      judge.say(quitter === 'You' ? 'You left the match.' : them + ' has left. That\'s the match.', true);
-      $('overAgain').hidden = true;
-      return;
-    }
-
-    if(phase === 'over'){
-      show(['scArena','scOver']);
-      const draw = s.over && s.over.draw;
-      const iLost = s.over && !draw && s.over.winner !== myRole;
-      const mg = mine.gpa == null ? 0 : mine.gpa;
-      $('overHd').textContent = draw ? 'Dead even' : (iLost ? them + ' takes it' : 'You take it');
-      $('overSub').textContent = draw
-        ? 'Same grade, same time. Nothing to separate you.'
-        : (s.over.byTime
-            ? 'Same grade either way — ' + (iLost ? them + ' answered faster.' : 'you answered faster.')
-            : 'You finished on ' + mg.toFixed(1) + ', a ' + bandOf(mg).toLowerCase() + '. ' + them + ' finished on ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + '.');
-      judge.say(draw
-        ? 'I can\'t split you. Dead even.'
-        : (iLost ? them + ' takes it, ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + ' to ' + mg.toFixed(1) + '.'
-                 : 'That\'s yours, ' + mg.toFixed(1) + ' to ' + (theirs.gpa == null ? 0 : theirs.gpa).toFixed(1) + '.'), true);
-      $('overAgain').hidden = myRole !== 'host';
-      $('overAgain').disabled = false;
-      if(!revealed){
-        revealed = true;
-        $('scOver').classList.remove('reveal');
-        void $('scOver').offsetWidth;
-        $('scOver').classList.add('reveal');
-      }
-    }
-  }
-
-  // ---------- debate mode ----------
-  function countWords(t){ return String(t || '').trim().split(/\s+/).filter(Boolean).length; }
-
-  function updateCount(){
-    const n = countWords($('debText').value);
-    $('debCount').textContent = n + ' / ' + wordMax + ' words';
-    $('debCount').classList.toggle('over', n > wordMax);
-    $('debSend').disabled = n === 0 || n > wordMax || $('debText').disabled;
-  }
-
-  function badge(el, side){
-    el.textContent = side === 'for' ? 'FOR' : 'AGAINST';
-    el.className = 'sidebadge ' + side;
-  }
-
-  function stopRecap(){ recapTimers.forEach(clearTimeout); recapTimers = []; }
-  function recapAt(ms, fn){ recapTimers.push(setTimeout(fn, ms)); }
-
-  function showChip(which, score){
-    const el = $(which === 'mine' ? 'chipMine' : 'chipTheirs');
-    el.textContent = score.toFixed(1);
-    el.classList.add('on');
-    // the meter is held back until this beat so the number isn't spoiled early
-    const S = side[which];
-    S.pending = null;
-    setSide(which, S.snap);
-  }
-
-  // the judge builds to each grade: what worked, what didn't, a beat, then the
-  // number. the meters stay frozen until the number actually lands
-  function runRecap(s, mine, theirs, them){
-    const v = s.verdict;
-    stopRecap();
-    ['chipMine','chipTheirs'].forEach(id => { $(id).classList.remove('on'); $(id).textContent = ''; });
-
-    if(!v || v.problem){
-      judge.say(v && v.problem ? v.problem : 'That round could not be scored.', true);
-      return;
-    }
-    const meV = myRole === 'host' ? v.host : v.guest;
-    const themV = myRole === 'host' ? v.guest : v.host;
-    const myName = mine.name || 'you';
-
-    judge.say('Right. ' + myName + ' first.', true);
-    recapAt(1800,  () => judge.say(meV.praise, true));
-    recapAt(5200,  () => judge.say(meV.critique, true));
-    recapAt(8600,  () => judge.say('Which puts you at\u2026', true));
-    recapAt(10300, () => showChip('mine', meV.score));
-    recapAt(12000, () => judge.say('Now ' + them + '.', true));
-    recapAt(13400, () => judge.say(themV.praise, true));
-    recapAt(16800, () => judge.say(themV.critique, true));
-    recapAt(20200, () => judge.say('And that lands on\u2026', true));
-    recapAt(21800, () => showChip('theirs', themV.score));
-    recapAt(23500, () => judge.say(v.round, true));
-  }
-
-  function fillCases(s, mine, them){
-    const mySide = myRole === 'host' ? s.sides.host : s.sides.guest;
-    const theirSide = myRole === 'host' ? s.sides.guest : s.sides.host;
-    badge($('caseSideMine'), mySide);
-    badge($('caseSideTheirs'), theirSide);
-    $('caseNameMine').textContent = mine.name || 'You';
-    $('caseNameTheirs').textContent = them;
-    const a = s.args || {};
-    $('caseTextMine').textContent = (myRole === 'host' ? a.host : a.guest) || '';
-    $('caseTextTheirs').textContent = (myRole === 'host' ? a.guest : a.host) || '';
+    applyPool(s);
   }
 
   function shareUrl(){ return location.href.split('#')[0] + '#g=' + gameId; }
@@ -2572,9 +2270,7 @@
         return;
       }
       if(m.t === 'welcome'){
-        questionMs = m.questionMs; total = m.total;
-        if(m.debateMs) debateMs = m.debateMs;
-        if(m.wordMax) wordMax = m.wordMax;
+        if(m.questionMs) questionMs = m.questionMs;
         try{ localStorage.setItem('sd-' + role + '-' + gameId, m.token); }catch(e){}
         applyState(m);
         return;
@@ -2611,20 +2307,9 @@
     pickedMode = card.dataset.mode;
     try{ localStorage.setItem('sd-mode', pickedMode); }catch(e){}
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
-    // restart the preview on the mode they just picked
-    demoStop();
-    demoStart();
   });
 
-  $('introGo').addEventListener('click', () => {
-    const bot = $('opponentGrid').querySelector('[data-opp="bot"]');
-    const noBot = pickedMode === 'pool';
-    bot.disabled = noBot;
-    bot.querySelector('span').textContent = noBot
-      ? 'Not for pool yet. Invite a friend to play.'
-      : 'No waiting around — pick a difficulty and go.';
-    show(['scOpponent']);
-  });
+  $('introGo').addEventListener('click', () => show(['scOpponent']));
 
   $('opponentGrid').addEventListener('click', e => {
     const card = e.target.closest('.mode');
@@ -2640,19 +2325,7 @@
       createMatch();
       return;
     }
-    if(opponentType === 'bot') show(['scBotDiff']);
-    else{
-      $('setupGo').textContent = 'Create a match';
-      show(['scSetup']);
-    }
-  });
-
-  $('diffGrid').addEventListener('click', e => {
-    const card = e.target.closest('.mode');
-    if(!card) return;
-    botDifficulty = card.dataset.diff;
-    [...$('diffGrid').children].forEach(c => c.classList.toggle('on', c.dataset.diff === botDifficulty));
-    $('setupGo').textContent = 'Face the bot';
+    $('setupGo').textContent = 'Create a match';
     show(['scSetup']);
   });
 
@@ -2694,7 +2367,7 @@
         headers:{ 'content-type':'application/json' },
         body: JSON.stringify({
           name: $('introName').value.trim(), mode: pickedMode, char: pickedChar,
-          vsBot: opponentType === 'bot', botDifficulty, test: opponentType === 'test',
+          test: opponentType === 'test',
         })
       });
       if(!r.ok) throw new Error('the server answered ' + r.status);
@@ -2731,7 +2404,7 @@
   if(navigator.share){
     $('hostSend').hidden = false;
     $('hostSend').addEventListener('click', () => {
-      navigator.share({ text: 'Study duel? Ten questions, winner takes the grade.', url: shareUrl() }).catch(() => {});
+      navigator.share({ text: 'Pool, but every shot has to be earned. Fancy a game?', url: shareUrl() }).catch(() => {});
     });
   }
 
@@ -2748,26 +2421,11 @@
   $('guestName').addEventListener('keydown', e => { if(e.key === 'Enter') $('guestReady').click(); });
   $('guestName').addEventListener('input', updateGuestPreview);
 
-  $('debText').addEventListener('input', updateCount);
-  $('debSend').addEventListener('click', () => {
-    if(!ws || $('debSend').disabled) return;
-    ws.send(JSON.stringify({ t:'argue', round, text: $('debText').value }));
-    $('debText').disabled = true;
-    $('debSend').disabled = true;
-    $('debNote').textContent = 'Filed.';
-  });
-
   // walking away from a finished match tells the room, so the other player
   // isn't left looking at a rematch button for someone who's gone
   document.querySelectorAll('.leavelink').forEach(l => l.addEventListener('click', () => {
     try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
   }));
-
-  $('overAgain').addEventListener('click', () => {
-    $('overAgain').disabled = true;
-    ws.send(JSON.stringify({ t:'again' }));
-    setTimeout(() => { $('overAgain').disabled = false; }, 1200);
-  });
 
   // drops any live connection and lands back on the mode-select menu — the
   // shared destination for a dead link, a full room, and the back button
@@ -2780,12 +2438,10 @@
       $('introName').value = localStorage.getItem('sd-name') || '';
       savedMode = localStorage.getItem('sd-mode') || '';
     }catch(e){}
-    if(savedMode === 'judge' || savedMode === 'debate' || savedMode === 'pool') pickedMode = savedMode;
+    if(savedMode === 'pool') pickedMode = savedMode;
     [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
     opponentType = 'friend';
-    botDifficulty = 'medium';
     $('testChip').hidden = true;
-    [...$('diffGrid').children].forEach(c => c.classList.remove('on'));
     $('setupGo').textContent = 'Create a match';
     show(['scIntro']);
   }
