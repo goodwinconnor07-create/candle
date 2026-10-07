@@ -34,6 +34,53 @@
     position:fixed; inset:0; z-index:0; pointer-events:none;
     background:radial-gradient(120% 90% at 50% 30%, transparent 40%, rgba(0,0,0,.65) 100%);
   }
+  /* the home screen's moving glow: four soft pools of candlelight (amber,
+     ember, a deep wine and a hint of the pool table's teal) drifting slowly
+     under the vignette. only transforms animate, so it stays cheap on a
+     phone, and it fades out and pauses everywhere but home */
+  .aurora{
+    position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+    opacity:0; transition:opacity 1.2s ease;
+  }
+  body.home .aurora{ opacity:1; }
+  .aurora i{
+    position:absolute; left:50%; top:50%; width:110vmax; height:110vmax; margin:-55vmax 0 0 -55vmax;
+    border-radius:50%; will-change:transform;
+    animation:drift-a 26s ease-in-out infinite alternate; animation-play-state:paused;
+  }
+  body.home .aurora i{ animation-play-state:running; }
+  .aurora i:nth-child(1){ background:radial-gradient(closest-side, rgba(255,179,71,.24), rgba(255,179,71,0)); }
+  .aurora i:nth-child(2){ background:radial-gradient(closest-side, rgba(255,106,42,.16), rgba(255,106,42,0)); animation-name:drift-b; animation-duration:32s; }
+  .aurora i:nth-child(3){ background:radial-gradient(closest-side, rgba(118,30,84,.40), rgba(118,30,84,0)); animation-name:drift-c; animation-duration:38s; }
+  .aurora i:nth-child(4){ background:radial-gradient(closest-side, rgba(28,150,140,.17), rgba(28,150,140,0)); animation-name:drift-d; animation-duration:44s; }
+  @keyframes drift-a{
+    0%{ transform:translate(-28vw,-30vh) scale(.8); }
+    50%{ transform:translate(14vw,-8vh) scale(1.05); }
+    100%{ transform:translate(-6vw,22vh) scale(.9); }
+  }
+  @keyframes drift-b{
+    0%{ transform:translate(30vw,26vh) scale(.95); }
+    50%{ transform:translate(-12vw,8vh) scale(.75); }
+    100%{ transform:translate(20vw,-24vh) scale(1.05); }
+  }
+  @keyframes drift-c{
+    0%{ transform:translate(-22vw,30vh) scale(1.1); }
+    50%{ transform:translate(26vw,18vh) scale(.9); }
+    100%{ transform:translate(4vw,-28vh) scale(1); }
+  }
+  @keyframes drift-d{
+    0%{ transform:translate(26vw,-32vh) scale(.7); }
+    50%{ transform:translate(-26vw,-14vh) scale(.95); }
+    100%{ transform:translate(-14vw,30vh) scale(.8); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .aurora i{ animation:none; }
+    .aurora i:nth-child(1){ transform:translate(-20vw,-24vh) scale(.9); }
+    .aurora i:nth-child(2){ transform:translate(24vw,20vh) scale(.9); }
+    .aurora i:nth-child(3){ transform:translate(-10vw,28vh); }
+    .aurora i:nth-child(4){ transform:translate(22vw,-28vh) scale(.8); }
+  }
+
   .app{
     position:relative; z-index:1; width:100%; max-width:540px; margin:auto 0;
     display:flex; flex-direction:column; align-items:center; gap:18px;
@@ -1073,6 +1120,7 @@
 </style>
 </head>
 <body>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="vignette" aria-hidden="true"></div>
   <div class="testchip" id="testChip" hidden>Test mode</div>
   <div class="yourturn" id="yourTurn" aria-hidden="true">Your turn</div>
@@ -1835,6 +1883,7 @@
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
     document.body.classList.toggle('testing', !$('testChip').hidden);
+    document.body.classList.toggle('home', ids.includes('scIntro'));
     const inMatch = ids.includes('scPool') || ids.includes('scChess') || ids.includes('scSea') || ids.includes('scBattle');
     $('wordmark').hidden = inMatch;
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
