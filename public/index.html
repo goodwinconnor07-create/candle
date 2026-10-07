@@ -1352,14 +1352,7 @@
 
   /* pool's card holds the live demo, sized to whatever room the card has */
   #scIntro .demo{ width:100%; height:100%; max-width:none; justify-content:center; gap:6px; }
-  #scIntro .demo-call{ min-height:2.6em; font-size:.8rem; color:#fff; opacity:.9; }
-  #scIntro .demo-table{ width:100%; max-width:min(100%, calc((100cqh - 2.6em - 92px) * 664 / 364)); }
-  #scIntro .demo-players{ display:grid; max-width:260px; }
-  #scIntro .demo-side .pod{ width:38px; }
-  @container (max-height:250px){
-    #scIntro .demo-players{ display:none; }
-    #scIntro .demo-table{ max-width:min(100%, calc((100cqh - 2.6em - 10px) * 664 / 364)); }
-  }
+  #scIntro .demo-table{ width:100%; max-width:min(100%, calc(100cqh * 664 / 364)); filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
   #scIntro .deckrow{ width:100%; padding:6px; border-radius:var(--r-sm); background:rgba(0,0,0,.25); border-color:rgba(255,255,255,.12); }
 
   /* the scenes move a little, never much */
@@ -1373,17 +1366,6 @@
   @keyframes schint{ 0%, 6%{ opacity:0 } 16%, 46%{ opacity:.95 } 56%, 100%{ opacity:0 } }
   .sc-taken{ animation:sctaken 4.2s ease infinite; }
   @keyframes sctaken{ 0%, 58%{ opacity:1 } 62%, 96%{ opacity:0 } 100%{ opacity:1 } }
-  .sc-ship{ animation:scbob 3.4s ease-in-out infinite; }
-  .sc-ship:nth-of-type(2){ animation-delay:-1.1s; } .sc-ship:nth-of-type(3){ animation-delay:-2.2s; }
-  @keyframes scbob{ 50%{ translate:0 1.5px } }
-  .sc-fire{ animation:scfire 1.2s ease-in-out infinite; transform-origin:140px 60px; }
-  @keyframes scfire{ 50%{ opacity:.6; scale:1.25 } }
-  .sc-aim{ animation:scaim 1.6s ease-in-out infinite; transform-origin:120px 140px; }
-  @keyframes scaim{ 50%{ scale:.86 } }
-  .sc-march{ animation:scmarch 4s ease-in-out infinite; }
-  @keyframes scmarch{ 0%{ translate:0 0 } 60%, 100%{ translate:0 -34px } }
-  .sc-fly{ animation:scfly 5s ease-in-out infinite; }
-  @keyframes scfly{ 0%{ translate:0 0 } 50%{ translate:-26px 22px } 100%{ translate:0 0 } }
   .sc-flag{ animation:scflag 1.4s ease-in-out infinite; transform-origin:171px 24px; }
   @keyframes scflag{ 50%{ scale:.86 1 } }
 
@@ -1456,7 +1438,7 @@
 
   @media (prefers-reduced-motion: reduce){
     .panel.enter, .panel.enter-back, .panel.enter-fade, .charcard.on .pod, .bump, .choice.right, .choice.wrong,
-    .sc-hop, .sc-hint, .sc-taken, .sc-ship, .sc-fire, .sc-aim, .sc-march, .sc-fly, .sc-flag, .lobbyside.waiting .pod{ animation:none; }
+    .sc-hop, .sc-hint, .sc-taken, .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint, .sc-flag, .lobbyside.waiting .pod{ animation:none; }
     .sc-hint{ opacity:.9; }
     .game{ transition:none; }
   }
@@ -1528,6 +1510,51 @@
   .togglerow[aria-checked="true"] .switch{ background:var(--go); }
   .togglerow[aria-checked="true"] .switch::after{ translate:18px 0; }
 @media (max-height:720px){ #hapticsRow small{ display:none; } #hapticsRow{ padding:9px 14px; } }
+
+  /* battleships card: the strike, one 4.6s loop */
+  .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-hitship, .sc-flame, .sc-smoke{ transform-box:fill-box; transform-origin:center; }
+  .sc-aim{ animation:scaim 4.6s var(--ease-out) infinite; }
+  @keyframes scaim{
+    0%{ translate:20px 80px; opacity:0 } 6%{ opacity:1 } 24%{ translate:0 0; scale:1 }
+    28%{ scale:.8 } 32%{ scale:1 } 36%{ scale:.85 } 40%{ scale:1; opacity:1 } 46%, 100%{ translate:0 0; opacity:0 }
+  }
+  .sc-shell{ opacity:0; animation:scshell 4.6s cubic-bezier(.5,0,1,.6) infinite; }
+  @keyframes scshell{ 0%, 30%{ translate:0 -80px; opacity:0 } 32%{ opacity:1 } 41%{ translate:0 0; opacity:1 } 42%, 100%{ translate:0 0; opacity:0 } }
+  .sc-flash{ opacity:0; animation:scflash 4.6s ease-out infinite; }
+  @keyframes scflash{ 0%, 41%{ opacity:0; scale:.2 } 43%{ opacity:1; scale:1 } 56%, 100%{ opacity:0; scale:1.5 } }
+  .sc-ring{ opacity:0; animation:scring 4.6s ease-out infinite; }
+  @keyframes scring{ 0%, 41%{ opacity:0; scale:.3 } 43%{ opacity:.9 } 60%, 100%{ opacity:0; scale:2.4 } }
+  .sc-burn{ animation:scburn 4.6s ease infinite; }
+  @keyframes scburn{ 0%, 43%{ opacity:0; scale:.4 } 50%{ opacity:1; scale:1.1 } 54%, 88%{ opacity:1; scale:1 } 96%, 100%{ opacity:0; scale:.9 } }
+  .sc-flame{ animation:scflick .5s ease-in-out infinite alternate; transform-origin:center bottom; }
+  @keyframes scflick{ to{ scale:.9 1.08 } }
+  .sc-smoke{ animation:scsmoke 1.6s ease-out infinite; }
+  .sc-smoke.s2{ animation-delay:-.55s; } .sc-smoke.s3{ animation-delay:-1.1s; }
+  @keyframes scsmoke{ from{ translate:0 0; scale:.6; opacity:.8 } to{ translate:3px -18px; scale:1.6; opacity:0 } }
+  .sc-hitship{ animation:scshake 4.6s linear infinite; }
+  @keyframes scshake{ 0%, 41%, 49%, 100%{ translate:0 0 } 42.5%{ translate:-2px 1px } 44%{ translate:2px -1px } 45.5%{ translate:-1px 0 } 47%{ translate:1px 0 } }
+
+  /* towers card: march, fight, chip the tower, fade, again (5s) */
+  .sc-troop, .sc-bolt, .sc-spark, .sc-hp{ transform-box:fill-box; }
+  .sc-troop{ animation:sctroop 5s linear infinite; transform-origin:center bottom; }
+  @keyframes sctroop{
+    0%{ translate:0 0; opacity:0 } 6%{ translate:0 -2px; opacity:1 }
+    50%{ translate:0 -44px; scale:1 } 58%{ translate:0 -46px; scale:1.08 } 62%{ translate:0 -44px; scale:1 }
+    70%{ translate:0 -46px; scale:1.08 } 74%{ translate:0 -44px; scale:1 } 82%{ translate:0 -46px; scale:1.08 }
+    86%{ translate:0 -44px; scale:1; opacity:1 } 94%, 100%{ translate:0 -44px; opacity:0 }
+  }
+  .sc-bolt{ opacity:0; transform-origin:center; animation:scbolt 5s ease-in infinite; }
+  .sc-bolt.b2{ animation-delay:1s; }
+  @keyframes scbolt{ 0%, 50%{ translate:0 0; opacity:0 } 51%{ opacity:1 } 56%{ translate:0 10px; opacity:1 } 57%, 100%{ translate:0 10px; opacity:0 } }
+  .sc-spark{ opacity:0; transform-origin:center; animation:scspark 5s ease-out infinite; }
+  @keyframes scspark{ 0%, 59%{ opacity:0; scale:.4 } 61%{ opacity:1; scale:1 } 65%, 71%{ opacity:0; scale:1.3 } 73%{ opacity:1; scale:1 } 77%, 83%{ opacity:0 } 85%{ opacity:1; scale:1 } 89%, 100%{ opacity:0 } }
+  .sc-hp{ transform-origin:left center; animation:schp 5s steps(1, end) infinite; }
+  @keyframes schp{ 0%{ scale:1 1 } 61%{ scale:.78 1 } 73%{ scale:.56 1 } 85%{ scale:.34 1 } 97%{ scale:1 1 } }
+  .sc-glint{ animation:scglint 2.4s ease-in-out infinite; }
+  @keyframes scglint{ 50%{ opacity:.25; translate:4px 0 } }
+  @media (prefers-reduced-motion: reduce){
+    .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint{ animation:none; }
+  }
 </style>
 </head>
 <body>
@@ -2024,23 +2051,7 @@
           </div>
           <div class="game-scene">
             <div class="demo" id="demo" aria-hidden="true">
-              <p class="demo-call" id="demoCall">
-                <span class="say-wrap">
-                  <span class="ghost" id="demoGhost"></span>
-                  <span class="typed" id="demoTyped"></span>
-                </span>
-              </p>
               <canvas class="demo-table" id="demoTable"></canvas>
-              <div class="demo-players">
-                <div class="demo-side" id="demoSideL">
-                  <div class="answer" id="demoAnsL"></div>
-                  <div class="pod" id="demoPodL" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
-                </div>
-                <div class="demo-side" id="demoSideR">
-                  <div class="answer" id="demoAnsR"></div>
-                  <div class="pod" id="demoPodR" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
-                </div>
-              </div>
             </div>
           </div>
         </article>
@@ -2719,43 +2730,7 @@
 
   function demoAt(ms, fn){ dm.timers.push(setTimeout(fn, ms)); }
 
-  function pickRandomChars(){
-    const chars = CHAR_LIST.map(c => c[0]);
-    const left = chars[Math.floor(Math.random() * chars.length)];
-    const rest = chars.filter(c => c !== left);
-    return [left, rest[Math.floor(Math.random() * rest.length)]];
-  }
-  const charName = id => (CHAR_LIST.find(c => c[0] === id) || [id, 'Player'])[1];
   const owns = name => name + (/s$/i.test(name) ? '’' : '’s');
-
-  function answerPill(i, text, cls){
-    const el = $(i ? 'demoAnsR' : 'demoAnsL');
-    el.textContent = text;
-    el.className = 'answer' + (cls ? ' ' + cls : '');
-  }
-
-  // the call types itself out, the same way the old judge used to speak
-  function demoCall(text){
-    clearInterval(dm.typer);
-    const box = $('demoCall'), typed = $('demoTyped');
-    $('demoGhost').textContent = text;
-    typed.textContent = '';
-    box.classList.add('typing');
-    let i = 0;
-    dm.typer = setInterval(() => {
-      typed.textContent = text.slice(0, ++i);
-      if(i >= text.length){ clearInterval(dm.typer); dm.typer = null; box.classList.remove('typing'); }
-    }, 22);
-  }
-
-  function demoQuestion(){
-    const add = Math.random() < .6;
-    const a = add ? 2 + Math.floor(Math.random() * 10) : 9 + Math.floor(Math.random() * 10);
-    const b = add ? 3 + Math.floor(Math.random() * 9) : 1 + Math.floor(Math.random() * 7);
-    const right = add ? a + b : a - b;
-    const wrong = right + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
-    return { text: a + (add ? ' + ' : ' − ') + b, right: String(right), wrong: String(wrong) };
-  }
 
   // a mid-game table: the cue ball down the left, six balls spread about
   function demoRack(){
@@ -2856,52 +2831,17 @@
     dm.sinks.push({ n: ball.n, x: pocket.at[0], y: pocket.at[1], hx: pocket.hole[0], hy: pocket.hole[1], t0: performance.now() });
   }
 
-  function demoSides(){
-    $('demoSideL').classList.toggle('turn', dm.turn === 0);
-    $('demoSideR').classList.toggle('turn', dm.turn === 1);
-  }
-
   function demoNewGame(){
-    dm.chars = pickRandomChars();
-    wearChar($('demoPodL'), dm.chars[0]);
-    wearChar($('demoPodR'), dm.chars[1]);
-    dm.turn = Math.random() < .5 ? 0 : 1;
-    dm.streak = 0;
     demoRack();
   }
 
+  // shot after shot: line one up, play it, go again. a fresh rack when the
+  // table's clear or there's nothing clean left to aim at
   function demoTurn(){
     if(!dm.on) return;
-    const who = dm.turn, name = charName(dm.chars[who]), other = charName(dm.chars[1 - who]);
     const plan = demoPlan(false) || demoPlan(true);
-    if(!plan){
-      demoCall('No clean shot left. New rack.');
-      demoAt(1400, demoRerack);
-      return;
-    }
-    demoSides();
-    const q = demoQuestion();
-    // nobody runs the table in the demo: two in a row and the next one misses
-    const ok = dm.streak < 2 && Math.random() < .75;
-    const said = ok ? q.right : q.wrong;
-    answerPill(0, '', ''); answerPill(1, '', '');
-    demoCall(owns(name) + ' shot. What’s ' + q.text + '?');
-    demoAt(1500, () => answerPill(who, said, 'on'));
-    demoAt(2300, () => answerPill(who, said, 'on ' + (ok ? 'right' : 'wrong')));
-    if(!ok){
-      demoAt(2700, () => demoCall('Not quite, it was ' + q.right + '. Over to ' + other + '.'));
-      demoAt(5200, () => { answerPill(who, '', ''); dm.turn = 1 - who; dm.streak = 0; demoTurn(); });
-      return;
-    }
-    demoAt(2700, () => {
-      demoCall('Right. ' + name + ' takes the shot.');
-      demoShoot(plan, () => {
-        const left = dm.balls.length - 1;
-        dm.streak++;
-        demoCall(name + ' sinks the ' + plan.t.n + (left ? ' and goes again.' : '. Table cleared.'));
-        demoAt(1900, () => { answerPill(who, '', ''); if(left) demoTurn(); else demoRerack(); });
-      });
-    });
+    if(!plan){ demoAt(500, demoRerack); return; }
+    demoShoot(plan, () => demoAt(700, dm.balls.length > 1 ? demoTurn : demoRerack));
   }
 
   // fade the table out, set up a fresh one with new players, fade back in
@@ -2909,7 +2849,6 @@
     $('demoTable').classList.add('fade');
     demoAt(480, () => {
       demoNewGame();
-      demoSides();
       $('demoTable').classList.remove('fade');
       demoAt(500, demoTurn);
     });
@@ -3091,8 +3030,6 @@
     dm.on = false;
     dm.timers.forEach(clearTimeout);
     dm.timers = [];
-    clearInterval(dm.typer); dm.typer = null;
-    $('demoCall').classList.remove('typing');
     cancelAnimationFrame(dm.raf);
   }
 
@@ -3100,9 +3037,7 @@
     if(dm.on) return;
     dm.on = true;
     $('demoTable').classList.remove('fade');
-    answerPill(0, '', ''); answerPill(1, '', '');
     demoNewGame();
-    demoSides();
     dm.raf = requestAnimationFrame(demoFrame);
     demoAt(400, demoTurn);
   }
@@ -7792,7 +7727,8 @@
       + '<path class="sc-hint" d="M100 100 L100 20 L126 20 M118 11 L128 20 L118 29" fill="none" stroke="#6cd4ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'
       + pc('n', 2, 2, W, 'sc-hop') + '</g></svg>';
 
-    // battleships: your fleet at sea, one hit, a few misses, the sight on the next shot
+    // battleships: a strike. the sight slides onto the battleship, a shell
+    // falls, and the square goes up in a flash, a ring and a fire
     const ship = (i, len, x, y, v) => {
       let a = shipArt(i, len);
       if(v) a = a.replace('viewBox="0 0 ' + len * 40 + ' 40"', 'viewBox="0 0 40 ' + len * 40 + '"').replace('<g>', '<g transform="translate(40 0) rotate(90)">');
@@ -7801,51 +7737,128 @@
     let grid = '';
     for(let i = 1; i < 6; i++) grid += '<path d="M' + i * 40 + ' 0V160" />';
     for(let i = 1; i < 4; i++) grid += '<path d="M0 ' + i * 40 + 'H240" />';
+    let waves = '';
+    for(let y = 10; y < 160; y += 20) for(let x = (y / 20) % 2 ? 6 : 26; x < 240; x += 40) waves += 'M' + x + ' ' + y + 'q4-3 8 0t8 0';
+    const peg = (x, y) => '<circle cx="' + x + '" cy="' + y + '" r="4.2" fill="rgba(239,227,204,.75)"/><circle cx="' + x + '" cy="' + y + '" r="6.5" fill="none" stroke="rgba(239,227,204,.18)" stroke-width="1.5"/>';
     $('sceneSea').innerHTML = '<svg viewBox="0 0 240 160" class="scene-svg">'
-      + '<defs><linearGradient id="sceneSeaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a7aa5"/><stop offset="1" stop-color="#123c5a"/></linearGradient></defs>'
-      + '<rect width="240" height="160" rx="10" fill="url(#sceneSeaFill)"/><g stroke="rgba(239,227,204,.12)" stroke-width="1">' + grid + '</g>'
-      + ship(1, 4, 40, 40, 0) + ship(3, 3, 200, 40, 1) + ship(4, 2, 0, 120, 0)
-      + '<circle cx="140" cy="60" r="9" fill="#ff6a2a" class="sc-fire"/><circle cx="140" cy="60" r="4.5" fill="#ffe6bd"/>'
-      + '<circle cx="60" cy="20" r="4" fill="rgba(239,227,204,.7)"/><circle cx="180" cy="140" r="4" fill="rgba(239,227,204,.7)"/><circle cx="20" cy="100" r="4" fill="rgba(239,227,204,.7)"/>'
-      + '<g class="sc-aim"><circle cx="120" cy="140" r="13" fill="none" stroke="#ffb347" stroke-width="2.5"/><path d="M120 128v24M108 140h24" stroke="#ffb347" stroke-width="2"/></g>'
-      + '</svg>';
+      + '<defs><linearGradient id="sceneSeaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a7aa5"/><stop offset="1" stop-color="#123c5a"/></linearGradient>'
+      + '<radialGradient id="sceneBoomFill"><stop offset="0" stop-color="#fff6d8"/><stop offset=".35" stop-color="#ffb347"/><stop offset=".7" stop-color="#ff6a2a" stop-opacity=".8"/><stop offset="1" stop-color="#ff6a2a" stop-opacity="0"/></radialGradient>'
+      + '<linearGradient id="sceneTrailFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe6bd" stop-opacity="0"/><stop offset="1" stop-color="#ffe6bd" stop-opacity=".9"/></linearGradient>'
+      + '<clipPath id="sceneSeaClip"><rect width="240" height="160" rx="10"/></clipPath></defs>'
+      + '<g clip-path="url(#sceneSeaClip)">'
+      + '<rect width="240" height="160" fill="url(#sceneSeaFill)"/><path d="' + waves + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1.2" stroke-linecap="round"/>'
+      + '<g stroke="rgba(239,227,204,.12)" stroke-width="1">' + grid + '</g>'
+      + '<g class="sc-hitship">' + ship(1, 4, 40, 40, 0) + '</g>' + ship(3, 3, 200, 40, 1) + ship(4, 2, 0, 120, 0)
+      // an earlier hit, still smouldering, and a few misses
+      + '<circle cx="140" cy="60" r="6" fill="#c8321f"/><circle cx="140" cy="60" r="3" fill="#ffb347"/>'
+      + peg(60, 20) + peg(180, 140) + peg(20, 100) + peg(140, 100)
+      // the sight: slides in from open water onto the battleship
+      + '<g class="sc-aim"><circle cx="100" cy="60" r="14" fill="rgba(255,179,71,.12)" stroke="#ffb347" stroke-width="2.5"/>'
+      + '<path d="M100 44v8M100 68v8M84 60h8M108 60h8" stroke="#ffb347" stroke-width="2.4" stroke-linecap="round"/></g>'
+      // the shell coming in, with its trail
+      + '<g class="sc-shell"><rect x="98.5" y="18" width="3" height="38" rx="1.5" fill="url(#sceneTrailFill)"/><circle cx="100" cy="58" r="3.4" fill="#fff6d8"/><circle cx="100" cy="58" r="6" fill="#ffb347" opacity=".45"/></g>'
+      // the impact: a flash, a shock ring, then fire and smoke on the square
+      + '<circle class="sc-flash" cx="100" cy="60" r="22" fill="url(#sceneBoomFill)"/>'
+      + '<circle class="sc-ring" cx="100" cy="60" r="16" fill="none" stroke="#ffe6bd" stroke-width="2.5"/>'
+      + '<g class="sc-burn"><path class="sc-flame" d="M100 48c5 6 8 9 8 13a8 8 0 0 1-16 0c0-3 2-5 3-7 0 3 1 4 3 4-1-4 0-7 2-10z" fill="#ff6a2a"/>'
+      + '<path class="sc-flame" d="M100 54c3 3 4 5 4 7a4 4 0 0 1-8 0c0-2 2-4 4-7z" fill="#ffd36e"/>'
+      + '<circle class="sc-smoke" cx="100" cy="46" r="5" fill="rgba(60,64,72,.55)"/><circle class="sc-smoke s2" cx="103" cy="44" r="4" fill="rgba(60,64,72,.5)"/><circle class="sc-smoke s3" cx="97" cy="45" r="4.5" fill="rgba(60,64,72,.5)"/></g>'
+      + '</g></svg>';
 
-    // towers: both sides of the arena, a troop marching for the bridge
-    const tower = (x, y, sz, red) => {
-      const roof = red ? '#d65445' : '#3f86c6', h = sz / 2, t = sz * .2;
+    // towers: a proper little arena. a troop marches up the left lane, the
+    // tower fires on it, the troop chips the tower down, and the round
+    // fades and starts again. nothing walks backwards
+    let seed = 11;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    let blades = '', pebbles = '', stones = '';
+    for(let i = 0; i < 420; i++){
+      const x = rnd() * 240, y = rnd() * 160;
+      if(y > 70 && y < 90) continue;
+      blades += 'M' + x.toFixed(1) + ' ' + y.toFixed(1) + 'l' + ((rnd() - .5) * 1.6).toFixed(1) + ' -' + (1.8 + rnd() * 1.6).toFixed(1);
+    }
+    for(let i = 0; i < 46; i++){
+      const lane = i % 2 ? 52 : 188, y = 30 + rnd() * 100;
+      if(y > 68 && y < 92) continue;
+      pebbles += '<circle cx="' + (lane - 5 + rnd() * 10).toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (.6 + rnd() * .9).toFixed(1) + '"/>';
+    }
+    for(let x = 2; x < 240; x += 7 + rnd() * 3) for(const y of [71, 89]) stones += '<ellipse cx="' + x.toFixed(1) + '" cy="' + (y + (rnd() - .5)).toFixed(1) + '" rx="' + (2.6 + rnd()).toFixed(1) + '" ry="1.9"/>';
+    const bridge = x => {
+      let g = '<rect x="' + (x - 15) + '" y="66" width="30" height="28" rx="2" fill="#4a2c15"/>';
+      for(let y = 67, k = 0; y < 92; y += 4.2, k++) g += '<rect x="' + (x - 13) + '" y="' + y.toFixed(1) + '" width="26" height="3.4" fill="' + (k % 2 ? '#a8743f' : '#9b6936') + '"/>';
+      return g + '<rect x="' + (x - 16) + '" y="65" width="3" height="30" rx="1" fill="#6e4423"/><rect x="' + (x + 13) + '" y="65" width="3" height="30" rx="1" fill="#6e4423"/>';
+    };
+    const tower = (x, y, sz, red, king) => {
+      const h = sz / 2, rid = red ? 'sceneRoofR' : 'sceneRoofB', banner = red ? '#be4334' : '#3577b8';
       let g = '<rect x="' + (x - h + 2) + '" y="' + (y - h + 3) + '" width="' + sz + '" height="' + sz + '" rx="5" fill="rgba(0,0,0,.3)"/>'
-        + '<rect x="' + (x - h) + '" y="' + (y - h) + '" width="' + sz + '" height="' + sz + '" rx="5" fill="#cfc6b6" stroke="#6f685d" stroke-width="1.2"/>'
-        + '<rect x="' + (x - h + t) + '" y="' + (y - h + t) + '" width="' + (sz - t * 2) + '" height="' + (sz - t * 2) + '" rx="3" fill="' + roof + '"/>';
-      for(const dx of [-1, 1]) for(const dy of [-1, 1]) g += '<circle cx="' + (x + dx * (h - 1)) + '" cy="' + (y + dy * (h - 1)) + '" r="' + (sz * .17) + '" fill="' + roof + '" stroke="#6f685d" stroke-width="1"/>';
+        + '<rect x="' + (x - h) + '" y="' + (y - h) + '" width="' + sz + '" height="' + sz + '" rx="5" fill="url(#sceneStoneFill)" stroke="#5c554a" stroke-width="1"/>';
+      for(let r = 4.2; r < sz; r += 4.2) g += '<path d="M' + (x - h + 1) + ' ' + (y - h + r).toFixed(1) + 'h' + (sz - 2) + '" stroke="rgba(78,70,58,.28)" stroke-width=".6"/>';
+      const t = sz * .24;
+      g += '<rect x="' + (x - h + t) + '" y="' + (y - h + t) + '" width="' + (sz - t * 2) + '" height="' + (sz - t * 2) + '" rx="3" fill="url(#' + rid + ')" stroke="rgba(0,0,0,.35)" stroke-width=".6"/>';
+      for(const dx of [-1, 1]) for(const dy of [-1, 1]){
+        const cx = x + dx * (h - 1), cy = y + dy * (h - 1), r = sz * .2;
+        g += '<circle cx="' + cx + '" cy="' + (cy + 1) + '" r="' + r + '" fill="rgba(0,0,0,.3)"/><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#cfc6b6" stroke="#5c554a" stroke-width=".8"/>'
+          + '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r * .76) + '" fill="url(#' + rid + ')"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (r * .2) + '" fill="#ffd25e"/>';
+      }
+      g += '<path d="M' + (x - 3) + ' ' + (y + h - 1) + 'h6v6l-3-2-3 2z" fill="' + banner + '" stroke="#e9b850" stroke-width=".6"/>';
+      if(king) g += '<path d="M' + (x - 5) + ' ' + (y + 1) + 'l1.5-5 2 3 1.5-4 1.5 4 2-3 1.5 5z" fill="#ffd25e" stroke="#a8721c" stroke-width=".5"/>';
       return g;
     };
-    const troop = (key, x, y, w, cls) => '<image class="' + cls + '" href="' + artUrl(key) + '" x="' + x + '" y="' + y + '" width="' + w + '" height="' + w + '"/>';
-    $('sceneTowers').innerHTML = '<svg viewBox="0 0 240 150" class="scene-svg">'
-      + '<defs><linearGradient id="sceneGrassFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6aa653"/><stop offset="1" stop-color="#5c9846"/></linearGradient></defs>'
-      + '<rect width="240" height="150" rx="10" fill="url(#sceneGrassFill)"/>'
-      + '<rect x="44" y="30" width="12" height="90" fill="#cfae73" opacity=".8"/><rect x="184" y="30" width="12" height="90" fill="#cfae73" opacity=".8"/>'
-      + '<rect y="66" width="240" height="18" fill="#2f86b4"/><path d="M0 70H240M0 80H240" stroke="rgba(200,240,255,.35)" stroke-width="1" stroke-dasharray="6 9"/>'
-      + '<rect x="36" y="62" width="28" height="26" rx="2" fill="#a2703f"/><rect x="176" y="62" width="28" height="26" rx="2" fill="#a2703f"/>'
-      + tower(120, 22, 30, 1) + tower(50, 30, 22, 1) + tower(190, 30, 22, 1)
-      + tower(120, 128, 30, 0) + tower(50, 120, 22, 0) + tower(190, 120, 22, 0)
-      + troop('monitor', 36, 92, 28, 'sc-march') + troop('planes', 150, 40, 26, 'sc-fly')
-      + '</svg>';
+    const roofGrad = (id, c) => '<radialGradient id="' + id + '" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="' + c[0] + '"/><stop offset=".6" stop-color="' + c[1] + '"/><stop offset="1" stop-color="' + c[2] + '"/></radialGradient>';
+    $('sceneTowers').innerHTML = '<svg viewBox="0 0 240 160" class="scene-svg">'
+      + '<defs><linearGradient id="sceneGrassFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6eab55"/><stop offset="1" stop-color="#5a9645"/></linearGradient>'
+      + '<linearGradient id="sceneRiverFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b5a80"/><stop offset=".5" stop-color="#3a95c2"/><stop offset="1" stop-color="#1b5a80"/></linearGradient>'
+      + '<linearGradient id="sceneStoneFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ddd5c6"/><stop offset="1" stop-color="#9a9183"/></linearGradient>'
+      + '<radialGradient id="sceneSparkFill"><stop offset="0" stop-color="#fff6d8"/><stop offset=".5" stop-color="#ffb347" stop-opacity=".8"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>'
+      + roofGrad('sceneRoofR', ['#ec7a6a', '#be4334', '#7c2318']) + roofGrad('sceneRoofB', ['#6ab0ea', '#3577b8', '#1c4878'])
+      + '<clipPath id="sceneArenaClip"><rect width="240" height="160" rx="10"/></clipPath></defs>'
+      + '<g clip-path="url(#sceneArenaClip)">'
+      + '<rect width="240" height="160" fill="url(#sceneGrassFill)"/>'
+      + '<path d="' + blades + '" stroke="rgba(40,90,30,.45)" stroke-width=".7" stroke-linecap="round"/>'
+      + '<g fill="#c9a56c"><rect x="45" y="36" width="14" height="88" rx="4"/><rect x="181" y="36" width="14" height="88" rx="4"/><rect x="52" y="17" width="136" height="12" rx="4"/><rect x="52" y="131" width="136" height="12" rx="4"/></g>'
+      + '<g fill="rgba(110,78,40,.45)">' + pebbles + '</g>'
+      + '<rect y="72" width="240" height="16" fill="url(#sceneRiverFill)"/><g fill="#8a8274" stroke="rgba(0,0,0,.25)" stroke-width=".4">' + stones + '</g>'
+      + '<path class="sc-glint" d="M14 80q4-2 8 0M90 78q4-2 8 0M150 82q4-2 8 0M222 79q4-2 8 0" stroke="rgba(225,248,255,.6)" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
+      + bridge(52) + bridge(188)
+      + tower(120, 22, 32, 1, 1) + tower(52, 44, 24, 1, 0) + tower(188, 44, 24, 1, 0)
+      + tower(120, 138, 32, 0, 1) + tower(52, 116, 24, 0, 0) + tower(188, 116, 24, 0, 0)
+      // health bars over the red side towers; the left one gets chipped down
+      + '<rect x="38" y="26" width="28" height="4" rx="2" fill="rgba(13,10,8,.75)"/><rect class="sc-hp" x="39" y="27" width="26" height="2" rx="1" fill="#ff7a5a"/>'
+      + '<rect x="174" y="26" width="28" height="4" rx="2" fill="rgba(13,10,8,.75)"/><rect x="175" y="27" width="26" height="2" rx="1" fill="#ff7a5a"/>'
+      + '<image class="sc-troop" href="' + artUrl('monitor') + '" x="40" y="96" width="24" height="24"/>'
+      + '<circle class="sc-bolt" cx="52" cy="50" r="2.4" fill="#ffd36e"/><circle class="sc-bolt b2" cx="52" cy="50" r="2.4" fill="#ffd36e"/>'
+      + '<circle class="sc-spark" cx="52" cy="54" r="6" fill="url(#sceneSparkFill)"/>'
+      + '</g></svg>';
 
-    // golf: a green with a waving flag, the ball rolling for the cup
+    // golf: a putt that finds the cup. the ball rolls in on a curve, slows,
+    // drops, and the cup gives a little ripple. fog hangs over the far
+    // corner, like the course before you've seen it
     $('sceneGolf').innerHTML = '<svg viewBox="0 0 240 150" class="scene-svg">'
       + '<defs><linearGradient id="sceneRoughFill" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2f7a3c"/><stop offset="1" stop-color="#276a33"/></linearGradient>'
-      + '<radialGradient id="sceneGreenFill" cx=".5" cy=".4" r=".7"><stop offset="0" stop-color="#7fd06f"/><stop offset="1" stop-color="#55ad4d"/></radialGradient></defs>'
-      + '<rect width="240" height="150" rx="10" fill="url(#sceneRoughFill)"/>'
+      + '<radialGradient id="sceneGreenFill" cx=".5" cy=".4" r=".7"><stop offset="0" stop-color="#86d676"/><stop offset="1" stop-color="#55ad4d"/></radialGradient>'
+      + '<radialGradient id="sceneFogFill" cx="1" cy="0" r="1"><stop offset="0" stop-color="#121510" stop-opacity=".95"/><stop offset=".4" stop-color="#121510" stop-opacity=".55"/><stop offset=".75" stop-color="#121510" stop-opacity="0"/></radialGradient>'
+      + '<clipPath id="sceneGolfClip"><rect width="240" height="150" rx="10"/></clipPath></defs>'
+      + '<g clip-path="url(#sceneGolfClip)">'
+      + '<rect width="240" height="150" fill="url(#sceneRoughFill)"/>'
       + '<g fill="rgba(255,255,255,.05)"><rect x="0" width="30" height="150"/><rect x="60" width="30" height="150"/><rect x="120" width="30" height="150"/><rect x="180" width="30" height="150"/></g>'
-      + '<path d="M28 96 C20 60 70 26 128 24 C190 22 222 52 214 86 C206 122 150 132 100 128 C56 126 34 118 28 96 Z" fill="url(#sceneGreenFill)" stroke="rgba(255,255,255,.18)" stroke-width="2"/>'
-      + '<path d="M150 104 C160 94 190 96 196 108 C200 120 168 124 156 118 C148 114 146 108 150 104 Z" fill="#e8d39b"/>'
-      + '<path d="M6 128 C10 112 40 110 52 122 C60 132 40 146 22 144 C10 142 4 136 6 128 Z" fill="#2f86b4"/>'
-      + '<path d="M62 104 Q110 96 170 54" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round"/>'
-      + '<ellipse cx="170" cy="54" rx="7" ry="4" fill="#0e1a10"/>'
-      + '<path d="M170 54V18" stroke="#efe3cc" stroke-width="2"/><path class="sc-flag" d="M171 18 L194 24 L171 31 Z" fill="#ff6a2a"/>'
-      + '<circle r="4.2" fill="#fff" stroke="rgba(0,0,0,.25)" stroke-width=".8"><animateMotion dur="3.6s" repeatCount="indefinite" path="M62 104 Q110 96 170 54" keyPoints="0;1;1" keyTimes="0;.55;1" calcMode="spline" keySplines=".25 .7 .35 1;0 0 1 1"/>'
-      + '<animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;.56;.62;.98;1" dur="3.6s" repeatCount="indefinite"/></circle>'
-      + '</svg>';
+      + '<path d="M26 98 C18 60 70 24 128 22 C192 20 224 52 216 88 C208 124 150 134 100 130 C54 128 32 120 26 98 Z" fill="#4a9a44"/>'
+      + '<path d="M32 96 C24 62 72 30 128 28 C188 26 216 54 209 86 C202 118 150 126 100 123 C58 121 38 115 32 96 Z" fill="url(#sceneGreenFill)"/>'
+      + '<path d="M150 106 C160 96 190 98 196 110 C200 122 168 126 156 120 C148 116 146 110 150 106 Z" fill="#e8d39b"/><g fill="rgba(160,130,70,.35)"><circle cx="160" cy="112" r=".8"/><circle cx="172" cy="108" r=".7"/><circle cx="184" cy="114" r=".8"/><circle cx="168" cy="118" r=".6"/></g>'
+      + '<path d="M4 130 C8 114 40 112 52 124 C60 134 40 148 22 146 C10 144 2 138 4 130 Z" fill="#2f86b4"/><path d="M14 132q5-2 10 0M28 138q5-2 10 0" stroke="rgba(225,248,255,.5)" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
+      + '<rect width="240" height="150" fill="url(#sceneFogFill)"/>'
+      // the line the putt took, drawn as the ball rolls, then fading
+      + '<path d="M58 112 Q104 104 168 58" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-linecap="round" stroke-dasharray="100" pathLength="100">'
+      + '<animate attributeName="stroke-dashoffset" values="100;0;0;100" keyTimes="0;.58;.8;1" dur="4s" repeatCount="indefinite"/>'
+      + '<animate attributeName="opacity" values=".7;.7;0;0" keyTimes="0;.58;.8;1" dur="4s" repeatCount="indefinite"/></path>'
+      + '<ellipse cx="168" cy="58" rx="7.5" ry="4.4" fill="#0e1a10" stroke="#f2f2ea" stroke-width="1"/>'
+      + '<ellipse cx="168" cy="58" rx="4" ry="2.4" fill="none" stroke="#fff" stroke-width="1.2" opacity="0">'
+      + '<animate attributeName="rx" values="4;4;14;14" keyTimes="0;.58;.78;1" dur="4s" repeatCount="indefinite"/>'
+      + '<animate attributeName="ry" values="2.4;2.4;8;8" keyTimes="0;.58;.78;1" dur="4s" repeatCount="indefinite"/>'
+      + '<animate attributeName="opacity" values="0;0;.8;0;0" keyTimes="0;.57;.6;.78;1" dur="4s" repeatCount="indefinite"/></ellipse>'
+      + '<path d="M168 58V20" stroke="#efe3cc" stroke-width="2"/><path class="sc-flag" d="M169 20 L192 26 L169 33 Z" fill="#ff6a2a"/>'
+      + '<circle r="4.2" fill="#fff" stroke="rgba(0,0,0,.25)" stroke-width=".8">'
+      + '<animateMotion dur="4s" repeatCount="indefinite" path="M58 112 Q104 104 168 58" keyPoints="0;1;1" keyTimes="0;.58;1" calcMode="spline" keySplines=".2 .6 .3 1;0 0 1 1"/>'
+      + '<animate attributeName="r" values="4.2;4.2;2;0;0;4.2" keyTimes="0;.56;.6;.62;.97;1" dur="4s" repeatCount="indefinite"/></circle>'
+      + '</g></svg>';
     if(reduceMotion()) $('sceneGolf').querySelector('svg').pauseAnimations();
   }
   buildScenes();
