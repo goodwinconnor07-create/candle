@@ -82,6 +82,17 @@ source is at https://github.com/nmrugg/stockfish.js. To update it, take
 `stockfish-*-lite-single.js` and `.wasm` from the `stockfish` npm package and
 change `SF_URL` in `public/index.html`.
 
+## Whose turn is it?
+
+Both games put a banner over the board that says whose turn it is, with that
+player's character. It goes amber when it's yours. When the turn comes back
+to you, "Your turn" flashes in the middle of the screen and phones give a
+short buzz. While the other player answers, their question card is greyed out
+and blurred under "Gus is answering", then revealed once they've answered so
+you can see how they did. Tapping a choice, the board or the table during
+their turn shows a short "It's Gus's turn" message instead of doing nothing.
+Each match starts with a 3-2-1 that says who goes first.
+
 ## Starting a match
 
 Pick a game, hit **Go**, then choose who you're playing:
