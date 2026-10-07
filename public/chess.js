@@ -53,8 +53,11 @@ export function toFen(s) {
 
 export const start = () => fromFen(START);
 
-// what counts for threefold repetition: the pieces, whose move, and rights
-export const posKey = (s) => s.b.join(',') + s.turn + s.castle + s.ep;
+// what counts for threefold repetition: the pieces, whose move, and rights.
+// the en passant square only counts when the capture is actually there to
+// play, the way the rules have it; otherwise every double push would make
+// the next position look new
+export const posKey = (s) => s.b.join(',') + s.turn + s.castle + (s.ep >= 0 && moves(s).some((m) => m.flag === 'e') ? s.ep : -1);
 
 const KNIGHT = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
 const KING = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];

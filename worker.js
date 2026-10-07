@@ -283,6 +283,7 @@ export class GameRoom {
       const lobby = await this.loadLobby();
       if (!lobby || !body.token || body.token !== lobby.hostToken) return err(403, 'not the host');
       if (lobby.vsBot) return err(400, 'test matches have no code');
+      if (lobby.closed) return err(410, 'called off');
       if (lobby.guestToken) return err(409, 'the guest seat is taken');
       if (lobby.code) return json({ code: lobby.code });
       if (!this.codeClaim) {
@@ -329,6 +330,11 @@ export class GameRoom {
       ws.close(1000, 'no such game');
       return;
     }
+    if (lobby.closed) {
+      ws.send(JSON.stringify({ t: 'closed', name: lobby.hostName }));
+      ws.close(1000, 'called off');
+      return;
+    }
 
     const wanted = params.get('role');
     const token = params.get('token') || '';
@@ -372,7 +378,8 @@ export class GameRoom {
     const drop = () => {
       if (!this.sockets.delete(conn)) return;
       const g = this.game;
-      if (!g || g.phase === 'over') return;
+      if (!g) { this.sendState(); return; }   // the lobby shows who's still connected
+      if (g.phase === 'over') return;
       for (const c of this.sockets) if (c.role === role) return;   // still here on another tab
       g.gone = g.gone || {};
       g.gone[role] = Date.now();
@@ -393,6 +400,7 @@ export class GameRoom {
   }
 
   async onMessage(role, msg) {
+    if (!msg || typeof msg !== 'object') return;   // valid JSON, but not a message
     const lobby = await this.loadLobby();
     if (!lobby) return;
 
@@ -407,6 +415,10 @@ export class GameRoom {
       this.sendState();
       return;
     }
+
+    // walking out of the lobby on purpose. a guest frees their seat for
+    // someone else; a host calls the whole match off
+    if (msg.t === 'leave' && !this.game) { await this.lobbyLeave(role); return; }
 
     if (msg.t === 'start' && role === 'host' && lobby.guestReady
         && lobby.hostChar && lobby.guestChar && !this.game) {
@@ -603,7 +615,7 @@ export class GameRoom {
 
   poolShoot(role, msg) {
     const g = this.game;
-    if (!g || g.phase !== 'aim' || role !== g.table.turn) return;
+    if (!g || !g.table || g.phase !== 'aim' || role !== g.table.turn) return;
     const T = g.table;
     // the shooter's browser runs this same conversion and the same shot the
     // moment they let go, so it has to stay in pool.js where both can use it
@@ -1302,7 +1314,7 @@ export class GameRoom {
     g.bt = 0;
     for (const role of ['host', 'guest']) {
       const Q = g.tq[role];
-      if (Q.state === 'ask') { Q.results[Q.i] = null; }
+      if (Q.state === 'ask') { Q.results[Q.i] = null; Q.streak = 0; }   // a question left unanswered breaks the streak
       Q.state = 'off';
     }
     this.sendState();
@@ -1431,6 +1443,7 @@ export class GameRoom {
     g.bt += 1;
 
     const h = s.sides.host.crowns, c = s.sides.guest.crowns;
+    if (s.kingDown === 'both') { this.towersOver(null, 'kings'); return; }
     if (s.kingDown) { this.towersOver(s.kingDown === 'host' ? 'guest' : 'host', 'king'); return; }
     // in overtime the first tower to fall settles it
     if (g.ot && h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'overtime'); return; }
@@ -1462,6 +1475,7 @@ export class GameRoom {
       overtime: wn + ' took a tower in overtime.',
       tiebreak: 'Still level after the overtime rounds, and ' + ln + "'s weakest tower had less left.",
       draw: "Level on crowns and on tower health. It's a draw.",
+      kings: "Both king towers fell at the same moment. It's a draw.",
     }[how];
     g.phase = 'over';
     g.over = { winner, draw: !winner, why, crowns: cr };
@@ -1508,6 +1522,39 @@ export class GameRoom {
 
   stopLoop() {
     if (this.loop) { clearInterval(this.loop); this.loop = null; }
+  }
+
+  isOnline(role) {
+    for (const c of this.sockets) if (c.role === role) return true;
+    return false;
+  }
+
+  async lobbyLeave(role) {
+    const lobby = await this.loadLobby();
+    if (!lobby || this.game || lobby.closed) return;
+    if (role === 'guest') {
+      if (lobby.vsBot) return;
+      lobby.guestToken = '';
+      lobby.guestReady = false;
+      lobby.guestName = '';
+      lobby.guestChar = '';
+      lobby.code = null;   // the old code was let go when they joined; the host gets a new one
+      await this.saveLobby();
+      for (const c of [...this.sockets]) if (c.role === 'guest') { this.sockets.delete(c); try { c.ws.close(1000, 'left'); } catch (e) {} }
+      this.sendState();
+      return;
+    }
+    lobby.closed = true;
+    await this.saveLobby();
+    if (lobby.code) {
+      codeBook(this.env, lobby.code).fetch('https://code/release', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: lobby.id }),
+      }).catch(() => {});
+    }
+    for (const c of [...this.sockets]) {
+      this.sockets.delete(c);
+      try { c.ws.send(JSON.stringify({ t: 'closed', name: lobby.hostName })); c.ws.close(1000, 'called off'); } catch (e) {}
+    }
   }
 
   // one player walked out: the match is over for both of them. after a match
@@ -1565,7 +1612,9 @@ export class GameRoom {
         host: { name: lobby ? lobby.hostName : '', ready: true, char: lobby ? lobby.hostChar : '' },
         guest: {
           name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady),
-          here: !!(lobby && lobby.guestToken), char: lobby ? lobby.guestChar : '',
+          // a claimed seat only counts while its player is connected
+          here: !!(lobby && lobby.guestToken && (lobby.vsBot || this.isOnline('guest'))), char: lobby ? lobby.guestChar : '',
+          claimed: !!(lobby && lobby.guestToken),
         },
       };
     }

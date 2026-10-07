@@ -52,8 +52,9 @@ export function cleanFleet(raw) {
   const out = [];
   for (let i = 0; i < FLEET.length; i++) {
     const s = raw[i];
-    if (!Array.isArray(s)) return null;
-    out.push([Number(s[0]), !!s[1]]);
+    // a real square number, not something that happens to turn into one
+    if (!Array.isArray(s) || typeof s[0] !== 'number' || !Number.isInteger(s[0])) return null;
+    out.push([s[0], !!s[1]]);
   }
   return out.every((s, i) => fits(out, i, s)) ? out : null;
 }
