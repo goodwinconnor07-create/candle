@@ -18,15 +18,15 @@
     --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-shirt:#2a221b;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
-  html,body{ height:100%; }
-  html{ overflow-x:hidden; }
+  /* the page is exactly one screen and never scrolls. every screen is sized
+     to fit, and the games size their table and board from what's left */
+  html,body{ height:100%; overflow:hidden; overscroll-behavior:none; }
   body{
     background:var(--soot); color:var(--tallow);
     font:400 1rem/1.5 var(--sans);
     display:flex; flex-direction:column; align-items:center;
-    min-height:100dvh;
+    height:100dvh;
     padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
-    overflow-x:hidden; overflow-y:auto;
     -webkit-tap-highlight-color:transparent;
     -webkit-font-smoothing:antialiased;
   }
@@ -386,7 +386,11 @@
   .turnbar .pod::after{ display:none; }
   .turnbar-txt{ display:flex; flex-direction:column; gap:1px; min-width:0; }
   .turnbar-who{ font:650 .74rem/1.25 var(--sans); letter-spacing:.08em; text-transform:uppercase; color:var(--ash); }
-  .turnbar .pcall{ display:block; min-height:0; max-width:none; font-size:.84rem; text-align:left; }
+  .turnbar .pcall{
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+    min-height:0; max-width:none; font-size:.84rem; line-height:1.3; text-align:left;
+  }
+  .turnbar{ height:56px; flex:0 0 auto; }
   .turnbar.mine{
     border-color:rgba(255,179,71,.65); background:rgba(255,179,71,.11);
     box-shadow:0 0 24px -8px rgba(255,179,71,.6);
@@ -576,7 +580,7 @@
   }
 
   :root{ --chesspc:"Segoe UI Symbol","Noto Sans Symbols 2","Apple Symbols","DejaVu Sans",serif; }
-  .cwrap{ position:relative; width:min(100%, max(248px, calc(100dvh - 396px))); aspect-ratio:1; }
+  .cwrap{ position:relative; width:min(100%, 300px); aspect-ratio:1; flex:0 0 auto; }
   .cboard{
     position:absolute; inset:0; display:grid; grid-template:repeat(8,1fr) / repeat(8,1fr);
     border-radius:10px; overflow:hidden; container-type:inline-size;
@@ -627,7 +631,7 @@
   .ccard{
     width:100%; display:flex; flex-direction:column; align-items:center; gap:9px; text-align:center;
     padding:12px; border:1px solid var(--hair); border-radius:14px; background:rgba(239,227,204,.025);
-    min-height:196px; justify-content:center;
+    min-height:228px; justify-content:center; flex:0 0 auto;
   }
   .ccard .fuse{ width:100%; }
   .ccard .fuse.gone{ visibility:hidden; }
@@ -640,6 +644,48 @@
   @media (max-height:680px){
     .app{ gap:13px }
   }
+
+  /* short screens: the intro, setup and lobbies squeeze down instead of
+     running off the bottom */
+  .chars{ grid-template-columns:repeat(4,minmax(0,1fr)); }
+  @media (max-height:780px){
+    .app[data-screen="scIntro"] .crest{ width:clamp(70px, 11dvh, 110px); }
+    .app[data-screen="scIntro"] .wordmark{ font-size:clamp(1.7rem, 5.4dvh, 2.4rem); }
+    .demo-table{ max-width:calc(22dvh * 664 / 364); }
+    .demo-side .pod{ width:clamp(32px, 6dvh, 44px); }
+    .demo{ gap:6px; }
+    .charcard{ padding:7px 4px 6px; }
+    .charcard .pod{ width:38px; }
+    .lobbyside .pod{ width:clamp(46px, 8dvh, 64px); }
+    .lobby{ gap:12px; }
+  }
+  @media (max-height:690px){
+    .demo-players{ display:none; }
+    .demo-table{ max-width:calc(24dvh * 664 / 364); }
+    .modes .mode span{ display:none; }
+    .lead{ font-size:.86rem; }
+  }
+  /* chess on a short screen: the board matters most, so the card goes
+     compact, with the four answers in one row */
+  @media (max-height:800px){
+    #scChess .crow{ min-height:38px; }
+    #scChess .crow .pod{ width:28px; }
+    #scChess .cclock{ padding:5px 8px; font-size:.95rem; }
+    .turnbar{ height:50px; min-height:0; padding:4px 10px 4px 6px; }
+    .turnbar .pcall{ font-size:.8rem; }
+    .turnbar .pod{ width:28px; }
+    .ccard{ padding:8px 10px; gap:6px; min-height:0; }
+    .ccard .pcard-q{ font-size:1.45rem; }
+    .ccard .pcard-q.countnum{ font-size:2.2rem !important; }
+    .ccard .pcard-choices{ grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+    .ccard .pcard-choices .choice{ min-height:40px; padding:6px 4px; font-size:1.1rem; }
+    .ccard .pcard-choices .choice kbd{ top:3px; left:5px; }
+    .ccard .pcard-note{ font-size:.76rem; min-height:1.2em; }
+  }
+
+  /* the test mode tag gets its own strip under a game, never on top of it */
+  body.testing .app[data-screen="scPool"], body.testing .app[data-screen="scChess"]{ padding-bottom:30px; }
+  body.testing .testchip{ bottom:max(6px, env(safe-area-inset-bottom)); }
   /* reduced motion means less travel across the screen, not a dead page. the
      demo still plays its shots, since that's the point of it. what goes is
      the sliding and bobbing */
@@ -1269,6 +1315,7 @@
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
     app.dataset.screen = ids[0] || '';
+    document.body.classList.toggle('testing', !$('testChip').hidden);
     const inMatch = ids.includes('scPool') || ids.includes('scChess');
     $('wordmark').hidden = inMatch;
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
@@ -1777,7 +1824,7 @@
   function poolResize(){
     const stage = $('pStage');
     const availW = Math.min(stage.clientWidth || 360, 540) - 46;
-    const availH = window.innerHeight - 176;
+    const availH = window.innerHeight - 176 - ($('testChip').hidden ? 0 : 30);
     const w = Math.max(200, Math.floor(Math.min(availW, availH * OW / OL)));
     const h = Math.round(w * OL / OW);
     if(w === pv.w && h === pv.h) return;
@@ -2459,6 +2506,7 @@
       $('pcChoices').innerHTML = '';
       $('pcChoices').dataset.key = '';
       $('pcNote').textContent = mine ? 'You break first. Answer right to take the shot.' : who + ' breaks first.';
+      $('pcQ').textContent = String(Math.min(3, Math.max(1, Math.ceil(s.ms / 1000))));
       return;
     }
 
@@ -2863,8 +2911,12 @@
     if(s.phase === 'countdown'){
       const white = C.colors.host === 'w' ? 'host' : 'guest';
       $('ccWho').textContent = white === myRole ? 'Get ready. You have white' : 'Get ready. ' + ((s[white] || {}).name || 'They') + ' has white';
-      noChoices();
-      $('ccNote').textContent = 'Every move needs a right answer. A wrong one costs ' + Math.round(C.penaltyMs / 1000) + ' seconds.';
+      // invisible stand-ins hold the card at question height, so the board
+      // is already its final size when the first question lands
+      box.innerHTML = '<button class="choice" style="visibility:hidden">0</button>'.repeat(4);
+      box.dataset.key = '';
+      $('ccQ').textContent = String(Math.min(3, Math.max(1, Math.ceil(s.ms / 1000))));
+      $('ccNote').textContent = 'Wrong answers cost ' + Math.round(C.penaltyMs / 1000) + ' seconds.';
       return;
     }
     if(s.phase === 'move'){
@@ -2952,6 +3004,7 @@
     if(qKey !== cv.qKey){ cv.qKey = qKey; cv.picked = null; }
 
     show(['scChess']);
+    chessResize();
     $('cCall').textContent = s.chess.call || '';
     turnBar('c', s, s.chess.turn);
     turnCue(s, s.chess.turn);
@@ -2963,7 +3016,36 @@
     chessHint();
     renderBoard();
     chessCard(s);
+    chessCardHold();
+    chessResize();
   }
+
+  // the board takes whatever height the rows, banner and card leave, so the
+  // screen never needs to scroll
+  function chessResize(){
+    const panel = $('scChess'), wrap = $('cWrap');
+    if(panel.hidden) return;
+    const kids = [...panel.children].filter(el => !el.hidden && getComputedStyle(el).display !== 'none');
+    const others = kids.filter(el => el !== wrap).reduce((a, el) => a + el.offsetHeight, 0);
+    const gaps = 8 * (kids.length - 1);
+    // measured from where the panel actually starts, so the body padding and
+    // anything above it (like the hidden logo's gap) are already counted
+    const bs = getComputedStyle(document.body), as = getComputedStyle(app);
+    const top = panel.getBoundingClientRect().top;
+    const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
+    const room = window.innerHeight - top - others - gaps - below - 2;
+    const size = Math.floor(Math.max(150, Math.min(panel.clientWidth, room, 600)));
+    wrap.style.width = size + 'px';
+  }
+  // the card keeps the height of its tallest in-game state, so the board
+  // doesn't jump between the question and the move
+  function chessCardHold(){
+    const card = $('cCard');
+    if(phase === 'over'){ card.style.minHeight = ''; return; }
+    cv.cardH = Math.max(cv.cardH || 0, card.offsetHeight);
+    card.style.minHeight = cv.cardH + 'px';
+  }
+  window.addEventListener('resize', () => { cv.cardH = 0; $('cCard').style.minHeight = ''; chessCardHold(); chessResize(); });
 
   // clocks and the question fuse run off the last update, between updates
   function chessFrame(now){
