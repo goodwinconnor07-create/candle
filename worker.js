@@ -48,6 +48,7 @@ import * as Chess from './public/chess.js';
 import * as Sea from './public/battleships.js';
 import * as Towers from './towers.js';
 import * as Cards from './public/towers-cards.js';
+import * as Golf from './public/golf.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
@@ -55,7 +56,7 @@ const TICK_MS      = 200;     // how often the room checks its own deadlines
 const NAME_MAX     = 16;
 // every mini game gets an entry here; the lobby, test mode and leaving all
 // work the same whichever one is picked
-const MODES        = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers' };
+const MODES        = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers', golf: 'Mini Golf' };
 
 // ---- Pool ----
 // every shot is earned: the shooter answers a question first, and a miss
@@ -98,6 +99,16 @@ const ELIXIR_STREAK    = 0.5;     // extra from your third right answer in a row
 const ELIXIR_RUSH      = 1;       // extra in rush and overtime rounds
 const SHOW_RIGHT_MS    = 700;     // how long a right answer shows before the next question
 const SHOW_WRONG_MS    = 1500;    // a wrong one shows a little longer, with the right answer
+
+// ---- Mini golf ----
+// players take turns, like pool. a right answer earns the stroke; a wrong
+// one (or no answer) adds a penalty stroke and asks again. water and out of
+// bounds cost a stroke too, and the ball goes back where it was hit from
+const GOLF_HOLES     = 3;       // holes per match, picked at random from the course
+const GOLF_RESULT_MS = 1500;    // pause on right/wrong
+const GOLF_AIM_MS    = 30000;   // to take the stroke once it's earned
+const GOLF_PAD_MS    = 900;     // after the ball stops, before the next question
+const GOLF_HOLE_MS   = 4000;    // the scorecard between holes
 
 // a dropped connection mid-match might just be a refresh or a locked phone,
 // so the seat is held this long before the match is called off
@@ -412,6 +423,8 @@ export class GameRoom {
     if (msg.t === 'fire') { this.seaFire(role, msg); return; }
     if (msg.t === 'tans') { this.towersAnswer(role, msg.choice, msg.id); return; }
     if (msg.t === 'play') { this.towersPlay(role, msg); return; }
+    if (msg.t === 'gans') { this.golfAnswer(role, msg.choice); return; }
+    if (msg.t === 'stroke') { this.golfStroke(role, msg); return; }
 
     if (msg.t === 'leave') { this.playerLeft(role); return; }
 
@@ -448,6 +461,33 @@ export class GameRoom {
       this.sendState();
       this.towersSend();
       this.startLoop(TOWERS_TICK_MS);
+      return;
+    }
+    if (mode === 'golf') {
+      // three different holes, in a random order
+      const ids = Golf.HOLE_IDS.slice();
+      for (let i = ids.length - 1; i > 0; i--) { const j = rnd(i + 1); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+      this.game.golf = {
+        holes: ids.slice(0, GOLF_HOLES),
+        i: 0,
+        turn: breaker,
+        first: breaker,           // who teed off this hole
+        balls: null,
+        seen: '',
+        strokes: { host: [], guest: [] },
+        shotId: 0,
+        shot: null,
+        after: null,
+        pen: null,                // the latest penalty stroke, so both screens can flash it
+        pens: 0,
+        call: '',
+        stats: { host: { asked: 0, right: 0 }, guest: { asked: 0, right: 0 } },
+        gqResult: null,
+      };
+      this.golfTee();
+      this.game.golf.call = this.game[breaker].name + ' tees off first.';
+      this.sendState();
+      this.startLoop();
       return;
     }
     if (mode === 'chess') {
@@ -668,6 +708,238 @@ export class GameRoom {
       T.call = a.call;
       this.poolAsk();
     }
+  }
+
+  // ---- Mini golf ----
+  // a turn is: question → (right) stroke → watch it roll → the next player's
+  // question. a wrong answer adds a stroke and asks the same player again.
+
+  golfHole() { return Golf.hole(this.game.golf.holes[this.game.golf.i]); }
+
+  // both balls on the tee of the current hole, and the fog back over it
+  golfTee() {
+    const G = this.game.golf, H = this.golfHole();
+    G.balls = {
+      host: { x: H.tee.x, y: H.tee.y, done: false },
+      guest: { x: H.tee.x, y: H.tee.y, done: false },
+    };
+    G.strokes.host[G.i] = 0;
+    G.strokes.guest[G.i] = 0;
+    G.seen = Golf.freshSeen(H);
+  }
+
+  golfAsk() {
+    const g = this.game, G = g.golf;
+    g.q = makeQuestion();
+    G.gqResult = null;
+    g.phase = 'gq';
+    g.deadline = Date.now() + QUESTION_MS;
+    if (g.vsBot && G.turn === 'guest') {
+      g.botDueAt = Date.now() + 1500 + rnd(1500);
+      g.botChoice = Math.random() < .75 ? g.q.answer : (g.q.answer + 1 + rnd(3)) % 4;
+    }
+    this.sendState();
+  }
+
+  golfAnswer(role, choice) {
+    const g = this.game;
+    if (!g || !g.golf || g.phase !== 'gq' || role !== g.golf.turn) return;
+    const G = g.golf;
+    const picked = choice == null ? null : Number(choice);
+    const right = picked === g.q.answer;
+    G.stats[role].asked += 1;
+    if (right) G.stats[role].right += 1;
+    G.gqResult = { choice: picked, right };
+    g.phase = 'gqres';
+    g.deadline = Date.now() + GOLF_RESULT_MS;
+    this.sendState();
+  }
+
+  // a stroke added without the ball moving. returns true if that was the
+  // last one this hole allows, and the ball's been picked up
+  golfPenalty(role) {
+    const G = this.game.golf;
+    G.strokes[role][G.i] += 1;
+    G.pens += 1;
+    G.pen = { role, id: G.pens };
+    return this.golfCapped(role);
+  }
+
+  golfCapped(role) {
+    const G = this.game.golf, b = G.balls[role];
+    if (b.done || G.strokes[role][G.i] < Golf.MAX_STROKES) return false;
+    G.strokes[role][G.i] = Golf.MAX_STROKES;
+    b.done = true;
+    b.picked = true;
+    return true;
+  }
+
+  // whoever's next: the other player if they're still out there, or the
+  // same one again if the other has finished. both done ends the hole
+  golfNext(call) {
+    const g = this.game, G = g.golf;
+    const other = G.turn === 'host' ? 'guest' : 'host';
+    G.call = call;
+    if (G.balls.host.done && G.balls.guest.done) { this.golfHoleOver(); return; }
+    if (!G.balls[other].done) G.turn = other;
+    this.golfAsk();
+  }
+
+  golfHoleOver() {
+    const g = this.game, G = g.golf;
+    const H = this.golfHole();
+    const hs = G.strokes.host[G.i], gs = G.strokes.guest[G.i];
+    const line = (r) => g[r].name + ' ' + G.strokes[r][G.i];
+    G.call = 'Hole ' + (G.i + 1) + ' done: ' + line('host') + ', ' + line('guest') + ' (par ' + H.par + ').';
+    g.q = null;
+    if (G.i + 1 >= G.holes.length) {
+      const tot = (r) => G.strokes[r].reduce((a, b) => a + b, 0);
+      const th = tot('host'), tg = tot('guest');
+      const winner = th === tg ? null : th < tg ? 'host' : 'guest';
+      g.phase = 'over';
+      g.over = {
+        winner,
+        why: winner ? g[winner].name + ' wins by ' + Math.abs(th - tg) + (Math.abs(th - tg) === 1 ? ' stroke' : ' strokes') + ', ' + Math.min(th, tg) + ' to ' + Math.max(th, tg) + '.'
+          : 'All square on ' + th + ' strokes.',
+      };
+      G.call = g.over.why;
+      this.stopLoop();
+      this.sendState();
+      return;
+    }
+    // the better score on this hole tees off the next; level, and the
+    // other player gets their turn to go first
+    G.next = hs === gs ? (G.first === 'host' ? 'guest' : 'host') : hs < gs ? 'host' : 'guest';
+    g.phase = 'holeend';
+    g.deadline = Date.now() + GOLF_HOLE_MS;
+    this.sendState();
+  }
+
+  golfStroke(role, msg) {
+    const g = this.game;
+    if (!g || !g.golf || g.phase !== 'aim' || role !== g.golf.turn) return;
+    const G = g.golf, H = this.golfHole(), b = G.balls[role];
+    // the browser runs this same conversion and the same shot as soon as the
+    // player lets go, so it has to stay in golf.js where both can use it
+    const shot = Golf.shotFrom(msg);
+    if (!shot) return;
+    const sim = Golf.simulate(H, b.x, b.y, shot, { fps: 0 });
+    G.strokes[role][G.i] += 1;
+    G.shotId += 1;
+    G.shot = { id: G.shotId, role, x: b.x, y: b.y, dx: shot.dx, dy: shot.dy, power: shot.power, club: shot.club };
+    G.seen = Golf.reveal(H, G.seen, sim.marks);
+    const me = g[role].name, n = G.strokes[role][G.i];
+    let call;
+    if (sim.result === 'holed') {
+      b.x = H.cup.x; b.y = H.cup.y; b.done = true;
+      const toPar = n - H.par;
+      call = n === 1 ? 'Hole in one! ' + me + ' aces it.'
+        : me + ' holes out in ' + n + (toPar <= -2 ? '. Eagle!' : toPar === -1 ? '. Birdie!' : toPar === 0 ? ', par.' : toPar === 1 ? ', a bogey.' : '.');
+    } else if (sim.result === 'water' || sim.result === 'out') {
+      // the ball comes back where it was hit from, and it costs a stroke
+      const capped = this.golfPenalty(role);
+      call = (sim.result === 'water' ? 'Splash. ' : 'Out of bounds. ') + 'Penalty stroke for ' + me + '.'
+        + (capped ? ' That\'s ' + Golf.MAX_STROKES + ', so ' + me + ' picks up.' : '');
+    } else {
+      b.x = sim.end.x; b.y = sim.end.y;
+      const capped = this.golfCapped(role);
+      call = capped ? me + ' has had ' + Golf.MAX_STROKES + ' and picks up.' : '';
+    }
+    G.after = { call };
+    g.phase = 'rolling';
+    g.deadline = Date.now() + Math.ceil(sim.secs * 1000) + GOLF_PAD_MS;
+    this.sendState();
+  }
+
+  golfTick(g) {
+    const G = g.golf;
+    if (g.vsBot && G.turn === 'guest' && g.botDueAt && Date.now() >= g.botDueAt) {
+      if (g.phase === 'gq') { g.botDueAt = 0; this.golfAnswer('guest', g.botChoice); return; }
+      if (g.phase === 'aim') {
+        g.botDueAt = 0;
+        const b = G.balls.guest;
+        this.golfStroke('guest', Golf.botShot(this.golfHole(), b.x, b.y));
+        return;
+      }
+    }
+    if (Date.now() < g.deadline) return;
+    const who = g[G.turn].name;
+    if (g.phase === 'countdown') { this.golfAsk(); return; }
+    if (g.phase === 'gq') { this.golfAnswer(G.turn, null); return; }
+    if (g.phase === 'gqres') {
+      if (G.gqResult && G.gqResult.right) {
+        g.phase = 'aim';
+        g.deadline = Date.now() + GOLF_AIM_MS;
+        if (g.vsBot && G.turn === 'guest') g.botDueAt = Date.now() + 1200 + rnd(1300);
+        G.call = who + ' is lining up.';
+        this.sendState();
+        return;
+      }
+      // a wrong answer is a stroke, and the same player goes again
+      const capped = this.golfPenalty(G.turn);
+      const why = G.gqResult && G.gqResult.choice != null ? 'Wrong answer' : 'No answer';
+      if (capped) { this.golfNext(why + '. That\'s ' + Golf.MAX_STROKES + ', so ' + who + ' picks up.'); return; }
+      G.call = why + ', penalty stroke. ' + who + ' tries again.';
+      this.golfAsk();
+      return;
+    }
+    if (g.phase === 'aim') {
+      const capped = this.golfPenalty(G.turn);
+      this.golfNext('Out of time, penalty stroke for ' + who + '.' + (capped ? ' ' + who + ' picks up.' : ''));
+      return;
+    }
+    if (g.phase === 'rolling') {
+      const a = G.after;
+      G.shot = null;
+      G.after = null;
+      this.golfNext(a.call);
+      return;
+    }
+    if (g.phase === 'holeend') {
+      G.i += 1;
+      G.turn = G.next;
+      G.first = G.next;
+      this.golfTee();
+      const H = this.golfHole();
+      G.call = 'Hole ' + (G.i + 1) + ', ' + H.name + ', par ' + H.par + '. ' + g[G.turn].name + ' has the honour.';
+      this.golfAsk();
+    }
+  }
+
+  golfSnapshot(mode) {
+    const g = this.game, G = g.golf, H = this.golfHole();
+    const snap = {
+      t: 'state',
+      phase: g.phase,
+      mode,
+      modeName: MODES[mode],
+      test: !!g.test,
+      ms: Math.max(0, g.deadline - Date.now()),
+      host: { name: g.host.name, char: g.host.char },
+      guest: { name: g.guest.name, char: g.guest.char },
+      over: g.over,
+      golf: {
+        hole: H.id, n: G.i + 1, of: G.holes.length, holes: G.holes,
+        // exact, not rounded: the player's browser runs its stroke from these
+        balls: G.balls,
+        strokes: G.strokes,
+        turn: G.turn,
+        seen: G.seen,
+        call: G.call,
+        stats: G.stats,
+        gqResult: G.gqResult,
+        pen: G.pen,
+      },
+    };
+    // the stroke rides along only while it's rolling; the balls above are
+    // already where it ends
+    if (G.shot) snap.golf.shot = G.shot;
+    if (g.q && (g.phase === 'gq' || g.phase === 'gqres')) {
+      snap.q = g.phase === 'gq'
+        ? { text: g.q.text, choices: g.q.choices }
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+    }
+    return snap;
   }
 
   // ---- Chess ----
@@ -1253,6 +1525,7 @@ export class GameRoom {
     g.q = null;
     if (g.chess) { if (g.chess.since) this.chessStop(); g.chess.call = g.over.why; }
     else if (g.sea) g.sea.call = g.over.why;
+    else if (g.golf) { g.golf.shot = null; g.golf.after = null; g.golf.call = g.over.why; }
     else if (g.table) { g.table.shot = null; g.table.after = null; g.table.call = g.over.why; }
     this.stopLoop();
     this.sendState();
@@ -1271,6 +1544,7 @@ export class GameRoom {
     if (g.mode === 'chess') this.chessTick(g);
     else if (g.mode === 'battleships') this.seaTick(g);
     else if (g.mode === 'towers') this.towersTick(g);
+    else if (g.mode === 'golf') this.golfTick(g);
     else this.poolTick(g);
   }
 
@@ -1299,6 +1573,7 @@ export class GameRoom {
     if (g.chess) return this.chessSnapshot(mode);
     if (g.sea) return this.seaSnapshot(mode, role);
     if (g.battle) return this.towersSnapshot(mode);
+    if (g.golf) return this.golfSnapshot(mode);
 
     const T = g.table;
     const snap = {
