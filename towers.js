@@ -202,7 +202,7 @@ function think(s, e) {
     if (e.cd <= 0) { attack(s, e, t); e.cd = e.hit; }
   } else {
     e.engaged = false;
-    if (e.kind === 'troop') walk(e, t, boost);
+    if (e.kind === 'troop') walk(s, e, t, boost);
   }
 }
 
@@ -276,9 +276,30 @@ function steer(e, tx, ty) {
   return [bx, bank + us * 0.4];
 }
 
-function walk(e, t, boost) {
-  const [px, py] = steer(e, t.x, t.y);
-  const dx = px - e.x, dy = py - e.y, d = Math.hypot(dx, dy);
+function walk(s, e, t, boost) {
+  let [px, py] = steer(e, t.x, t.y);
+  let dx = px - e.x, dy = py - e.y, d = Math.hypot(dx, dy);
+  // a tower or building in the way that isn't the target: head for a point
+  // beside it instead of pressing into it forever (a troop dropped dead
+  // behind its own tower would otherwise never get round)
+  if (!e.air && d > 1e-6) {
+    const hx = dx / d, hy = dy / d;
+    for (const o of s.ents) {
+      if (!o.static || o.hp <= 0 || o === t) continue;
+      const ox = o.x - e.x, oy = o.y - e.y;
+      const reach = (o.half || o.r) + e.r + 0.25;
+      const ahead = ox * hx + oy * hy;
+      if (ahead <= 0 || ahead > reach + 0.6 || ahead > d) continue;
+      const side = ox * -hy + oy * hx;            // how far off the line it sits
+      if (Math.abs(side) >= reach) continue;
+      // pass on the side we're already off to, or toward the middle
+      let k = side > 0.05 ? -1 : side < -0.05 ? 1 : 0;
+      if (!k) k = (o.x < T.W / 2 ? 1 : -1) * (-hy >= 0 ? 1 : -1) || 1;
+      px = o.x + -hy * k * reach * 1.15; py = o.y + hx * k * reach * 1.15;
+      dx = px - e.x; dy = py - e.y; d = Math.hypot(dx, dy);
+      break;
+    }
+  }
   if (d < 1e-6) return;
   const len = Math.min(d, e.speed * boost * TICK);
   e.x += (dx / d) * len;
@@ -453,7 +474,9 @@ function towerDown(s, t) {
   // side towers that fall with their king don't count again
   if (s.kingDown === t.owner && t.sub !== 'king') return;
   if (t.sub === 'king') {
-    s.kingDown = t.owner;
+    // both kings falling in the same step is a draw, not a win for whoever
+    // happened to be checked last
+    s.kingDown = s.kingDown && s.kingDown !== t.owner ? 'both' : t.owner;
     s.sides[winner].crowns = 3;
     for (const o of s.ents) if (o.kind === 'tower' && o.owner === t.owner) o.hp = 0;
   } else {

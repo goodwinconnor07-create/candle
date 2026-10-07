@@ -353,6 +353,7 @@ export function simulate(H, x, y, shot, opts = {}) {
 
     // walls and bumpers stand WALL_H tall; anything flying higher clears them
     if (z < WALL_H) {
+      let buried = false;
       const tx0 = Math.floor((x - BALL_R) / TILE), tx1 = Math.floor((x + BALL_R) / TILE);
       const ty0 = Math.floor((y - BALL_R) / TILE), ty1 = Math.floor((y + BALL_R) / TILE);
       for (let ty = ty0; ty <= ty1; ty++) {
@@ -367,11 +368,23 @@ export function simulate(H, x, y, shot, opts = {}) {
             if (d2 >= BALL_R * BALL_R) continue;
             let d = Math.sqrt(d2), nx, ny;
             if (d < 0.0001) {
-              // the centre got inside the wall: back out the shortest way
+              // the centre got inside the wall (a chip dropping onto it):
+              // back out toward the course, never into the next wall tile,
+              // or a thick wall would hold it
               const l = x - nx0, r = nx0 + TILE - x, t = y - ny0, b = ny0 + TILE - y;
-              const m = Math.min(l, r, t, b);
-              nx = m === l ? -1 : m === r ? 1 : 0; ny = m === t ? -1 : m === b ? 1 : 0;
-              d = -m;
+              const sides = [[l, -1, 0, tx - 1, ty], [r, 1, 0, tx + 1, ty], [t, 0, -1, tx, ty - 1], [b, 0, 1, tx, ty + 1]];
+              // course first, then off it, then (boxed in) another wall
+              const rank = (c) => (c === '#' ? 2 : (surface(c) === 'out' || surface(c) === 'water') ? 1 : 0);
+              let best = null, bestRank = 3;
+              for (const sd of sides) {
+                const rk = rank(cellAt(H, sd[3], sd[4]));
+                if (rk < bestRank || (rk === bestRank && sd[0] < best[0])) { best = sd; bestRank = rk; }
+              }
+              // walled in on every side: it came down on top of the
+              // boundary, which plays as out of bounds
+              if (bestRank === 2) buried = true;
+              nx = best[1]; ny = best[2];
+              d = -best[0];
             } else { nx = ox / d; ny = oy / d; }
             x += nx * (BALL_R - d); y += ny * (BALL_R - d);
             const vn = vx * nx + vy * ny;
@@ -387,6 +400,7 @@ export function simulate(H, x, y, shot, opts = {}) {
           }
         }
       }
+      if (buried) { result = 'out'; break; }
     }
 
     if (every && step % every === 0) frames.push(rec());

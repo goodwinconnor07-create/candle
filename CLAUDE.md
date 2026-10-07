@@ -139,6 +139,17 @@ PR to the default branch, merge, deploy, then check the live site.
   scroll-snap strip), `pickGame()` and `scrollToGame()` to choose one. Screens
   before a game put their main button in a `.dock` at the bottom. `show()` slides
   screens by their `DEPTH` and fades games in.
+- History: screens opened inside the app (`pushSub()`: join code, profile,
+  deck) and a match (`{ sd: 'match' }`) get their own history entry, so the
+  phone's back gesture moves through the app. A live match ignores back and
+  says to hold the X. `goHome()` steps back out of our entry or clears the link
+  in place. Don't add `location.hash =` navigations; use `replaceState`/
+  `pushState` with the same `sd` state.
+- Lobby leaving: the browser sends `leave` when backing out of a lobby
+  (`toIntro()`). A guest leaving frees the seat and the host gets a new code;
+  a host leaving marks the lobby `closed` and the guest gets `t:'closed'`. A
+  dropped socket only changes the guest's `here` (connected) flag, so a host
+  switching apps to share the link keeps the lobby.
 - Ids must be unique across the whole page, including SVG gradient ids in the
   home card scenes (`buildScenes()`): a gradient called `scSea` once hid the
   Battleships screen from `$('scSea')`.

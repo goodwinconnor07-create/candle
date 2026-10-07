@@ -122,6 +122,11 @@ export function placeOk(balls, x, y, kitchen) {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
   if (x < BALL_R || x > PW - BALL_R || y < BALL_R || y > PL - BALL_R) return false;
   if (kitchen && y < HEAD_Y) return false;
+  // never in a pocket's mouth, where the ball would just drop
+  for (const [px, py, cap] of POCKETS) {
+    const dx = px - x, dy = py - y, r = cap + BALL_R;
+    if (dx * dx + dy * dy < r * r) return false;
+  }
   for (let n = 1; n <= 15; n++) {
     const b = balls[n];
     if (b.in) continue;
@@ -444,7 +449,17 @@ export function botShot(balls, groups, role, broken, ballInHand) {
   }
   if (best) return best;
   let cx = cue.x, cy = cue.y;
-  if (ballInHand) [cx, cy] = CUE_SPOT;
+  if (ballInHand) {
+    // the spot, or the nearest free point around it
+    [cx, cy] = CUE_SPOT;
+    search: for (let r = 0; r < 900; r += 12) {
+      for (let a = 0; a < 16; a++) {
+        const px = CUE_SPOT[0] + Math.cos(a * Math.PI / 8) * r, py = CUE_SPOT[1] + Math.sin(a * Math.PI / 8) * r;
+        if (placeOk(balls, px, py, false)) { cx = px; cy = py; break search; }
+        if (r === 0) break;
+      }
+    }
+  }
   for (let n = 1; n <= 15; n++) {
     const b = balls[n];
     if (b.in || !legal(n)) continue;

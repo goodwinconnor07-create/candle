@@ -2665,7 +2665,7 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running or the link's already dead there's nothing sane to back out to,
   // so it stays hidden
-  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest']);
+  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scDead']);
 
   // how deep each screen sits, so moving deeper slides in from the right and
   // backing out slides in from the left. games just fade up, since they
@@ -3089,8 +3089,13 @@
   const poolMine = () => !!pv.s && pv.s.table.turn === myRole;
   const canAim = () => phase === 'aim' && poolMine() && !pv.sent && !pv.anim;
 
+  // the same rule the room checks with (pool.js placeOk): on the cloth,
+  // clear of every ball, and not in a pocket's mouth
   function placeValid(x, y){
     if(x < PR || x > PW - PR || y < PR || y > PL - PR) return false;
+    if(Pool) for(const [px, py, cap] of Pool.POCKETS){
+      if((px - x) * (px - x) + (py - y) * (py - y) < (cap + PR) * (cap + PR)) return false;
+    }
     for(let n = 1; n < 16; n++){
       const b = pv.balls[n];
       if(b && (b[0] - x) * (b[0] - x) + (b[1] - y) * (b[1] - y) < 4 * PR * PR) return false;
@@ -7015,6 +7020,7 @@
     deckDraft = loadDeck();
     deckFocus = deckDraft[0];
     renderDeck();
+    if($('scDeck').hidden) pushSub('scDeck');
     show(['scDeck']);
   }
 
@@ -7073,8 +7079,12 @@
     if(deckDraft.length !== Cards.DECK_SIZE) return;
     saveDeck(deckDraft);
     deckRows();
-    show([deckFrom]);
+    closeDeck();
   });
+  function closeDeck(){
+    if(subEntry('scDeck')) history.back();   // popstate puts the screen back
+    else show([deckFrom]);
+  }
   $('deckReset').addEventListener('click', () => { deckDraft = Cards.DEFAULT_DECK.slice(); renderDeck(); });
   for(const [btn, from] of [['deckEditHome', 'scIntro'], ['deckEditGuest', 'scGuest']]){
     $(btn).addEventListener('click', () => openDeck(from));
@@ -7096,20 +7106,26 @@
     // Practice button keeps its spinner until the game appears
     if(phase === 'lobby' && s.test && myRole === 'host') return;
     settle();
+    // the entry under it becomes the plain home screen, so leaving later
+    // lands there instead of on the old link
+    if(phase !== 'lobby' && phase !== 'over' && !ownEntry()) try{
+      history.replaceState(null, '', location.pathname + location.search);
+      history.pushState({ sd: 'match' }, '', shareUrl());
+    }catch(e){}
     if(phase === 'lobby'){
       const hostName = s.host.name || 'Someone';
       if(myRole === 'host'){
         show(['scHost']);
-        const ready = !!s.guest.ready, bot = !!s.vsBot, here = !!s.guest.here;
+        const ready = !!s.guest.ready, bot = !!s.vsBot, here = !!s.guest.here, away = !here && !!s.guest.claimed;
         $('hostHd').textContent = bot ? 'Ready when you are'
           : ready ? (s.guest.name || 'They') + ' is ready'
-          : here ? 'They’re picking a character' : 'Invite your opponent';
+          : here ? 'They’re picking a character' : away ? 'Waiting for them to come back' : 'Invite your opponent';
         gameChip($('hostGame'), s.mode, s.modeName);
         // once they're in, the code is no use and sharing is done
-        $('hostInvite').hidden = bot || ready || here;
+        $('hostInvite').hidden = bot || ready || here || away;
         $('hostShareRow').hidden = bot || ready;
         $('hostStartRow').hidden = !(bot || ready);
-        if(!bot && !ready && !here) showCode();
+        if(!bot && !ready && !here && !away) showCode();
         setLobbyCard('lbHost', { char: s.host.char, name: s.host.name || 'You', ready: true, statusText: 'Ready' });
         const side = $('lbGuestSide'), was = side.dataset.ready === '1';
         if(s.guest.ready){
@@ -7120,6 +7136,8 @@
         }else{
           setLobbyCard('lbGuest', { char: '', name: 'Nobody yet', statusText: 'Waiting to join' });
         }
+        if(side.dataset.here === '1' && !here && !ready && !away){ hostCode = ''; hostCodeFor = null; showCode(); }
+        side.dataset.here = here ? '1' : '';
         side.dataset.ready = ready ? '1' : '';
         side.classList.toggle('waiting', !here && !ready);
         $('hostStart').disabled = !(s.guest.ready && s.host.char && s.guest.char);
@@ -7241,6 +7259,7 @@
     ws.addEventListener('message', ev => {
       heard = true;
       let m; try{ m = JSON.parse(ev.data); }catch(e){ return; }
+      if(m.t === 'closed'){ goCold('Match called off', (m.name || 'They') + ' left before it started.'); return; }
       if(m.t === 'nogame' || m.t === 'full'){
         if(m.t === 'full') goCold('That match is full', 'Both seats are already taken in this one.');
         else goCold('No match here', "That link's expired, or it was mistyped.");
@@ -7317,7 +7336,11 @@
     const box = $('games');
     box.scrollTo({ left: c.offsetLeft - (box.clientWidth - c.offsetWidth) / 2, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
     pickGame(mode);
+    // a tapped card stays picked while the strip glides to it, even as it
+    // passes over others, so tapping Practice straight away gets that game
+    gameLock = { mode, until: performance.now() + 900 };
   }
+  let gameLock = null;
 
   let gameScrollRaf = 0;
   $('games').addEventListener('scroll', () => {
@@ -7329,6 +7352,11 @@
       for(const c of gameCards){
         const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
         if(d < bd){ bd = d; best = c; }
+      }
+      if(gameLock){
+        if(best && best.dataset.mode === gameLock.mode) gameLock = null;   // arrived
+        else if(performance.now() < gameLock.until) return;
+        else gameLock = null;
       }
       if(best && best.dataset.mode !== pickedMode){ pickGame(best.dataset.mode); haptics('tick'); }
     });
@@ -7364,6 +7392,7 @@
     $('setupNote').className = 'note';
     $('setupNote').textContent = pickedChar ? '' : 'Pick a character to continue.';
     $('hapticsRow').hidden = !profile;
+    if($('scSetup').hidden) pushSub('scSetup');
     $('hapticsRow').setAttribute('aria-checked', String(haptics.isOn()));
     show(['scSetup']);
   }
@@ -7408,7 +7437,7 @@
     if(!pickedChar) return;
     try{ localStorage.setItem('sd-name', $('introName').value.trim()); }catch(e){}
     profileChip();
-    if(setupFor === 'profile'){ goHome(); return; }
+    if(setupFor === 'profile'){ if(subEntry('scSetup')) history.back(); else goHome(); return; }
     startMatch($('setupGo'), 'Setting up…');
   });
   $('introName').addEventListener('keydown', e => { if(e.key === 'Enter' && !$('setupGo').disabled) $('setupGo').click(); });
@@ -7462,7 +7491,10 @@
     try{ localStorage.setItem('sd-host-' + gameId, made.token); }catch(e){}
     // putting the link in the address bar is a nicety, and it throws outright
     // in a sandboxed frame or an in-app browser — never let it sink the match
-    try{ history.replaceState(null, '', shareUrl()); }catch(e){}
+    try{
+      if(ownEntry()) history.replaceState({ sd: 'match' }, '', shareUrl());
+      else history.pushState({ sd: 'match' }, '', shareUrl());
+    }catch(e){}
     try{
       connect('host', made.token);
     }catch(e){
@@ -7503,6 +7535,7 @@
     $('codeNote').className = 'note';
     $('codeNote').textContent = '';
     $('codeGo').disabled = true;
+    pushSub('scCode');
     show(['scCode']);
     try{ $('codeInput').focus(); }catch(e){}
   });
@@ -7525,7 +7558,10 @@
       if(!r.ok) throw new Error('the server answered ' + r.status);
       const found = await r.json();
       $('codeNote').textContent = '';
-      location.hash = 'g=' + found.id;   // route() takes it from here, as the guest
+      // the code screen's history entry becomes the match's, so back from
+      // the lobby lands on the home screen
+      try{ history.replaceState({ sd: 'match' }, '', location.pathname + location.search + '#g=' + found.id); }catch(e){ location.hash = 'g=' + found.id; }
+      route();   // takes it from here, as the guest
     }catch(e){
       $('codeNote').className = 'note warm';
       $('codeNote').textContent = 'Couldn’t reach the server. Check your connection and try again.';
@@ -7571,14 +7607,41 @@
 
   // back to the games, dropping any match link from the address bar first
   function goHome(){
-    try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
+    const pushed = ownEntry();
     toIntro();
+    // step back out of the entry we made, or just clear the link in place
+    if(pushed) history.back();
+    else try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
   }
+
+  // ---------- the phone's back gesture ----------
+  // screens opened inside the app get a history entry of their own, so back
+  // closes them instead of leaving the site. a match in progress ignores
+  // back (hold the X to leave), so a stray swipe can't end a game
+  function pushSub(id){ try{ history.pushState({ sd: id }, '', location.href); }catch(e){} }
+  function ownEntry(){ try{ return !!(history.state && history.state.sd); }catch(e){ return false; } }
+  function subEntry(id){ try{ return !!(history.state && history.state.sd === id); }catch(e){ return false; } }
+
+  window.addEventListener('popstate', () => {
+    if(gameId && ws && !$('quitBtn').hidden){
+      try{ history.pushState({ sd: 'match' }, '', shareUrl()); }catch(e){}
+      nudge('Hold the X for 3 seconds to leave the match.');
+      return;
+    }
+    if(!$('scDeck').hidden){ show([deckFrom]); deckRows(); return; }
+    const linked = /[#&]g=/.test(location.hash);
+    if((!$('scCode').hidden || !$('scSetup').hidden) && !linked) toIntro();
+  });
 
   // drops any live connection and lands back on the mode-select menu — the
   // shared destination for a dead link, a full room, and the back button
   function toIntro(){
-    if(ws){ const old = ws; ws = null; old.close(); }
+    // walking out of a lobby tells the room, so the other player isn't left waiting
+    if(ws){
+      const old = ws; ws = null;
+      try{ if(old.readyState === 1 && phase === 'lobby') old.send(JSON.stringify({ t:'leave' })); }catch(e){}
+      old.close();
+    }
     gameId = null;
     $('conn').hidden = true;
     let savedMode = '';
@@ -7602,7 +7665,8 @@
   // effort, since this can throw in a sandboxed frame, and toIntro() doesn't
   // depend on it succeeding
   $('backBtn').addEventListener('click', () => {
-    if(!$('scDeck').hidden){ show([deckFrom]); return; }
+    if(!$('scDeck').hidden){ closeDeck(); return; }   // back throws away deck changes
+    if((!$('scCode').hidden && subEntry('scCode')) || (!$('scSetup').hidden && subEntry('scSetup'))){ history.back(); return; }
     goHome();
   });
 
@@ -7636,8 +7700,7 @@
       // tell the room first, so the other player's game ends now rather
       // than after the dropped-connection grace period
       try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
-      try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
-      toIntro();
+      goHome();
     }, QUIT_HOLD_MS);
   }
 
