@@ -5,16 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0d0a08">
 <title>Study Duel</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230d0a08'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23ffb347'/%3E%3C/svg%3E">
+<link rel="icon" href="/icons/mark.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Study Duel">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&display=swap" rel="stylesheet">
 <style>
   :root{
     --soot:#0d0a08; --ash:#8d8171; --tallow:#efe3cc; --amber:#ffb347; --ember:#ff6a2a; --cold:#6cd4ff;
+    --go:#7fd6a2;
     --hair:rgba(239,227,204,.16);
-    --serif:Fraunces, Georgia, "Times New Roman", serif;
-    --sans:system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* one typeface for the whole interface: the system's own (SF Pro on Apple
+       devices). Fraunces is kept for the Study Duel wordmark only */
+    --sans:-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif:var(--sans);
+    --brand:Fraunces, Georgia, "Times New Roman", serif;
+    /* corners, spacing and motion, shared by everything */
+    --r-xs:8px; --r-sm:12px; --r-md:16px; --r-lg:22px; --r-xl:28px;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+    --ease-out:cubic-bezier(.22,1,.36,1);
+    --spring:cubic-bezier(.34,1.56,.64,1);
+    --press:.08s; --settle:.32s;
+    --tap:44px;
     --ch-hair:#efe3cc; --ch-skin:#9c8e78; --ch-ink:#14110f; --ch-shirt:#2a221b;
   }
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -98,7 +115,7 @@
   [hidden]{ display:none !important; }
   .sprite{ position:absolute; width:0; height:0; overflow:hidden; }
 
-  .wordmark{ font:500 1.2rem/1.2 var(--serif); letter-spacing:.01em; }
+  .wordmark{ font:500 1.2rem/1.2 var(--brand); letter-spacing:.01em; }
   .app[data-screen="scIntro"] .wordmark{ font-size:clamp(2rem, 8.5vw, 2.8rem); }
 
   /* marks a test match, so it's never mistaken for a real one */
@@ -145,48 +162,6 @@
   .quitbtn-ring-fill{
     fill:none; stroke:var(--ember); stroke-width:2.4; stroke-linecap:round;
     stroke-dasharray:109.96; stroke-dashoffset:109.96;
-  }
-
-  /* ---------- the crest: two figures clashing swords over the wordmark ---------- */
-  .logo{ display:flex; flex-direction:column; align-items:center; gap:2px; }
-  .crest{
-    width:clamp(96px, 30vw, 148px); height:auto; overflow:visible;
-    display:none;
-  }
-  .app[data-screen="scIntro"] .crest{ display:block; }
-  .crest-shade{ fill:rgba(0,0,0,.5); }
-  .fighter .cape, .fighter .leg{ fill:var(--tallow); opacity:.92; }
-  .fighter .head, .fighter .arm{ fill:var(--tallow); }
-  .fighter .hilt{ fill:var(--ash); }
-  .fighter-a .blade{ fill:var(--amber); }
-  .fighter-b .blade{ fill:var(--cold); }
-  .spark path{ fill:#fff3d6; }
-  .fighter-a{ transform-origin:47px 44px; transform-box:fill-box; }
-  .fighter-b{ transform-origin:113px 44px; transform-box:fill-box; }
-  .spark{ transform-origin:80px 9px; transform-box:fill-box; }
-  .app[data-screen="scIntro"] .fighter-a{ animation:parry-a 2.8s ease-in-out infinite; }
-  .app[data-screen="scIntro"] .fighter-b{ animation:parry-b 2.8s ease-in-out infinite; }
-  .app[data-screen="scIntro"] .spark{ animation:flash 2.8s ease-in-out infinite; }
-  @keyframes parry-a{
-    0%,38%,100%{ transform:rotate(0deg); }
-    50%        { transform:rotate(-7deg); }
-    62%        { transform:rotate(2deg); }
-  }
-  @keyframes parry-b{
-    0%,38%,100%{ transform:rotate(0deg); }
-    50%        { transform:rotate(7deg); }
-    62%        { transform:rotate(-2deg); }
-  }
-  @keyframes flash{
-    0%,38%,100%{ opacity:.55; transform:scale(.85); }
-    50%        { opacity:1; transform:scale(1.35); }
-    62%        { opacity:.7; transform:scale(.95); }
-  }
-  @media (prefers-reduced-motion: reduce){
-    .app[data-screen="scIntro"] .fighter-a,
-    .app[data-screen="scIntro"] .fighter-b,
-    .app[data-screen="scIntro"] .spark{ animation:none; }
-    .spark{ opacity:1; }
   }
 
   /* ---------- characters ---------- */
@@ -402,28 +377,6 @@
     font:inherit; transition:border-color .2s, background .2s;
   }
   .mode svg{ width:26px; height:26px; fill:var(--tallow); transition:fill .2s }
-  /* the game picker: four games, two by two, each a compact row of icon and
-     words so the whole intro still fits one screen */
-  #modeGrid .mode{
-    display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:10px; row-gap:1px;
-    align-items:center; text-align:left; padding:10px 11px;
-  }
-  #modeGrid .mode svg{ grid-row:1 / span 2; width:24px; height:24px; }
-  #modeGrid .mode b{ align-self:end; }
-  #modeGrid .mode span{ align-self:start; font-size:.7rem; line-height:1.3; }
-  /* five games: three across, then two centred under them. the line above
-     the grid already says what the picked game is, so the cards are just
-     an icon and a name */
-  #modeGrid{ grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; }
-  #modeGrid .mode{
-    grid-column:span 2; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center; gap:5px; padding:11px 4px;
-  }
-  #modeGrid .mode:nth-child(4){ grid-column:2 / span 2; }
-  #modeGrid .mode:nth-child(5){ grid-column:4 / span 2; }
-  #modeGrid .mode svg{ grid-row:auto; }
-  #modeGrid .mode b{ align-self:auto; font-size:.84rem; }
-  #modeGrid .mode span{ display:none; }
   .mode b{ font:500 .92rem/1.2 var(--sans) }
   .mode span{ font:400 .74rem/1.4 var(--sans); color:var(--ash) }
   .mode:hover:not(:disabled){ border-color:rgba(239,227,204,.5); background:rgba(239,227,204,.04) }
@@ -1124,7 +1077,6 @@
      running off the bottom */
   .chars{ grid-template-columns:repeat(4,minmax(0,1fr)); }
   @media (max-height:780px){
-    .app[data-screen="scIntro"] .crest{ width:clamp(70px, 11dvh, 110px); }
     .app[data-screen="scIntro"] .wordmark{ font-size:clamp(1.7rem, 5.4dvh, 2.4rem); }
     .demo-table{ max-width:calc(19dvh * 664 / 364); }
     .demo-side .pod{ width:clamp(32px, 6dvh, 44px); }
@@ -1143,7 +1095,6 @@
     .lead{ font-size:.86rem; }
   }
   @media (max-height:640px){
-    .app[data-screen="scIntro"] .crest{ display:none; }
     .app[data-screen="scIntro"]{ gap:10px; }
   }
   @media (max-height:760px){
@@ -1230,14 +1181,349 @@
     background:linear-gradient(180deg, rgba(30,24,19,.95), rgba(13,10,8,.95) 45%);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.07), 0 18px 44px -12px rgba(0,0,0,.85), 0 2px 6px rgba(0,0,0,.4);
   }
+
+  /* ===================== revamp: one system, everywhere =====================
+     type is the system font (SF Pro on iPhone). every control answers a
+     press: it dips a few percent while held and springs back on release.
+     screens slide in the direction you're going. only colours, scale and
+     opacity animate, never layout, so the no-scroll fit is untouched */
+
+  .hd{ font:700 clamp(1.55rem, 6.6vw, 1.95rem)/1.12 var(--sans); letter-spacing:-.024em; max-width:20ch; text-shadow:none; }
+  .lead{ font:400 .95rem/1.45 var(--sans); color:var(--ash); max-width:34ch; }
+  .note, .status{ font-family:var(--sans); }
+  .pcard-q, .countnum, .codebox{ letter-spacing:-.01em; }
+  .pcard-q{ font-weight:700; }
+  .choice{ font-weight:600; font-family:var(--sans); }
+
+  /* --- press and hover --- */
+  .btn{ transition:border-color .2s, background .2s, opacity .2s, color .2s, box-shadow .25s, filter .2s, scale var(--settle) var(--spring); }
+  .choice{ transition:border-color .15s, background .15s, color .15s, opacity .3s, box-shadow .3s, filter .2s, scale var(--settle) var(--spring); }
+  .mode, .charcard{ transition:border-color .2s, background .2s, box-shadow .25s, filter .2s, scale var(--settle) var(--spring); }
+  .backbtn, .quitbtn, .pillbtn, .avatarbtn, .spinbtn, .dot, .codebox, .deckcard, .bcard, .textlink, .game{
+    transition-property:border-color, background, color, box-shadow, opacity, filter, scale;
+    transition-duration:.2s, .2s, .2s, .25s, .45s, .2s, var(--settle);
+    transition-timing-function:ease, ease, ease, ease, var(--ease-out), ease, var(--spring);
+  }
+  .btn:active:not(:disabled), .choice:active:not(:disabled), .charcard:active, .mode:active:not(:disabled),
+  .deckcard:active, .codebox:active{ scale:.96; filter:brightness(.9); transition-duration:var(--press); }
+  .backbtn:active, .quitbtn:active, .pillbtn:active, .avatarbtn:active, .spinbtn:active:not(:disabled), .dot:active{ scale:.9; transition-duration:var(--press); }
+  .bcard:active{ filter:brightness(.92); transition-duration:var(--press); }
+  .textlink:active{ opacity:.55; transition-duration:var(--press); }
+  .game.on:active{ scale:.985; transition-duration:.12s; }
+  @media (hover:hover){
+    .btn:hover:not(:disabled){ filter:brightness(1.07); }
+    .pillbtn:hover, .avatarbtn:hover{ border-color:rgba(239,227,204,.4); }
+    .game:not(.on):hover{ opacity:.8; }
+  }
+  /* small round buttons keep their look but get a full 44px+ touch area */
+  .backbtn::before, .quitbtn::before, .spinbtn::before, .pillbtn::before{ content:""; position:absolute; inset:-5px; border-radius:inherit; }
+  .pillbtn, .spinbtn{ position:relative; }
+
+  /* --- a selection lands with a small pop --- */
+  .charcard.on .pod{ animation:pick .45s var(--spring); }
+  @keyframes pick{ 0%{ scale:.8 } 60%{ scale:1.08 } 100%{ scale:1 } }
+  .bump{ animation:bump .5s var(--spring); }
+  @keyframes bump{ 0%{ scale:.86 } 60%{ scale:1.06 } 100%{ scale:1 } }
+  .choice.right{ animation:rightpop .5s var(--spring); }
+  .choice.wrong{ animation:wrongshake .42s ease; }
+  @keyframes rightpop{ 0%{ scale:1 } 40%{ scale:1.07 } 100%{ scale:1 } }
+  @keyframes wrongshake{ 20%{ translate:-6px 0 } 40%{ translate:5px 0 } 60%{ translate:-3px 0 } 80%{ translate:2px 0 } }
+
+  /* --- screens slide the way you're going --- */
+  .panel.enter{ animation:enterFwd .4s var(--ease-out) both; }
+  .panel.enter-back{ animation:enterBack .4s var(--ease-out) both; }
+  .panel.enter-fade{ animation:enterFade .45s var(--ease-out) both; }
+  @keyframes enterFwd{ from{ opacity:0; translate:32px 0 } to{ opacity:1; translate:0 0 } }
+  @keyframes enterBack{ from{ opacity:0; translate:-32px 0 } to{ opacity:1; translate:0 0 } }
+  @keyframes enterFade{ from{ opacity:0 } to{ opacity:1 } }
+
+  /* --- screens before a game: title at the top, the main button docked at
+     the bottom where a thumb is --- */
+  .app[data-screen="scIntro"], .app[data-screen="scCode"], .app[data-screen="scSetup"],
+  .app[data-screen="scHost"], .app[data-screen="scGuest"], .app[data-screen="scDead"]{ flex:1 1 auto; margin:0; min-height:0; }
+  #scCode, #scSetup, #scHost, #scGuest, #scDead{ flex:1 1 auto; min-height:0; padding-top:56px; gap:14px; }
+  #scDead{ justify-content:flex-start; }
+  .dock{ margin-top:auto; width:100%; max-width:440px; display:flex; gap:10px; padding-top:8px; }
+  .dock .btn{ flex:1 1 0; min-height:52px; padding:14px 18px; font:600 1.02rem/1 var(--sans); }
+  .dock .btn.primary{ flex-grow:1.4; }
+  .btn.busy{ opacity:.75; }
+  .btn.busy::after{
+    content:""; width:14px; height:14px; margin-left:2px; border-radius:50%;
+    border:2px solid currentColor; border-right-color:transparent; animation:spin .7s linear infinite;
+  }
+  @keyframes spin{ to{ rotate:360deg } }
+
+  /* text fields: a soft rounded well instead of an underline */
+  .field{
+    width:min(320px, 100%); padding:13px 16px; font:500 1.12rem/1.3 var(--sans); color:var(--tallow);
+    background:rgba(239,227,204,.05); border:1px solid var(--hair); border-radius:var(--r-md);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.35); transition:border-color .2s, box-shadow .2s, background .2s;
+  }
+  .field::placeholder{ color:rgba(239,227,204,.32); }
+  .field:focus{ border-color:rgba(255,179,71,.7); background:rgba(239,227,204,.07); box-shadow:0 0 0 4px rgba(255,179,71,.14); }
+  .codefield{ font:700 2rem/1.2 var(--sans); letter-spacing:.32em; padding-left:calc(16px + .32em); width:min(280px, 100%); }
+
+  /* --- corners, the same few sizes everywhere --- */
+  .choice{ border-radius:var(--r-sm); }
+  .mode, .charcard{ border-radius:var(--r-md); }
+  .pcard{ border-radius:var(--r-lg); }
+  .btn:not(.dock .btn){ border-radius:999px; }
+
+  /* ---------- home ---------- */
+  #scIntro{ flex:1 1 auto; min-height:0; gap:12px; }
+  .homebar{ width:100%; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; }
+  .homebar .avatarbtn{ justify-self:start; }
+  .homebar .pillbtn{ justify-self:end; }
+  .brand{ display:flex; align-items:center; gap:9px; min-width:0; }
+  .mark{ width:32px; height:32px; flex:0 0 auto; filter:drop-shadow(0 6px 12px rgba(0,0,0,.55)); }
+  #scIntro .wordmark{ font:500 1.45rem/1 var(--brand); white-space:nowrap; letter-spacing:0; }
+  .avatarbtn{
+    position:relative; width:44px; height:44px; padding:0; border-radius:50%; cursor:pointer;
+    display:flex; align-items:flex-end; justify-content:center; overflow:hidden;
+    border:1px solid var(--hair); background:linear-gradient(180deg, rgba(239,227,204,.12), rgba(239,227,204,.03));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .avatarbtn .pod{ width:34px; margin-bottom:-4px; }
+  .avatarbtn .pod::after{ display:none; }
+  .avatarbtn.empty{ overflow:visible; }
+  .avatarbtn.empty::after{
+    content:"+"; position:absolute; right:-3px; bottom:-3px; width:18px; height:18px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; font:700 .8rem/1 var(--sans);
+    color:var(--soot); background:var(--amber); box-shadow:0 0 0 2px var(--soot);
+  }
+  .pillbtn{
+    display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 14px; border-radius:999px; cursor:pointer;
+    font:600 .88rem/1 var(--sans); color:var(--tallow);
+    border:1px solid var(--hair); background:linear-gradient(180deg, rgba(239,227,204,.1), rgba(239,227,204,.03));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  .pillbtn svg{ width:13px; height:13px; fill:currentColor; opacity:.8; }
+
+  /* the game cards: swipe sideways, the next one peeks in from the edge */
+  .games{
+    --cardw:min(82vw, 392px);
+    --stripw:min(100vw, 1080px);   /* edge to edge on a phone; wider than the column on a desktop */
+    position:relative; flex:1 1 auto; min-height:0; width:var(--stripw); margin:0 calc((100% - var(--stripw)) / 2);
+    display:flex; gap:12px; overflow-x:auto; overflow-y:hidden;
+    padding:4px calc((var(--stripw) - var(--cardw)) / 2) 12px;
+    scroll-snap-type:x mandatory; scrollbar-width:none; overscroll-behavior-x:contain; touch-action:pan-x;
+  }
+  .games::-webkit-scrollbar{ display:none; }
+  @media (min-width:600px){
+    .games{ -webkit-mask-image:linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); mask-image:linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent); }
+  }
+  .game{
+    position:relative; flex:0 0 var(--cardw); min-height:0; scroll-snap-align:center; scroll-snap-stop:always;
+    display:flex; flex-direction:column; padding:20px 16px 14px; border-radius:var(--r-xl); overflow:hidden;
+    text-align:center; color:#fff; cursor:pointer;
+    background:radial-gradient(130% 78% at 50% 0%, var(--g1), var(--g2) 80%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(255,255,255,.07), 0 26px 46px -22px rgba(0,0,0,.95);
+  }
+  .game{ max-height:calc(var(--cardw) * 1.72); align-self:center; height:100%; }
+  .game:not(.on){ scale:.93; opacity:.5; }
+  .game.on{ cursor:default; }
+  .game::before{   /* a soft sheen across the top, like light on glass */
+    content:""; position:absolute; inset:0 0 auto; height:46%; pointer-events:none;
+    background:linear-gradient(180deg, rgba(255,255,255,.1), transparent);
+  }
+  .game-head{ position:relative; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .tag{
+    display:inline-block; padding:5px 10px 4px; border-radius:var(--r-xs);
+    font:700 .66rem/1 var(--sans); letter-spacing:.09em; text-transform:uppercase;
+    color:#fff; border:1.5px solid rgba(255,255,255,.55);
+  }
+  .tag.fill{ background:var(--amber); border-color:var(--amber); color:#2a1606; }
+  .tag.live{ background:#3db46f; border-color:#3db46f; }
+  .tag.new{ background:rgba(13,10,8,.55); border-color:transparent; color:var(--amber); }
+  .game-title{ font:800 clamp(1.8rem, 8.2vw, 2.15rem)/1.04 var(--sans); letter-spacing:-.034em; text-shadow:0 2px 14px rgba(0,0,0,.28); }
+  .game-sub{ font:500 .9rem/1.36 var(--sans); color:rgba(255,255,255,.74); max-width:30ch; }
+  .game-scene{
+    position:relative; flex:1 1 auto; min-height:0; margin-top:12px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    container-type:size;
+  }
+  .scene{ flex:1 1 auto; min-height:0; width:100%; display:flex; align-items:center; justify-content:center; }
+  .scene-svg{ width:100%; height:100%; filter:drop-shadow(0 14px 18px rgba(0,0,0,.45)); }
+  .game[data-mode="pool"]{ --g1:#22948c; --g2:#0b3735; }
+  .game[data-mode="chess"]{ --g1:#93683f; --g2:#26170b; }
+  .game[data-mode="battleships"]{ --g1:#2a6c9b; --g2:#0a1d30; }
+  .game[data-mode="towers"]{ --g1:#5257c4; --g2:#181944; }
+  .game[data-mode="golf"]{ --g1:#45a259; --g2:#0f321e; }
+
+  /* pool's card holds the live demo, sized to whatever room the card has */
+  #scIntro .demo{ width:100%; height:100%; max-width:none; justify-content:center; gap:6px; }
+  #scIntro .demo-call{ min-height:2.6em; font-size:.8rem; color:#fff; opacity:.9; }
+  #scIntro .demo-table{ width:100%; max-width:min(100%, calc((100cqh - 2.6em - 92px) * 664 / 364)); }
+  #scIntro .demo-players{ display:grid; max-width:260px; }
+  #scIntro .demo-side .pod{ width:38px; }
+  @container (max-height:250px){
+    #scIntro .demo-players{ display:none; }
+    #scIntro .demo-table{ max-width:min(100%, calc((100cqh - 2.6em - 10px) * 664 / 364)); }
+  }
+  #scIntro .deckrow{ width:100%; padding:6px; border-radius:var(--r-sm); background:rgba(0,0,0,.25); border-color:rgba(255,255,255,.12); }
+
+  /* the scenes move a little, never much */
+  .sc-hop{ animation:schop 4.2s var(--ease-out) infinite; }
+  @keyframes schop{
+    0%, 46%{ translate:0 0; opacity:1 }
+    62%{ translate:40px -80px } 92%{ translate:40px -80px; opacity:1 }
+    96%{ translate:40px -80px; opacity:0 } 97%{ translate:0 0; opacity:0 } 100%{ translate:0 0; opacity:1 }
+  }
+  .sc-hint{ animation:schint 4.2s ease infinite; }
+  @keyframes schint{ 0%, 6%{ opacity:0 } 16%, 46%{ opacity:.95 } 56%, 100%{ opacity:0 } }
+  .sc-taken{ animation:sctaken 4.2s ease infinite; }
+  @keyframes sctaken{ 0%, 58%{ opacity:1 } 62%, 96%{ opacity:0 } 100%{ opacity:1 } }
+  .sc-ship{ animation:scbob 3.4s ease-in-out infinite; }
+  .sc-ship:nth-of-type(2){ animation-delay:-1.1s; } .sc-ship:nth-of-type(3){ animation-delay:-2.2s; }
+  @keyframes scbob{ 50%{ translate:0 1.5px } }
+  .sc-fire{ animation:scfire 1.2s ease-in-out infinite; transform-origin:140px 60px; }
+  @keyframes scfire{ 50%{ opacity:.6; scale:1.25 } }
+  .sc-aim{ animation:scaim 1.6s ease-in-out infinite; transform-origin:120px 140px; }
+  @keyframes scaim{ 50%{ scale:.86 } }
+  .sc-march{ animation:scmarch 4s ease-in-out infinite; }
+  @keyframes scmarch{ 0%{ translate:0 0 } 60%, 100%{ translate:0 -34px } }
+  .sc-fly{ animation:scfly 5s ease-in-out infinite; }
+  @keyframes scfly{ 0%{ translate:0 0 } 50%{ translate:-26px 22px } 100%{ translate:0 0 } }
+  .sc-flag{ animation:scflag 1.4s ease-in-out infinite; transform-origin:171px 24px; }
+  @keyframes scflag{ 50%{ scale:.86 1 } }
+
+  /* page dots under the cards */
+  .dots{ display:flex; justify-content:center; margin-top:-6px; }
+  .dot{ position:relative; width:22px; height:20px; padding:0; border:0; background:none; cursor:pointer; }
+  .dot::after{
+    content:""; position:absolute; left:50%; top:50%; width:7px; height:7px; margin:-3.5px 0 0 -3.5px; border-radius:99px;
+    background:rgba(239,227,204,.28); transition:width .35s var(--ease-out), margin .35s var(--ease-out), background .35s;
+  }
+  .dot.on::after{ width:20px; margin-left:-10px; background:var(--tallow); }
+
+  /* the room takes on the colour of the game in the middle */
+  @property --tint{ syntax:'<color>'; inherits:true; initial-value:#22948c; }
+  html{ --tint:#22948c; transition:--tint .8s ease; }
+  html[data-game="chess"]{ --tint:#93683f; }
+  html[data-game="battleships"]{ --tint:#2a6c9b; }
+  html[data-game="towers"]{ --tint:#5257c4; }
+  html[data-game="golf"]{ --tint:#45a259; }
+  .tint{
+    position:fixed; inset:0; z-index:0; pointer-events:none; opacity:0; transition:opacity 1s ease;
+    background:radial-gradient(95% 60% at 50% 42%, color-mix(in srgb, var(--tint) 34%, transparent), transparent 72%);
+  }
+  body.home .tint{ opacity:1; }
+
+  /* ---------- lobby ---------- */
+  .gamechip{
+    display:inline-flex; align-items:center; gap:7px; padding:7px 13px 7px 10px; border-radius:999px;
+    font:600 .84rem/1 var(--sans); color:#fff;
+    background:linear-gradient(135deg, var(--g1, #22948c), var(--g2, #0b3735));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 6px 16px -8px rgba(0,0,0,.8);
+  }
+  .gamechip svg{ width:15px; height:15px; fill:currentColor; }
+  .gamechip[data-mode="pool"]{ --g1:#22948c; --g2:#0b3735; }
+  .gamechip[data-mode="chess"]{ --g1:#93683f; --g2:#26170b; }
+  .gamechip[data-mode="battleships"]{ --g1:#2a6c9b; --g2:#0a1d30; }
+  .gamechip[data-mode="towers"]{ --g1:#5257c4; --g2:#181944; }
+  .gamechip[data-mode="golf"]{ --g1:#45a259; --g2:#0f321e; }
+  .lobby{
+    grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; max-width:380px;
+    padding:20px 12px 16px; border-radius:var(--r-lg);
+    background:linear-gradient(180deg, rgba(239,227,204,.07), rgba(239,227,204,.015));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07), inset 0 0 0 1px rgba(239,227,204,.08), 0 18px 36px -22px rgba(0,0,0,.9);
+  }
+  .vsbadge{
+    font:800 .74rem/1 var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--amber);
+    padding:9px 10px; border-radius:999px; background:rgba(255,179,71,.1); box-shadow:inset 0 0 0 1px rgba(255,179,71,.35);
+  }
+  .lobbyname{ font-family:var(--sans); font-weight:600; }
+  .lobbyside.waiting .pod{ animation:breathe 2s ease-in-out infinite; }
+  @keyframes breathe{ 50%{ opacity:.4; scale:.95 } }
+  .invite{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .invite-label{ font:600 .7rem/1 var(--sans); letter-spacing:.09em; text-transform:uppercase; color:var(--ash); }
+  button.codebox{
+    font:700 clamp(2rem, 10vw, 2.5rem)/1 var(--sans); letter-spacing:.16em; color:var(--tallow);
+    padding:14px 20px 14px calc(20px + .16em); border-radius:var(--r-md); cursor:pointer;
+    border:1px solid var(--hair); background:linear-gradient(180deg, rgba(239,227,204,.08), rgba(239,227,204,.02));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.07); font-variant-numeric:tabular-nums;
+  }
+  button.codebox.wait{ color:var(--ash); }
+  #hostStart.ready{ box-shadow:0 0 0 0 rgba(255,179,71,.5); }
+
+  /* ---------- results ---------- */
+  .confetti{ position:fixed; inset:0; z-index:40; pointer-events:none; overflow:hidden; }
+  .confetti i{
+    position:absolute; top:-14px; width:8px; height:12px; border-radius:2px;
+    animation-name:fall; animation-timing-function:cubic-bezier(.3,.6,.5,1); animation-fill-mode:forwards;
+  }
+  @keyframes fall{ to{ translate:var(--dx) 106vh; rotate:var(--r); } }
+
+  @media (prefers-reduced-motion: reduce){
+    .panel.enter, .panel.enter-back, .panel.enter-fade, .charcard.on .pod, .bump, .choice.right, .choice.wrong,
+    .sc-hop, .sc-hint, .sc-taken, .sc-ship, .sc-fire, .sc-aim, .sc-march, .sc-fly, .sc-flag, .lobbyside.waiting .pod{ animation:none; }
+    .sc-hint{ opacity:.9; }
+    .game{ transition:none; }
+  }
+
+  /* a new question's answers rise in one after another */
+  .choices .choice{ animation:choiceIn .38s var(--ease-out) backwards; }
+  .choices .choice:nth-child(2){ animation-delay:.04s; }
+  .choices .choice:nth-child(3){ animation-delay:.08s; }
+  .choices .choice:nth-child(4){ animation-delay:.12s; }
+  @keyframes choiceIn{ from{ opacity:0; translate:0 8px; } }
+  .choices .choice.right{ animation:rightpop .5s var(--spring); }
+  .choices .choice.wrong{ animation:wrongshake .42s ease; }
+
+  /* the one-time tip on iPhone Safari: add it to the home screen to play full screen */
+  .tip{
+    position:fixed; z-index:30; left:50%; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 74px);
+    width:min(92vw, 380px); display:flex; align-items:center; gap:10px; padding:11px 8px 11px 14px;
+    border-radius:var(--r-md); font:500 .86rem/1.35 var(--sans); color:var(--tallow);
+    background:rgba(30,23,18,.94); border:1px solid rgba(255,179,71,.35);
+    box-shadow:0 18px 40px -12px rgba(0,0,0,.9); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    translate:-50% 12px; opacity:0; transition:opacity .4s var(--ease-out), translate .5s var(--spring);
+  }
+  .tip.show{ translate:-50% 0; opacity:1; }
+  .tip > svg{ width:18px; height:18px; flex:0 0 auto; fill:var(--amber); }
+  .tip span{ flex:1; }
+  .tip b{ font-weight:700; }
+  .tip button{
+    flex:0 0 auto; width:32px; height:32px; border:0; border-radius:50%; cursor:pointer;
+    background:rgba(239,227,204,.08); color:var(--ash); font:600 1.1rem/1 var(--sans);
+  }
+  @media (prefers-reduced-motion: reduce){ .choices .choice, .choices .choice.right, .choices .choice.wrong{ animation:none; } }
+
+  /* short phones: the lobby and profile screens tighten up so the button
+     at the bottom always stays on screen */
+  @media (max-height:780px){
+    #scCode, #scSetup, #scHost, #scGuest, #scDead{ padding-top:50px; gap:10px; }
+    .lobby{ padding:12px 10px 10px; }
+    .lobbyside .pod{ width:clamp(40px, 7dvh, 58px); }
+    #scGuest .hd, #scHost .hd{ font-size:clamp(1.3rem, 5.6vw, 1.6rem); }
+    #scGuest .field, #scSetup .field{ padding:10px 14px; }
+  }
+  @media (max-height:720px){
+    #scGuest .lobbystatus{ display:none; }
+    #scGuest .lobbyside{ gap:4px; }
+    #scGuest .charcard{ padding:6px 3px 5px; gap:3px; }
+    #scGuest .charcard .pod{ width:30px; }
+    #scGuest .charcard b{ font-size:.68rem; }
+    .dock .btn{ min-height:48px; }
+  }
+  @media (max-height:640px){
+    #scGuest .charcard b{ display:none; }
+    #scGuest .status{ min-height:0; font-size:.82rem; }
+    #scSetup .lead, #scCode .lead{ display:none; }
+  }
+  @media (max-height:600px){
+    #scGuest .lobby{ display:none; }
+  }
 </style>
 </head>
 <body>
   <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="tint" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
-  <div class="testchip" id="testChip" hidden>Test mode</div>
+  <div class="testchip" id="testChip" hidden>Practice</div>
   <div class="yourturn" id="yourTurn" aria-hidden="true">Your turn</div>
   <div class="nudge" id="nudge" role="status" aria-live="polite"></div>
+  <div class="tip" id="tip" role="status" hidden><svg><use href="#i-share"/></svg><span>Play full screen: tap Share, then <b>Add to Home Screen</b>.</span><button id="tipClose" type="button" aria-label="Dismiss">×</button></div>
   <button class="backbtn" id="backBtn" type="button" aria-label="Back to menu" hidden>
     <svg><use href="#i-back"/></svg>
   </button>
@@ -1250,6 +1536,36 @@
 
   <svg class="sprite" aria-hidden="true">
     <defs>
+      <symbol id="i-mark" viewBox="0 0 64 64"><defs>
+    <radialGradient id="mk-bg" cx="50%" cy="22%" r="85%"><stop offset="0" stop-color="#4b2c14"/><stop offset=".55" stop-color="#1d130c"/><stop offset="1" stop-color="#0d0a08"/></radialGradient>
+    <linearGradient id="mk-pa" x1="0" x2="1"><stop offset="0" stop-color="#ffd08a"/><stop offset=".5" stop-color="#ffb347"/><stop offset="1" stop-color="#e5862b"/></linearGradient>
+    <linearGradient id="mk-pb" x1="0" x2="1"><stop offset="0" stop-color="#a7e6ff"/><stop offset=".5" stop-color="#6cd4ff"/><stop offset="1" stop-color="#3393c4"/></linearGradient>
+    <radialGradient id="mk-glow"><stop offset="0" stop-color="#fff3d6" stop-opacity=".9"/><stop offset=".4" stop-color="#ffb347" stop-opacity=".45"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#mk-bg)"/>
+  <rect x=".5" y=".5" width="63" height="63" rx="14.5" fill="none" stroke="rgba(255,214,150,.18)"/>
+  <g transform="translate(32 24) scale(.95)">
+    <g transform="rotate(-28) translate(-4.25 -8)">
+      <path d="M4.25 0 L8.5 10 H0 Z" fill="#e9cfa1"/>
+      <path d="M4.25 0 L6 4.1 H2.5 Z" fill="#2a2420"/>
+      <rect x="0" y="10" width="8.5" height="26" fill="url(#mk-pb)"/>
+      <rect x="5.7" y="10" width="2.8" height="26" fill="rgba(0,0,0,.18)"/>
+      <rect x="0" y="36" width="8.5" height="3.6" fill="#cfc3ad"/>
+      <rect x="0" y="37.4" width="8.5" height=".8" fill="#9d927f"/>
+      <rect x="0" y="39.6" width="8.5" height="5.6" rx="2.2" fill="#ef8f7d"/></g>
+    <g transform="rotate(28) translate(-4.25 -8)">
+      <path d="M4.25 0 L8.5 10 H0 Z" fill="#e9cfa1"/>
+      <path d="M4.25 0 L6 4.1 H2.5 Z" fill="#2a2420"/>
+      <rect x="0" y="10" width="8.5" height="26" fill="url(#mk-pa)"/>
+      <rect x="0" y="10" width="2.8" height="26" fill="rgba(0,0,0,.18)"/>
+      <rect x="0" y="36" width="8.5" height="3.6" fill="#cfc3ad"/>
+      <rect x="0" y="37.4" width="8.5" height=".8" fill="#9d927f"/>
+      <rect x="0" y="39.6" width="8.5" height="5.6" rx="2.2" fill="#ef8f7d"/></g>
+  </g>
+  <circle cx="32" cy="16" r="11" fill="url(#mk-glow)"/>
+  <path d="M32 7.5 L34 14 L40.5 16 L34 18 L32 24.5 L30 18 L23.5 16 L30 14 Z" fill="#fff3d6"/>
+</symbol>
+      <symbol id="i-join" viewBox="0 0 24 24"><path d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4zM10 16h4v4h-4z"/></symbol>
       <symbol id="i-people" viewBox="0 0 24 24">
         <circle cx="8.4" cy="7.2" r="3.7"/><circle cx="16.6" cy="8.4" r="3"/>
         <path d="M1.6 20.4c0-3.8 3-6.4 6.8-6.4s6.8 2.6 6.8 6.4z"/>
@@ -1465,177 +1781,163 @@
   </svg>
 
   <main class="app" id="app">
-    <div class="logo" id="logo">
-      <svg class="crest" viewBox="0 0 160 76" aria-hidden="true">
-        <ellipse class="crest-shade" cx="41" cy="70" rx="16" ry="3.4"/>
-        <ellipse class="crest-shade" cx="119" cy="70" rx="16" ry="3.4"/>
-
-        <g class="fighter fighter-a">
-          <path class="leg" d="M30 70 L36 46 L44 46 L42 70 Z"/>
-          <path class="leg" d="M44 70 L46 50 L53 50 L52 70 Z"/>
-          <path class="cape" d="M27 52 Q28 38 38 31 L47 25 Q55 29 54 40 L52 52 Z"/>
-          <circle class="head" cx="40" cy="20" r="7.6"/>
-          <path class="arm" d="M46 33 L64 15 L67 18 L50 37 Z"/>
-          <path class="blade" d="M62 17 L83 -3 L86 0 L66 21 Z"/>
-          <rect class="hilt" x="58.5" y="13" width="6.5" height="5.4" rx="1" transform="rotate(-42 61.75 15.7)"/>
-        </g>
-
-        <g class="fighter fighter-b">
-          <path class="leg" d="M130 70 L124 46 L116 46 L118 70 Z"/>
-          <path class="leg" d="M116 70 L114 50 L107 50 L108 70 Z"/>
-          <path class="cape" d="M133 52 Q132 38 122 31 L113 25 Q105 29 106 40 L108 52 Z"/>
-          <circle class="head" cx="120" cy="20" r="7.6"/>
-          <path class="arm" d="M114 33 L96 15 L93 18 L110 37 Z"/>
-          <path class="blade" d="M98 17 L77 -3 L74 0 L94 21 Z"/>
-          <rect class="hilt" x="95" y="13" width="6.5" height="5.4" rx="1" transform="rotate(42 98.25 15.7)"/>
-        </g>
-
-        <g class="spark">
-          <path d="M80 8 L83.5 -1.5 L86 7.5 L95 4 L87 10.5 L91.5 18 L83 13 L79.5 21 L78 12 Z"/>
-        </g>
-      </svg>
-      <h1 class="wordmark" id="wordmark">Study Duel</h1>
-    </div>
-
     <section class="panel" id="scIntro" hidden>
-      <div class="demo" id="demo" aria-hidden="true">
-        <p class="demo-call" id="demoCall">
-          <span class="say-wrap">
-            <span class="ghost" id="demoGhost"></span>
-            <span class="typed" id="demoTyped"></span>
-          </span>
-        </p>
-        <canvas class="demo-table" id="demoTable"></canvas>
-        <div class="demo-players">
-          <div class="demo-side" id="demoSideL">
-            <div class="answer" id="demoAnsL"></div>
-            <div class="pod" id="demoPodL" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
-          </div>
-          <div class="demo-side" id="demoSideR">
-            <div class="answer" id="demoAnsR"></div>
-            <div class="pod" id="demoPodR" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
-          </div>
+      <div class="homebar">
+        <button class="avatarbtn" id="profileChip" type="button" aria-label="Your name and character">
+          <span class="pod" id="profilePod" data-char="placeholder"><svg class="head"><use href="#char-placeholder"/></svg></span>
+        </button>
+        <div class="brand">
+          <svg class="mark" aria-hidden="true"><use href="#i-mark"/></svg>
+          <h1 class="wordmark" id="wordmark">Study Duel</h1>
         </div>
+        <button class="pillbtn" id="introJoin" type="button" aria-label="Join a match with a code"><svg><use href="#i-join"/></svg>Join</button>
       </div>
-      <p class="lead" id="introLead">Answer right to earn your shot. Get it wrong and the table's theirs.</p>
-      <div class="modes" id="modeGrid">
-        <button class="mode on" type="button" data-mode="pool">
-          <svg><use href="#i-pool"/></svg>
-          <b>Pool</b>
-          <span>8-ball. Answer right to take your shot.</span>
-        </button>
-        <button class="mode" type="button" data-mode="chess">
-          <svg><use href="#i-chess"/></svg>
-          <b>Chess</b>
-          <span>Answer right to move. Wrong costs clock time.</span>
-        </button>
-        <button class="mode" type="button" data-mode="battleships">
-          <svg><use href="#i-ship"/></svg>
-          <b>Battleships</b>
-          <span>Answer right to fire. Wrong gives a square away.</span>
-        </button>
-        <button class="mode" type="button" data-mode="towers">
-          <svg><use href="#i-towers"/></svg>
-          <b>Towers</b>
-          <span>Answer for elixir. Knock their towers down.</span>
-        </button>
-        <button class="mode" type="button" data-mode="golf">
-          <svg><use href="#i-golf"/></svg>
-          <b>Mini Golf</b>
-          <span>Answer to swing. Wrong is a penalty stroke.</span>
-        </button>
+      <div class="games" id="games" role="listbox" aria-label="Choose a game">
+        <article class="game" data-mode="pool" role="option" tabindex="-1" aria-label="Pool">
+          <div class="game-head">
+            <span class="tag fill">Classic</span>
+            <h2 class="game-title">Pool</h2>
+            <p class="game-sub">Answer right to take your shot. Get it wrong and the table's theirs.</p>
+          </div>
+          <div class="game-scene">
+            <div class="demo" id="demo" aria-hidden="true">
+              <p class="demo-call" id="demoCall">
+                <span class="say-wrap">
+                  <span class="ghost" id="demoGhost"></span>
+                  <span class="typed" id="demoTyped"></span>
+                </span>
+              </p>
+              <canvas class="demo-table" id="demoTable"></canvas>
+              <div class="demo-players">
+                <div class="demo-side" id="demoSideL">
+                  <div class="answer" id="demoAnsL"></div>
+                  <div class="pod" id="demoPodL" data-char="boy"><svg class="head"><use href="#char-boy"/></svg></div>
+                </div>
+                <div class="demo-side" id="demoSideR">
+                  <div class="answer" id="demoAnsR"></div>
+                  <div class="pod" id="demoPodR" data-char="girl"><svg class="head"><use href="#char-girl"/></svg></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+        <article class="game" data-mode="chess" role="option" tabindex="-1" aria-label="Chess">
+          <div class="game-head">
+            <span class="tag ">Streak hints</span>
+            <h2 class="game-title">Chess</h2>
+            <p class="game-sub">Answer right to earn your move. Get it wrong and your clock pays for it.</p>
+          </div>
+          <div class="game-scene">
+            <div class="scene" id="sceneChess" aria-hidden="true"></div>
+          </div>
+        </article>
+        <article class="game" data-mode="battleships" role="option" tabindex="-1" aria-label="Battleships">
+          <div class="game-head">
+            <span class="tag ">Hidden fleets</span>
+            <h2 class="game-title">Battleships</h2>
+            <p class="game-sub">Answer right to fire. Get it wrong and they see where your ships aren’t.</p>
+          </div>
+          <div class="game-scene">
+            <div class="scene" id="sceneSea" aria-hidden="true"></div>
+          </div>
+        </article>
+        <article class="game" data-mode="towers" role="option" tabindex="-1" aria-label="Towers">
+          <div class="game-head">
+            <span class="tag live">Real time</span>
+            <h2 class="game-title">Towers</h2>
+            <p class="game-sub">Every right answer is elixir. Spend it on troops and knock their towers down.</p>
+          </div>
+          <div class="game-scene">
+            <div class="scene" id="sceneTowers" aria-hidden="true"></div>
+            <div class="deckrow" id="deckRowHome"><div class="deckrow-cards" id="deckRowHomeCards"></div><button class="btn" id="deckEditHome" type="button">Edit deck</button></div>
+          </div>
+        </article>
+        <article class="game" data-mode="golf" role="option" tabindex="-1" aria-label="Mini Golf">
+          <div class="game-head">
+            <span class="tag new">New</span>
+            <h2 class="game-title">Mini Golf</h2>
+            <p class="game-sub">Answer right to take your swing. Get it wrong and it costs you a stroke.</p>
+          </div>
+          <div class="game-scene">
+            <div class="scene" id="sceneGolf" aria-hidden="true"></div>
+          </div>
+        </article>
       </div>
-      <button class="btn primary" id="introGo">Go</button>
-      <button class="textlink" type="button" id="introJoin">Got a code? Join a match</button>
+      <div class="dots" id="gameDots"></div>
+      <div class="dock">
+        <button class="btn" id="introPractice" type="button">Practice</button>
+        <button class="btn primary" id="introGo" type="button">Invite a friend</button>
+      </div>
     </section>
 
     <section class="panel" id="scCode" hidden>
-      <h2 class="hd">Enter your code</h2>
-      <p class="lead">Ask whoever invited you for the 6-digit code on their screen.</p>
+      <h2 class="hd">Join a match</h2>
+      <p class="lead">Type the 6-digit code from your opponent's screen.</p>
       <input class="field codefield" id="codeInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit code">
-      <button class="btn primary" id="codeGo" disabled>Join</button>
       <p class="note" id="codeNote"></p>
-    </section>
-
-    <section class="panel" id="scOpponent" hidden>
-      <h2 class="hd">Who are you playing?</h2>
-      <div class="deckrow" id="deckRowOpp" hidden><div class="deckrow-cards" id="deckRowOppCards"></div><button class="btn" id="deckEditOpp" type="button">Edit deck</button></div>
-      <div class="modes cols3" id="opponentGrid">
-        <button class="mode" type="button" data-opp="friend">
-          <svg><use href="#i-people"/></svg>
-          <b>Invite a Friend</b>
-          <span>Send a link, they join and play live.</span>
-        </button>
-        <button class="mode" type="button" data-opp="bot" disabled>
-          <svg><use href="#i-bot"/></svg>
-          <b>Play a Bot</b>
-          <span>Coming soon. Invite a friend for now.</span>
-        </button>
-        <button class="mode" type="button" data-opp="test">
-          <svg><use href="#i-test"/></svg>
-          <b>Test Mode</b>
-          <span>Straight in against a stand-in. No link needed.</span>
-        </button>
-      </div>
+      <div class="dock"><button class="btn primary" id="codeGo" type="button" disabled>Join</button></div>
     </section>
 
     <section class="panel" id="scSetup" hidden>
-      <h2 class="hd">Who are you?</h2>
-      <input class="field" id="introName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
+      <h2 class="hd" id="setupHd">Who are you?</h2>
+      <p class="lead" id="setupLead">Your opponent sees this next to every move.</p>
+      <input class="field" id="introName" type="text" maxlength="16" placeholder="Your name" autocomplete="name" aria-label="Your name">
       <div class="chars" id="charGridHost"></div>
-      <div class="deckrow" id="deckRowHost" hidden><div class="deckrow-cards" id="deckRowHostCards"></div><button class="btn" id="deckEditHost" type="button">Edit deck</button></div>
-      <button class="btn primary" id="setupGo" disabled>Create a match</button>
       <p class="note" id="setupNote"></p>
+      <div class="dock"><button class="btn primary" id="setupGo" type="button" disabled>Create a match</button></div>
     </section>
 
     <section class="panel" id="scHost" hidden>
-      <h2 class="hd" id="hostHd">Send this to your opponent</h2>
-      <div class="sharepick" id="hostPick" role="tablist" aria-label="How to invite">
-        <button type="button" class="on" data-share="link" role="tab" aria-selected="true">Share a link</button>
-        <button type="button" data-share="code" role="tab" aria-selected="false">Get a code</button>
-      </div>
-      <p class="linkbox" id="hostLink"></p>
-      <p class="codebox" id="hostCode" hidden></p>
-      <p class="note" id="hostCodeNote" hidden></p>
-      <div class="row" id="hostShareRow">
-        <button class="btn" id="hostCopy"><svg><use href="#i-copy"/></svg>Copy link</button>
-        <button class="btn" id="hostSend" hidden><svg><use href="#i-share"/></svg>Share</button>
-      </div>
+      <h2 class="hd" id="hostHd">Invite your opponent</h2>
+      <p class="gamechip" id="hostGame"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
       <div class="lobby" id="hostLobby">
         <div class="lobbyside">
           <div class="pod" id="lbHostPod"><svg class="head"><use href="#char-boy"/></svg></div>
           <div class="lobbyname" id="lbHostName">You</div>
           <div class="lobbystatus ready" id="lbHostStatus">Ready</div>
         </div>
-        <div class="lobbyside">
+        <span class="vsbadge" aria-hidden="true">vs</span>
+        <div class="lobbyside" id="lbGuestSide">
           <div class="pod placeholder" id="lbGuestPod"><svg class="head"><use href="#char-placeholder"/></svg></div>
           <div class="lobbyname dim" id="lbGuestName">Nobody yet</div>
           <div class="lobbystatus" id="lbGuestStatus">Waiting to join</div>
         </div>
       </div>
-      <button class="btn primary" id="hostStart" disabled>Start the match</button>
+      <div class="invite" id="hostInvite">
+        <p class="invite-label">Or they can join with this code</p>
+        <button class="codebox wait" id="hostCode" type="button" aria-label="Copy the join code">······</button>
+        <p class="note" id="hostCodeNote">They tap Join on the home screen and type it in.</p>
+      </div>
+      <div class="dock" id="hostShareRow">
+        <button class="btn" id="hostCopy" type="button"><svg><use href="#i-copy"/></svg><span>Copy link</span></button>
+        <button class="btn primary" id="hostSend" type="button" hidden><svg><use href="#i-share"/></svg><span>Share invite</span></button>
+      </div>
+      <div class="dock" id="hostStartRow" hidden>
+        <button class="btn primary" id="hostStart" type="button" disabled>Start the match</button>
+      </div>
     </section>
 
     <section class="panel" id="scGuest" hidden>
       <h2 class="hd" id="guestHd">You've been challenged</h2>
-      <p class="meta" id="guestMode"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
+      <p class="gamechip" id="guestMode"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
       <div class="lobby" id="guestLobby">
         <div class="lobbyside">
           <div class="pod" id="glHostPod"><svg class="head"><use href="#char-boy"/></svg></div>
           <div class="lobbyname" id="glHostName">Them</div>
           <div class="lobbystatus ready" id="glHostStatus">Ready</div>
         </div>
+        <span class="vsbadge" aria-hidden="true">vs</span>
         <div class="lobbyside">
           <div class="pod placeholder" id="glGuestPod"><svg class="head"><use href="#char-placeholder"/></svg></div>
           <div class="lobbyname dim" id="glGuestName">You</div>
           <div class="lobbystatus" id="glGuestStatus">Choose a character</div>
         </div>
       </div>
+      <input class="field" id="guestName" type="text" maxlength="16" placeholder="Your name" autocomplete="name" aria-label="Your name">
       <div class="chars" id="charGridGuest"></div>
       <div class="deckrow" id="deckRowGuest" hidden><div class="deckrow-cards" id="deckRowGuestCards"></div><button class="btn" id="deckEditGuest" type="button">Edit deck</button></div>
-      <input class="field" id="guestName" type="text" maxlength="16" placeholder="your name" autocomplete="name" aria-label="Your name">
-      <button class="btn primary" id="guestReady" disabled>I'm ready</button>
       <p class="status" id="guestStatus"></p>
+      <div class="dock"><button class="btn primary" id="guestReady" type="button" disabled>I'm ready</button></div>
     </section>
 
     <section class="panel" id="scPool" hidden>
@@ -1682,8 +1984,8 @@
             </div>
             <p class="pcard-note" id="pcNote"></p>
             <div class="row" id="pcOver" hidden>
-              <button class="btn primary" id="pcAgain" hidden>Run it back</button>
-              <a class="btn leavelink" href="./">New opponent</a>
+              <button class="btn primary" id="pcAgain" hidden>Rematch</button>
+              <button class="btn leavelink" type="button">Home</button>
             </div>
           </div>
           <div class="spinpad" id="spinPad" hidden>
@@ -1745,8 +2047,8 @@
         </div>
         <p class="pcard-note" id="ccNote"></p>
         <div class="row" id="ccOver" hidden>
-          <button class="btn primary" id="ccAgain" hidden>Run it back</button>
-          <a class="btn leavelink" href="./">New opponent</a>
+          <button class="btn primary" id="ccAgain" hidden>Rematch</button>
+          <button class="btn leavelink" type="button">Home</button>
         </div>
       </div>
     </section>
@@ -1799,8 +2101,8 @@
         </div>
         <p class="pcard-note" id="bcNote"></p>
         <div class="row" id="bcOver" hidden>
-          <button class="btn primary" id="bcAgain" hidden>Run it back</button>
-          <a class="btn leavelink" href="./">New opponent</a>
+          <button class="btn primary" id="bcAgain" hidden>Rematch</button>
+          <button class="btn leavelink" type="button">Home</button>
         </div>
       </div>
     </section>
@@ -1831,8 +2133,8 @@
           <div class="pcard-q result" id="boQ"></div>
           <p class="pcard-note" id="boNote"></p>
           <div class="row">
-            <button class="btn primary" id="boAgain" hidden>Run it back</button>
-            <a class="btn leavelink" href="./">New opponent</a>
+            <button class="btn primary" id="boAgain" hidden>Rematch</button>
+            <button class="btn leavelink" type="button">Home</button>
           </div>
         </div>
       </div>
@@ -1909,8 +2211,8 @@
           <table class="gsc" id="gcScore" hidden></table>
           <p class="pcard-note" id="gcNote"></p>
           <div class="row" id="gcOver" hidden>
-            <button class="btn primary" id="gcAgain" hidden>Run it back</button>
-            <a class="btn leavelink" href="./">New opponent</a>
+            <button class="btn primary" id="gcAgain" hidden>Rematch</button>
+            <button class="btn leavelink" type="button">Home</button>
           </div>
         </div>
       </div>
@@ -1919,7 +2221,7 @@
     <section class="panel" id="scDead" hidden>
       <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
-      <a class="btn primary" href="./">Start your own</a>
+      <div class="dock"><button class="btn primary" id="deadHome" type="button">Back to games</button></div>
     </section>
 
     <p class="note warm" id="conn" hidden></p>
@@ -1946,12 +2248,14 @@
     if(appH() === lastAppH) return;
     setAppH(); window.dispatchEvent(new Event('resize'));
   });
-  const PANELS = ['scIntro','scCode','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scDead'];
+  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scDead'];
+  const GAME_NAMES = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers', golf: 'Mini Golf' };
+  const GAME_ICON = { pool: 'pool', chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' };
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   let ws = null, gameId = null, myRole = null, pickedMode = 'pool', pickedChar = '';
   let opponentType = 'friend', testStarted = false;
-  let shareKind = 'link', hostCode = '', hostCodeFor = null, codeAsk = null;
+  let hostCode = '', hostCodeFor = null, codeAsk = null, guestFilledFor = null;
   let questionMs = 10000;
   let phase = 'intro', deadlineAt = 0;
 
@@ -2087,10 +2391,31 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running or the link's already dead there's nothing sane to back out to,
   // so it stays hidden
-  const BACK_SCREENS = new Set(['scCode', 'scOpponent', 'scSetup', 'scHost', 'scGuest']);
+  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest']);
+
+  // how deep each screen sits, so moving deeper slides in from the right and
+  // backing out slides in from the left. games just fade up, since they
+  // measure their own layout as they appear
+  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2 };
+  let shownKey = '';
+  app.addEventListener('animationend', e => {
+    if(e.target.classList && e.target.classList.contains('panel')) e.target.classList.remove('enter', 'enter-back', 'enter-fade');
+  });
 
   function show(ids){
+    const key = ids.join(','), prevKey = shownKey;
+    shownKey = key;
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
+    if(key && key !== prevKey && !reduceMotion()){
+      const was = prevKey ? (DEPTH[prevKey.split(',')[0]] ?? 3) : 0, now = DEPTH[ids[0]] ?? 3;
+      const cls = now === 3 ? 'enter-fade' : now >= was ? 'enter' : 'enter-back';
+      for(const id of ids){
+        const el = $(id);
+        el.classList.remove('enter', 'enter-back', 'enter-fade');
+        void el.offsetWidth;
+        el.classList.add(cls);
+      }
+    }
     app.dataset.screen = ids[0] || '';
     document.body.classList.toggle('testing', !$('testChip').hidden);
     document.body.classList.toggle('home', ids.includes('scIntro'));
@@ -3459,7 +3784,7 @@
       $('pcChoices').innerHTML = '';
       $('pcChoices').dataset.key = '';
       $('pcNote').textContent = ((s.over && s.over.why) || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
-      $('pcAgain').hidden = myRole !== 'host';
+      $('pcAgain').hidden = false;
       $('pcAgain').disabled = false;
       return;
     }
@@ -3841,7 +4166,7 @@
       }
       $('ccQ').textContent = !o.winner ? 'Draw' : o.winner === myRole ? 'You win' : ((s[o.winner] || {}).name || 'They') + ' wins';
       $('ccNote').textContent = (o.why || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
-      $('ccAgain').hidden = myRole !== 'host';
+      $('ccAgain').hidden = false;
       $('ccAgain').disabled = false;
       return;
     }
@@ -4344,7 +4669,7 @@
       q.textContent = o.winner === myRole ? 'You win' : ((s[o.winner] || {}).name || 'They') + ' wins';
       note.textContent = (o.why || '') + ' You answered ' + st.right + ' of ' + st.asked
         + ' right and hit ' + st.hits + ' of ' + st.shots + ' shots.';
-      $('bcAgain').hidden = myRole !== 'host';
+      $('bcAgain').hidden = false;
       $('bcAgain').disabled = false;
       return;
     }
@@ -4759,7 +5084,17 @@
     const H = gv.H, c = document.createElement('canvas');
     c.width = H.w * FOG_PX; c.height = H.h * FOG_PX;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#0d0a08'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#121510'; ctx.fillRect(0, 0, c.width, c.height);
+    // soft cloud texture, so ground you haven't seen yet reads as fog rather
+    // than an empty hole in the screen. seeded, so it never shifts
+    let seed = 97;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    for(let i = 0, n = c.width * c.height / 36; i < n; i++){
+      const x = rnd() * c.width, y = rnd() * c.height, r = 3 + rnd() * 11, a = (.05 + rnd() * .08).toFixed(3);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(150,165,140,' + a + ')'); g.addColorStop(1, 'rgba(150,165,140,0)');
+      ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
     gv.fog = c;
     fogOpen([...gv.seen].map((v, i) => v === '1' ? i : -1).filter(i => i >= 0));
   }
@@ -5115,7 +5450,7 @@
     const view = { x0: cam.x - halfW, x1: cam.x + halfW, y0: cam.y - halfH, y1: cam.y + halfH };
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#0a0806'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#0e110c'; ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     ctx.setTransform(k, 0, 0, k, (gv.w / 2 - cam.x * s) * gv.dpr, (gv.h / 2 - cam.y * s) * gv.dpr);
     const course = golfCourse();
     ctx.drawImage(course, 0, 0, H.w * T, H.h * T);
@@ -5257,7 +5592,7 @@
         : !win ? 'All square' : win === myRole ? 'You win' : ((s[win] || {}).name || 'They') + ' wins';
       const st = G.stats[myRole] || { asked: 0, right: 0 };
       $('gcNote').textContent = ((s.over && s.over.why) || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
-      $('gcAgain').hidden = myRole !== 'host' || !!left;
+      $('gcAgain').hidden = !!left;
       $('gcAgain').disabled = false;
       return;
     }
@@ -6408,7 +6743,7 @@
         $('boQ').textContent = !o.winner ? 'Draw' : o.winner === myRole ? 'You win' : ((s[o.winner] || {}).name || 'They') + ' wins';
         $('boWho').textContent = 'Game over · ' + mineN + '–' + theirN;
         $('boNote').textContent = (o.why || '') + ' You answered ' + st.right + ' of ' + st.asked + ' right.';
-        $('boAgain').hidden = myRole !== 'host';
+        $('boAgain').hidden = false;
         $('boAgain').disabled = false;
       }
       bv.sel = null;
@@ -6464,12 +6799,10 @@
   function deckRows(){
     if(!Cards) return;
     const d = loadDeck();
-    for(const id of ['deckRowOpp', 'deckRowHost', 'deckRowGuest']){
+    for(const id of ['deckRowHome', 'deckRowGuest']){
       const box = $(id + 'Cards');
       if(box) box.innerHTML = d.map(k => '<img src="' + artUrl(k) + '" alt="' + Cards.CARDS[k].name + '" title="' + Cards.CARDS[k].name + '">').join('');
     }
-    const avg = d.reduce((a, k) => a + Cards.CARDS[k].cost, 0) / d.length;
-    for(const id of ['deckRowOppAvg', 'deckRowHostAvg', 'deckRowGuestAvg']) if($(id)) $(id).textContent = avg.toFixed(1);
   }
 
   let deckFrom = 'scIntro', deckDraft = [], deckFocus = null;
@@ -6540,12 +6873,15 @@
     show([deckFrom]);
   });
   $('deckReset').addEventListener('click', () => { deckDraft = Cards.DEFAULT_DECK.slice(); renderDeck(); });
-  for(const [btn, from] of [['deckEditOpp', 'scOpponent'], ['deckEditHost', 'scSetup'], ['deckEditGuest', 'scGuest']]){
+  for(const [btn, from] of [['deckEditHome', 'scIntro'], ['deckEditGuest', 'scGuest']]){
     $(btn).addEventListener('click', () => openDeck(from));
   }
 
   function applyState(s){
+    const was = phase;
     phase = s.phase;
+    // a win you just watched happen gets a little confetti
+    if(s.phase === 'over' && was && was !== 'over' && s.over && !s.over.left && s.over.winner === myRole) setTimeout(confetti, 300);
     curState = s;
     $('testChip').hidden = !s.test;
     // a test match has no one to wait for, so the lobby starts itself
@@ -6553,31 +6889,48 @@
       testStarted = true;
       ws.send(JSON.stringify({ t:'start' }));
     }
+    // a practice match starts itself, so its lobby is never shown: the
+    // Practice button keeps its spinner until the game appears
+    if(phase === 'lobby' && s.test && myRole === 'host') return;
+    settle();
     if(phase === 'lobby'){
       const hostName = s.host.name || 'Someone';
       if(myRole === 'host'){
         show(['scHost']);
-        $('hostHd').textContent = s.vsBot ? 'Ready when you are'
-          : s.guest.ready ? (s.guest.name || 'They') + ' is ready' : 'Send this to your opponent';
-        $('hostPick').hidden = !!s.vsBot;
-        $('hostShareRow').hidden = !!s.vsBot;
-        setShareKind(s.vsBot ? 'link' : shareKind, !!s.vsBot);
+        const ready = !!s.guest.ready, bot = !!s.vsBot, here = !!s.guest.here;
+        $('hostHd').textContent = bot ? 'Ready when you are'
+          : ready ? (s.guest.name || 'They') + ' is ready'
+          : here ? 'They’re picking a character' : 'Invite your opponent';
+        gameChip($('hostGame'), s.mode, s.modeName);
+        // once they're in, the code is no use and sharing is done
+        $('hostInvite').hidden = bot || ready || here;
+        $('hostShareRow').hidden = bot || ready;
+        $('hostStartRow').hidden = !(bot || ready);
+        if(!bot && !ready && !here) showCode();
         setLobbyCard('lbHost', { char: s.host.char, name: s.host.name || 'You', ready: true, statusText: 'Ready' });
-        if(!s.vsBot) $('hostLink').textContent = shareUrl();
+        const side = $('lbGuestSide'), was = side.dataset.ready === '1';
         if(s.guest.ready){
           setLobbyCard('lbGuest', { char: s.guest.char, name: s.guest.name || 'They', ready: true, statusText: 'Ready' });
-        }else if(s.guest.here){
+          if(!was) bump(side);
+        }else if(here){
           setLobbyCard('lbGuest', { char: '', name: 'Choosing…', pending: true, statusText: 'Picking a character…' });
         }else{
           setLobbyCard('lbGuest', { char: '', name: 'Nobody yet', statusText: 'Waiting to join' });
         }
+        side.dataset.ready = ready ? '1' : '';
+        side.classList.toggle('waiting', !here && !ready);
         $('hostStart').disabled = !(s.guest.ready && s.host.char && s.guest.char);
         $('hostStart').classList.toggle('ready', !$('hostStart').disabled);
       }else{
         show(['scGuest']);
         $('guestHd').textContent = hostName + ' has challenged you';
-        $('guestMode').querySelector('span').textContent = s.modeName || 'Pool';
-        $('guestMode').querySelector('use').setAttribute('href', '#i-' + ({ chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' }[s.mode] || 'pool'));
+        gameChip($('guestMode'), s.mode, s.modeName);
+        if(guestFilledFor !== gameId){
+          guestFilledFor = gameId;
+          let saved = '';
+          try{ saved = localStorage.getItem('sd-name') || ''; }catch(e){}
+          if(!$('guestName').value) $('guestName').value = saved;
+        }
         $('deckRowGuest').hidden = s.mode !== 'towers' || !!s.guest.ready;
         setLobbyCard('glHost', { char: s.host.char, name: hostName, ready: true, statusText: 'Ready' });
         if(s.guest.ready){
@@ -6602,31 +6955,30 @@
 
   function shareUrl(){ return location.href.split('#')[0] + '#g=' + gameId; }
 
-  // the host can send the link, or read out a 6-digit code instead. the code
-  // is only asked for the first time someone picks it
-  function setShareKind(kind, hideAll){
-    shareKind = kind;
-    [...$('hostPick').children].forEach(b => {
-      const on = b.dataset.share === kind;
-      b.classList.toggle('on', on);
-      b.setAttribute('aria-selected', String(on));
-    });
-    $('hostLink').hidden = hideAll || kind !== 'link';
-    $('hostCode').hidden = hideAll || kind !== 'code';
-    $('hostCodeNote').hidden = hideAll || kind !== 'code';
-    $('hostCopy').lastChild.textContent = kind === 'code' ? 'Copy code' : 'Copy link';
-    if(kind === 'code' && !hideAll) showCode();
+  // the game's icon and name, tinted in its colour, under a lobby heading
+  function gameChip(el, mode, name){
+    const m = GAME_NAMES[mode] ? mode : 'pool';
+    el.dataset.mode = m;
+    el.querySelector('use').setAttribute('href', '#i-' + GAME_ICON[m]);
+    el.querySelector('span').textContent = name || GAME_NAMES[m];
+  }
+
+  // a quick pop on something that just changed, like a seat filling
+  function bump(el){
+    if(!el) return;
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
   }
 
   function siteName(){ return location.host; }
 
+  // the 6-digit code is fetched as soon as the lobby opens, so it's there
+  // the moment they need it. tapping it copies it
   function showCode(){
     if(hostCodeFor === gameId && hostCode){
       $('hostCode').textContent = hostCode;
       $('hostCode').classList.remove('wait');
-      $('hostCopy').disabled = false;
       $('hostCodeNote').className = 'note';
-      $('hostCodeNote').textContent = 'They go to ' + siteName() + ', tap “Got a code?” and type this in.';
+      $('hostCodeNote').textContent = 'They tap Join on the home screen and type it in.';
       return;
     }
     if(codeAsk) return;
@@ -6635,9 +6987,6 @@
     try{ tok = localStorage.getItem('sd-host-' + id) || ''; }catch(e){}
     $('hostCode').textContent = '······';
     $('hostCode').classList.add('wait');
-    $('hostCopy').disabled = true;
-    $('hostCodeNote').className = 'note';
-    $('hostCodeNote').textContent = 'Getting a code…';
     const fail = why => {
       if(id !== gameId) return;
       $('hostCode').textContent = '— — —';
@@ -6647,20 +6996,30 @@
     codeAsk = fetch('/api/games/' + id + '/code', {
       method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ token: tok }),
     }).then(async r => {
-      if(r.status === 409) return fail('Someone has already joined, so there’s no code to hand out.');
-      if(!r.ok) return fail('Couldn’t get a code. The server answered ' + r.status + '. Switch to the link, or try again.');
+      if(r.status === 409) return;   // they've already joined, so there's nothing to hand out
+      if(!r.ok) return fail('Couldn’t get a code. Share the link instead.');
       const made = await r.json();
       hostCode = made.code;
       hostCodeFor = id;
-      if(id === gameId && shareKind === 'code') showCode();
-    }).catch(() => fail('Couldn’t reach the server for a code. Check your connection and try again.'))
+      if(id === gameId) showCode();
+    }).catch(() => fail('Couldn’t reach the server for a code. Share the link instead.'))
       .finally(() => { codeAsk = null; });
   }
 
-  $('hostPick').addEventListener('click', e => {
-    const b = e.target.closest('button');
-    if(b && b.dataset.share !== shareKind) setShareKind(b.dataset.share, false);
+  $('hostCode').addEventListener('click', () => {
+    if(!hostCode || hostCodeFor !== gameId) return;
+    copyText(hostCode, () => {
+      $('hostCodeNote').textContent = 'Code copied';
+      bump($('hostCode'));
+      setTimeout(() => { if(hostCodeFor === gameId) $('hostCodeNote').textContent = 'They tap Join on the home screen and type it in.'; }, 1600);
+    });
   });
+
+  function copyText(text, done){
+    if(text && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(() => {});
+    }
+  }
 
   function goCold(hd, sub){
     $('deadHd').textContent = hd;
@@ -6702,7 +7061,7 @@
       // a socket that closed without ever saying anything never connected. say
       // so, rather than leaving the host sat on "Setting up…" indefinitely
       if(!heard){
-        if(!$('scSetup').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
+        if(pending || !$('scSetup').hidden) createFailed('Could not open a live connection. Check your connection and try again.');
         else{
           $('conn').textContent = "Couldn't connect to the match. Refresh to try again.";
           $('conn').hidden = false;
@@ -6717,55 +7076,130 @@
     });
   }
 
-  // ---------- entry points ----------
-  $('modeGrid').addEventListener('click', e => {
-    const card = e.target.closest('.mode');
-    if(!card || card.disabled || card.dataset.mode === pickedMode) return;
-    pickedMode = card.dataset.mode;
-    try{ localStorage.setItem('sd-mode', pickedMode); }catch(e){}
-    [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
-    introLead();
+  // ---------- the home screen ----------
+  // five game cards in a row you swipe through, Flighty-style. whichever is
+  // in the middle is the game Invite and Practice start
+  const gameCards = [...document.querySelectorAll('#games .game')];
+  const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  gameCards.forEach(c => {
+    const d = document.createElement('button');
+    d.type = 'button'; d.className = 'dot';
+    d.setAttribute('aria-label', GAME_NAMES[c.dataset.mode]);
+    d.addEventListener('click', () => scrollToGame(c.dataset.mode, true));
+    $('gameDots').appendChild(d);
+    // tapping a card at the side brings it to the middle
+    c.addEventListener('click', e => {
+      if(e.target.closest('button')) return;
+      if(c.dataset.mode !== pickedMode) scrollToGame(c.dataset.mode, true);
+    });
   });
 
-  function introLead(){
-    $('introLead').textContent = {
-      chess: 'Answer right to earn your move. Get it wrong and your clock pays for it.',
-      battleships: 'Answer right to fire. Get it wrong and they see where your ships aren’t.',
-      towers: 'Every right answer is elixir. Spend it on troops and knock their towers down.',
-      golf: 'Answer right to take your swing. Get it wrong and it costs you a stroke.',
-    }[pickedMode] || "Answer right to earn your shot. Get it wrong and the table's theirs.";
+  function pickGame(mode){
+    if(!GAME_NAMES[mode]) return;
+    pickedMode = mode;
+    try{ localStorage.setItem('sd-mode', mode); }catch(e){}
+    gameCards.forEach((c, i) => {
+      const on = c.dataset.mode === mode;
+      c.classList.toggle('on', on);
+      c.setAttribute('aria-selected', String(on));
+      c.tabIndex = on ? 0 : -1;
+      $('gameDots').children[i].classList.toggle('on', on);
+    });
+    document.documentElement.dataset.game = mode;
+  }
+
+  function scrollToGame(mode, smooth){
+    const c = gameCards.find(g => g.dataset.mode === mode);
+    if(!c) return;
+    const box = $('games');
+    box.scrollTo({ left: c.offsetLeft - (box.clientWidth - c.offsetWidth) / 2, behavior: smooth && !reduceMotion() ? 'smooth' : 'auto' });
+    pickGame(mode);
+  }
+
+  let gameScrollRaf = 0;
+  $('games').addEventListener('scroll', () => {
+    if(gameScrollRaf) return;
+    gameScrollRaf = requestAnimationFrame(() => {
+      gameScrollRaf = 0;
+      const box = $('games'), mid = box.scrollLeft + box.clientWidth / 2;
+      let best = null, bd = Infinity;
+      for(const c of gameCards){
+        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
+        if(d < bd){ bd = d; best = c; }
+      }
+      if(best && best.dataset.mode !== pickedMode) pickGame(best.dataset.mode);
+    });
+  }, { passive: true });
+
+  document.addEventListener('keydown', e => {
+    if($('scIntro').hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    if(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+    const i = gameCards.findIndex(c => c.dataset.mode === pickedMode) + (e.key === 'ArrowRight' ? 1 : -1);
+    if(gameCards[i]){ e.preventDefault(); scrollToGame(gameCards[i].dataset.mode, true); }
+  });
+
+  // your face in the top corner; tap it to change your name or character
+  function profileChip(){
+    wearChar($('profilePod'), pickedChar || 'placeholder');
+    $('profileChip').classList.toggle('empty', !pickedChar);
+  }
+  $('profileChip').addEventListener('click', () => openSetup('profile'));
+
+  let setupFor = 'invite';
+  function openSetup(why){
+    setupFor = why;
+    const profile = why === 'profile';
+    $('setupHd').textContent = profile ? 'Your profile' : 'Who are you?';
+    $('setupLead').textContent = profile ? 'Your name and character, for every match you play.' : 'Your opponent sees this next to every move.';
+    $('setupGo').textContent = profile ? 'Save' : 'Create a match';
+    $('setupGo').disabled = !pickedChar;
+    $('setupNote').className = 'note';
+    $('setupNote').textContent = pickedChar ? '' : 'Pick a character to continue.';
+    show(['scSetup']);
+  }
+
+  // the button that set a match going shows it's working until the match
+  // answers, then goes back to how it was
+  let pending = null;
+  function startMatch(btn, busyText){
+    if(pending) return;
+    pending = { btn, label: btn.textContent };
+    btn.disabled = true;
+    btn.classList.add('busy');
+    btn.textContent = busyText;
+    createMatch();
+  }
+  function settle(){
+    if(!pending) return;
+    pending.btn.disabled = false;
+    pending.btn.classList.remove('busy');
+    pending.btn.textContent = pending.label;
+    pending = null;
+    $('setupGo').disabled = !pickedChar;
   }
 
   $('introGo').addEventListener('click', () => {
-    $('deckRowOpp').hidden = pickedMode !== 'towers';
-    $('deckRowHost').hidden = pickedMode !== 'towers';
-    deckRows();
-    show(['scOpponent']);
+    opponentType = 'friend';
+    $('testChip').hidden = true;
+    if(!pickedChar){ openSetup('invite'); return; }
+    startMatch($('introGo'), 'Setting up…');
   });
 
-  $('opponentGrid').addEventListener('click', e => {
-    const card = e.target.closest('.mode');
-    if(!card || card.disabled) return;
-    opponentType = card.dataset.opp;
-    if(opponentType === 'test'){
-      // skip setup and the lobby: use the saved name and character, or defaults
-      if(!pickedChar) choose('boy');
-      if(!$('introName').value.trim()) $('introName').value = 'Player';
-      $('setupGo').textContent = 'Start the test';
-      show(['scSetup']);
-      testStarted = false;
-      createMatch();
-      return;
-    }
-    $('setupGo').textContent = 'Create a match';
-    show(['scSetup']);
-    if(!pickedChar){ $('setupNote').className = 'note'; $('setupNote').textContent = 'Pick a character to continue.'; }
+  // practice: straight in against Tester, with your profile or a stand-in
+  $('introPractice').addEventListener('click', () => {
+    opponentType = 'test';
+    if(!pickedChar) choose('boy');
+    if(!$('introName').value.trim()) $('introName').value = 'Player';
+    testStarted = false;
+    startMatch($('introPractice'), 'Starting…');
   });
 
   $('setupGo').addEventListener('click', () => {
     if(!pickedChar) return;
     try{ localStorage.setItem('sd-name', $('introName').value.trim()); }catch(e){}
-    createMatch();
+    profileChip();
+    if(setupFor === 'profile'){ goHome(); return; }
+    startMatch($('setupGo'), 'Setting up…');
   });
   $('introName').addEventListener('keydown', e => { if(e.key === 'Enter' && !$('setupGo').disabled) $('setupGo').click(); });
 
@@ -6778,9 +7212,11 @@
   })();
 
   function createFailed(why){
-    $('setupGo').disabled = !pickedChar;
-    $('setupNote').className = 'note warm';
-    $('setupNote').textContent = why;
+    settle();
+    if(!$('scSetup').hidden){
+      $('setupNote').className = 'note warm';
+      $('setupNote').textContent = why;
+    }else nudge(why);
   }
 
   function reason(e){
@@ -6790,8 +7226,7 @@
 
   async function createMatch(){
     $('setupNote').className = 'note';
-    $('setupNote').textContent = 'Setting up…';
-    $('setupGo').disabled = true;
+    $('setupNote').textContent = '';
 
     let made;
     try{
@@ -6814,7 +7249,6 @@
     // the match exists on the server from here on, so nothing below may report
     // itself as the server being unreachable
     gameId = made.id;
-    shareKind = 'link';
     try{ localStorage.setItem('sd-host-' + gameId, made.token); }catch(e){}
     // putting the link in the address bar is a nicety, and it throws outright
     // in a sandboxed frame or an in-app browser — never let it sink the match
@@ -6827,19 +7261,16 @@
   }
 
   $('hostCopy').addEventListener('click', () => {
-    const kind = shareKind;
-    const done = () => {
-      $('hostCopy').lastChild.textContent = 'Copied';
-      setTimeout(() => {
-        if(shareKind === kind) $('hostCopy').lastChild.textContent = kind === 'code' ? 'Copy code' : 'Copy link';
-      }, 1600);
-    };
-    const text = kind === 'code' ? hostCode : shareUrl();
-    if(text && navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(done).catch(() => {});
-    }
+    copyText(shareUrl(), () => {
+      const label = $('hostCopy').querySelector('span');
+      label.textContent = 'Copied';
+      bump($('hostCopy'));
+      setTimeout(() => { label.textContent = 'Copy link'; }, 1600);
+    });
   });
 
+  // with a share sheet (phones), sharing is the main button and copying the
+  // link is the spare. without one, copying is all there is
   if(navigator.share){
     $('hostSend').hidden = false;
     $('hostSend').addEventListener('click', () => {
@@ -6849,13 +7280,11 @@
         towers: 'A tower battle where every right answer is elixir. Fancy a game?',
         golf: 'Mini golf, but every swing has to be earned. Fancy a round?',
       }[pickedMode] || 'Pool, but every shot has to be earned. Fancy a game?';
-      if(shareKind === 'code' && hostCode){
-        const site = location.href.split('#')[0];
-        navigator.share({ text: text + ' Go to ' + site + ', tap “Got a code?” and enter ' + hostCode + '.' }).catch(() => {});
-      }else{
-        navigator.share({ text, url: shareUrl() }).catch(() => {});
-      }
+      const code = hostCodeFor === gameId && hostCode ? ' Or tap Join and enter ' + hostCode + '.' : '';
+      navigator.share({ text: text + code, url: shareUrl() }).catch(() => {});
     });
+  }else{
+    $('hostCopy').classList.add('primary');
   }
 
   // ---------- joining with a code ----------
@@ -6914,6 +7343,7 @@
 
   $('guestReady').addEventListener('click', () => {
     if(!pickedChar) return;
+    try{ localStorage.setItem('sd-name', $('guestName').value.trim()); }catch(e){}
     ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim(), char: pickedChar, deck: loadDeck() }));
     $('guestReady').disabled = true;
   });
@@ -6922,9 +7352,18 @@
 
   // walking away from a finished match tells the room, so the other player
   // isn't left looking at a rematch button for someone who's gone
-  document.querySelectorAll('.leavelink').forEach(l => l.addEventListener('click', () => {
-    try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
+  document.querySelectorAll('.leavelink').forEach(l => l.addEventListener('click', e => {
+    e.preventDefault();
+    try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(err){}
+    goHome();
   }));
+  $('deadHome').addEventListener('click', goHome);
+
+  // back to the games, dropping any match link from the address bar first
+  function goHome(){
+    try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
+    toIntro();
+  }
 
   // drops any live connection and lands back on the mode-select menu — the
   // shared destination for a dead link, a full room, and the back button
@@ -6937,13 +7376,15 @@
       $('introName').value = localStorage.getItem('sd-name') || '';
       savedMode = localStorage.getItem('sd-mode') || '';
     }catch(e){}
-    if(['pool', 'chess', 'battleships', 'towers', 'golf'].includes(savedMode)) pickedMode = savedMode;
-    [...$('modeGrid').children].forEach(c => c.classList.toggle('on', c.dataset.mode === pickedMode));
-    introLead();
+    if(GAME_NAMES[savedMode]) pickedMode = savedMode;
     opponentType = 'friend';
     $('testChip').hidden = true;
-    $('setupGo').textContent = 'Create a match';
+    settle();
+    profileChip();
+    deckRows();
     show(['scIntro']);
+    // the cards only have a size once they're on screen
+    requestAnimationFrame(() => scrollToGame(pickedMode, false));
   }
 
   // leaving a share link in the address bar behind would just reconnect to
@@ -6951,8 +7392,8 @@
   // effort, since this can throw in a sandboxed frame, and toIntro() doesn't
   // depend on it succeeding
   $('backBtn').addEventListener('click', () => {
-    try{ history.pushState(null, '', location.pathname + location.search); }catch(e){}
-    toIntro();
+    if(!$('scDeck').hidden){ show([deckFrom]); return; }
+    goHome();
   });
 
   // hold-to-quit: mid-match, one tap should never be enough to leave. the
@@ -7033,6 +7474,126 @@
       toIntro();
     }
   }
+
+  function confetti(){
+    if(reduceMotion()) return;
+    const box = document.createElement('div');
+    box.className = 'confetti';
+    box.setAttribute('aria-hidden', 'true');
+    const cols = ['#ffb347', '#6cd4ff', '#7fd6a2', '#ff6a2a', '#efe3cc', '#c8b6ff'];
+    for(let i = 0; i < 48; i++){
+      const p = document.createElement('i');
+      p.style.left = (Math.random() * 100).toFixed(1) + '%';
+      p.style.background = cols[i % cols.length];
+      p.style.setProperty('--dx', (Math.random() * 160 - 80).toFixed(0) + 'px');
+      p.style.setProperty('--r', (Math.random() * 900 - 450).toFixed(0) + 'deg');
+      p.style.animationDelay = (Math.random() * .3).toFixed(2) + 's';
+      p.style.animationDuration = (1.7 + Math.random() * 1.2).toFixed(2) + 's';
+      box.appendChild(p);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 3600);
+  }
+
+  // ---------- the little scenes on the home cards ----------
+  // pool has its live demo; the others get a small picture of the game in
+  // motion, drawn from the same art the games use
+  function buildScenes(){
+    // chess: a corner of the board, a knight about to take the hint's advice
+    const L = '#dcc8a2', D = '#9b7650';
+    let sq = '';
+    for(let y = 0; y < 4; y++) for(let x = 0; x < 6; x++) sq += '<rect x="' + x * 40 + '" y="' + y * 40 + '" width="40" height="40" fill="' + ((x + y) % 2 ? D : L) + '"/>';
+    const W = 'style="--pc-body:url(#cpW);--pc-line:#2a1d12;--pc-hi:rgba(255,255,255,.8)"';
+    const B = 'style="--pc-body:url(#cpB);--pc-line:#060403;--pc-hi:rgba(255,226,180,.38)"';
+    const pc = (k, x, y, side, cls) => '<g ' + side + (cls ? ' class="' + cls + '"' : '') + '><use href="#cp-' + k + '" x="' + (x * 40 + 2) + '" y="' + (y * 40 + 2) + '" width="36" height="36"/></g>';
+    $('sceneChess').innerHTML = '<svg viewBox="0 0 240 160" class="scene-svg">'
+      + '<defs><clipPath id="sceneClipFill"><rect width="240" height="160" rx="10"/></clipPath></defs>'
+      + '<g clip-path="url(#sceneClipFill)">' + sq
+      + '<rect x="0" y="80" width="40" height="40" fill="rgba(255,179,71,.5)"/><rect x="40" y="120" width="40" height="40" fill="rgba(255,179,71,.38)"/>'
+      + pc('r', 1, 0, B) + pc('k', 5, 0, B) + pc('p', 0, 1, B) + pc('p', 4, 1, B) + pc('q', 3, 0, B, 'sc-taken')
+      + pc('b', 5, 3, W) + pc('p', 0, 2, W) + pc('k', 0, 3, W)
+      + '<path class="sc-hint" d="M100 100 L100 20 L126 20 M118 11 L128 20 L118 29" fill="none" stroke="#6cd4ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>'
+      + pc('n', 2, 2, W, 'sc-hop') + '</g></svg>';
+
+    // battleships: your fleet at sea, one hit, a few misses, the sight on the next shot
+    const ship = (i, len, x, y, v) => {
+      let a = shipArt(i, len);
+      if(v) a = a.replace('viewBox="0 0 ' + len * 40 + ' 40"', 'viewBox="0 0 40 ' + len * 40 + '"').replace('<g>', '<g transform="translate(40 0) rotate(90)">');
+      return a.replace('<svg ', '<svg class="sc-ship" x="' + x + '" y="' + y + '" width="' + (v ? 40 : len * 40) + '" height="' + (v ? len * 40 : 40) + '" ');
+    };
+    let grid = '';
+    for(let i = 1; i < 6; i++) grid += '<path d="M' + i * 40 + ' 0V160" />';
+    for(let i = 1; i < 4; i++) grid += '<path d="M0 ' + i * 40 + 'H240" />';
+    $('sceneSea').innerHTML = '<svg viewBox="0 0 240 160" class="scene-svg">'
+      + '<defs><linearGradient id="sceneSeaFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a7aa5"/><stop offset="1" stop-color="#123c5a"/></linearGradient></defs>'
+      + '<rect width="240" height="160" rx="10" fill="url(#sceneSeaFill)"/><g stroke="rgba(239,227,204,.12)" stroke-width="1">' + grid + '</g>'
+      + ship(1, 4, 40, 40, 0) + ship(3, 3, 200, 40, 1) + ship(4, 2, 0, 120, 0)
+      + '<circle cx="140" cy="60" r="9" fill="#ff6a2a" class="sc-fire"/><circle cx="140" cy="60" r="4.5" fill="#ffe6bd"/>'
+      + '<circle cx="60" cy="20" r="4" fill="rgba(239,227,204,.7)"/><circle cx="180" cy="140" r="4" fill="rgba(239,227,204,.7)"/><circle cx="20" cy="100" r="4" fill="rgba(239,227,204,.7)"/>'
+      + '<g class="sc-aim"><circle cx="120" cy="140" r="13" fill="none" stroke="#ffb347" stroke-width="2.5"/><path d="M120 128v24M108 140h24" stroke="#ffb347" stroke-width="2"/></g>'
+      + '</svg>';
+
+    // towers: both sides of the arena, a troop marching for the bridge
+    const tower = (x, y, sz, red) => {
+      const roof = red ? '#d65445' : '#3f86c6', h = sz / 2, t = sz * .2;
+      let g = '<rect x="' + (x - h + 2) + '" y="' + (y - h + 3) + '" width="' + sz + '" height="' + sz + '" rx="5" fill="rgba(0,0,0,.3)"/>'
+        + '<rect x="' + (x - h) + '" y="' + (y - h) + '" width="' + sz + '" height="' + sz + '" rx="5" fill="#cfc6b6" stroke="#6f685d" stroke-width="1.2"/>'
+        + '<rect x="' + (x - h + t) + '" y="' + (y - h + t) + '" width="' + (sz - t * 2) + '" height="' + (sz - t * 2) + '" rx="3" fill="' + roof + '"/>';
+      for(const dx of [-1, 1]) for(const dy of [-1, 1]) g += '<circle cx="' + (x + dx * (h - 1)) + '" cy="' + (y + dy * (h - 1)) + '" r="' + (sz * .17) + '" fill="' + roof + '" stroke="#6f685d" stroke-width="1"/>';
+      return g;
+    };
+    const troop = (key, x, y, w, cls) => '<image class="' + cls + '" href="' + artUrl(key) + '" x="' + x + '" y="' + y + '" width="' + w + '" height="' + w + '"/>';
+    $('sceneTowers').innerHTML = '<svg viewBox="0 0 240 150" class="scene-svg">'
+      + '<defs><linearGradient id="sceneGrassFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6aa653"/><stop offset="1" stop-color="#5c9846"/></linearGradient></defs>'
+      + '<rect width="240" height="150" rx="10" fill="url(#sceneGrassFill)"/>'
+      + '<rect x="44" y="30" width="12" height="90" fill="#cfae73" opacity=".8"/><rect x="184" y="30" width="12" height="90" fill="#cfae73" opacity=".8"/>'
+      + '<rect y="66" width="240" height="18" fill="#2f86b4"/><path d="M0 70H240M0 80H240" stroke="rgba(200,240,255,.35)" stroke-width="1" stroke-dasharray="6 9"/>'
+      + '<rect x="36" y="62" width="28" height="26" rx="2" fill="#a2703f"/><rect x="176" y="62" width="28" height="26" rx="2" fill="#a2703f"/>'
+      + tower(120, 22, 30, 1) + tower(50, 30, 22, 1) + tower(190, 30, 22, 1)
+      + tower(120, 128, 30, 0) + tower(50, 120, 22, 0) + tower(190, 120, 22, 0)
+      + troop('monitor', 36, 92, 28, 'sc-march') + troop('planes', 150, 40, 26, 'sc-fly')
+      + '</svg>';
+
+    // golf: a green with a waving flag, the ball rolling for the cup
+    $('sceneGolf').innerHTML = '<svg viewBox="0 0 240 150" class="scene-svg">'
+      + '<defs><linearGradient id="sceneRoughFill" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2f7a3c"/><stop offset="1" stop-color="#276a33"/></linearGradient>'
+      + '<radialGradient id="sceneGreenFill" cx=".5" cy=".4" r=".7"><stop offset="0" stop-color="#7fd06f"/><stop offset="1" stop-color="#55ad4d"/></radialGradient></defs>'
+      + '<rect width="240" height="150" rx="10" fill="url(#sceneRoughFill)"/>'
+      + '<g fill="rgba(255,255,255,.05)"><rect x="0" width="30" height="150"/><rect x="60" width="30" height="150"/><rect x="120" width="30" height="150"/><rect x="180" width="30" height="150"/></g>'
+      + '<path d="M28 96 C20 60 70 26 128 24 C190 22 222 52 214 86 C206 122 150 132 100 128 C56 126 34 118 28 96 Z" fill="url(#sceneGreenFill)" stroke="rgba(255,255,255,.18)" stroke-width="2"/>'
+      + '<path d="M150 104 C160 94 190 96 196 108 C200 120 168 124 156 118 C148 114 146 108 150 104 Z" fill="#e8d39b"/>'
+      + '<path d="M6 128 C10 112 40 110 52 122 C60 132 40 146 22 144 C10 142 4 136 6 128 Z" fill="#2f86b4"/>'
+      + '<path d="M62 104 Q110 96 170 54" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round"/>'
+      + '<ellipse cx="170" cy="54" rx="7" ry="4" fill="#0e1a10"/>'
+      + '<path d="M170 54V18" stroke="#efe3cc" stroke-width="2"/><path class="sc-flag" d="M171 18 L194 24 L171 31 Z" fill="#ff6a2a"/>'
+      + '<circle r="4.2" fill="#fff" stroke="rgba(0,0,0,.25)" stroke-width=".8"><animateMotion dur="3.6s" repeatCount="indefinite" path="M62 104 Q110 96 170 54" keyPoints="0;1;1" keyTimes="0;.55;1" calcMode="spline" keySplines=".25 .7 .35 1;0 0 1 1"/>'
+      + '<animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;.56;.62;.98;1" dur="3.6s" repeatCount="indefinite"/></circle>'
+      + '</svg>';
+    if(reduceMotion()) $('sceneGolf').querySelector('svg').pauseAnimations();
+  }
+  buildScenes();
+
+  // iPhone Safari, not yet on the home screen: say once how to get the
+  // full-screen app. in-app browsers can't add to the home screen, so skip them
+  (function homeScreenTip(){
+    const ua = navigator.userAgent || '';
+    const ios = /iP(hone|od|ad)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|GSA|Instagram|FBAN|FBAV|Line\//.test(ua);
+    const standalone = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    let seen = false;
+    try{ seen = !!localStorage.getItem('sd-a2hs'); }catch(e){}
+    if(!ios || !safari || standalone || seen) return;
+    const hide = () => { $('tip').classList.remove('show'); setTimeout(() => { $('tip').hidden = true; }, 500); };
+    $('tipClose').addEventListener('click', hide);
+    setTimeout(() => {
+      if($('scIntro').hidden) return;
+      try{ localStorage.setItem('sd-a2hs', '1'); }catch(e){}
+      $('tip').hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => $('tip').classList.add('show')));
+      setTimeout(hide, 9000);
+    }, 2500);
+  })();
+  document.addEventListener('touchstart', () => {}, { passive: true });
   window.addEventListener('hashchange', route);
   route();
 })();
