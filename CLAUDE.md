@@ -15,6 +15,11 @@ plays and DEPLOY.md for deploy details.
   `JoinCode` is a second, tiny Durable Object, one per 6-digit join code,
   mapping it to a room id. The host asks for one from the lobby; it's let go
   as soon as the guest seat is taken.
+- `questions.js`: where every question comes from. Games call `nextQ(role)` on
+  the room, which gives each player a `Feed` over a source (maths today, study
+  sets later). Questions carry a hidden `diff` and `why`; snapshots only ever
+  copy `text` and `choices` (and `answer` once resolved), so players never see
+  a difficulty ranking.
 - `public/pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`),
   the shot-message check both sides use (`shotFrom()`), and the test
   stand-in's shot picker (`botShot()`). The room decides every shot and sends
