@@ -2,9 +2,13 @@
  * Pool table physics and 8-ball rules for Study Duel's pool mode.
  *
  * The room runs every shot here and is the only authority on where the balls
- * end up. Browsers never simulate: they replay the frames a shot sends back
- * (30 a second), then snap to the final layout. That keeps two phones from
- * ever disagreeing about whether a ball dropped.
+ * end up. The browsers load this same file and run the same shot from the
+ * same inputs, so they can draw it at the screen's own frame rate, and the
+ * shooter's ball moves the instant they let go. simulate() only uses + - * /
+ * and Math.sqrt, which come out bit-for-bit the same in every JS engine, so
+ * the browser's run lands exactly where the room's does. The browser still
+ * snaps to the room's final layout afterwards, so the two phones can never
+ * disagree about whether a ball dropped.
  *
  * The table is portrait, like iMessage pool: x runs across (0..PW), y runs
  * down the length (0..PL). The rack sits at the top, the break comes from the
@@ -45,17 +49,24 @@ const BALL_E = 0.97;                    // and a ball-on-ball hit
 const STOP_SPEED = 3;
 const SIM_HZ = 480;                     // small steps so a full-power ball can't skip through another
 export const FPS = 30;
-const FRAME_EVERY = SIM_HZ / FPS;
 const SIM_MAX_S = 14;
 
 // spin is set by where the cue strikes the ball: x is side spin (+ = right),
 // y is top/back (+ = top). Kept to a simple, readable model:
-//   top/back  → on the cue ball's first hit it follows through or draws back
+//   top/back  → after the cue ball's first hit it follows through or draws
+//               back, picking up speed along its old line of travel over a
+//               fraction of a second, so its path bends rather than kinks
 //   side      → each cushion it touches nudges it sideways, fading as it goes
-// and all of it wears off the longer the ball rolls before it gets used.
+// a ball struck dead centre starts out sliding and soon rolls, the way a real
+// one does, so top/back drifts towards natural roll the further it travels.
+// that's why a plain shot follows on a little, and a draw shot only comes
+// back if it's struck hard enough or close enough.
 const FOLLOW = 0.7;                     // share of impact speed added along the line of travel
+const NATURAL = 0.41;                   // top/back of a rolling ball: 0.41 * FOLLOW ≈ 2/7, as in real pool
+const ROLL_A = 200, ROLL_B = 0.5;       // slide-to-roll: relaxes at speed / (ROLL_A + ROLL_B * speed) per second
+const SLIDE_ACC = 1800;                 // how fast cloth friction turns spin into speed after a hit, units/s^2
 const ENGLISH = 0.3;                    // share of speed added along a cushion per unit of side spin
-const SPIN_FADE = 0.7;                  // per second
+const SPIN_FADE = 0.7;                  // side spin, per second
 export const SPIN_MAX = 0.85;           // past this the cue would miss the ball
 
 export function groupOf(n) {
@@ -141,37 +152,94 @@ function inEndRail(x) {
   return x > CORNER_GAP && x < PW - CORNER_GAP;
 }
 
-// one frame: 16 balls as a flat [x0, y0, x1, y1, ...] list of whole numbers,
-// with -1, -1 for a ball that's already down
-function frameOf(b) {
+// one frame: 16 balls as a flat [x0, y0, x1, y1, ...] list, with -1, -1 for
+// a ball that's already down. whole numbers unless asked for exact ones
+function frameOf(b, exact) {
   const f = new Array(32);
   for (let n = 0; n < 16; n++) {
     if (b[n].in) { f[n * 2] = -1; f[n * 2 + 1] = -1; }
+    else if (exact) { f[n * 2] = b[n].x; f[n * 2 + 1] = b[n].y; }
     else { f[n * 2] = Math.round(b[n].x); f[n * 2 + 1] = Math.round(b[n].y); }
   }
   return f;
 }
 
+const clampN = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+/**
+ * Turn a shoot message into exactly what simulate() should run, or null if
+ * it isn't a legal shot. The room and the shooter's browser both call this,
+ * so the browser's early run of the shot matches the room's to the bit.
+ *   balls       the table as the room holds it ({x, y, in} per ball)
+ *   ballInHand  whether the shooter may place the cue ball (msg.cx, msg.cy)
+ *   msg         {dx, dy, power, cx, cy, sx, sy}
+ */
+export function shotFrom(balls, ballInHand, msg) {
+  let dx = Number(msg.dx), dy = Number(msg.dy);
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (!(len > 0.0001) || !Number.isFinite(len)) return null;
+  dx /= len; dy /= len;
+  const power = clampN(Number(msg.power) || 0, 0.03, 1);
+
+  const before = balls.map((b) => ({ x: b.x, y: b.y, in: b.in }));
+  if (ballInHand) {
+    const cx = Number(msg.cx), cy = Number(msg.cy);
+    if (!placeOk(before, cx, cy, false)) return null;
+    before[0] = { x: cx, y: cy, in: false };
+  }
+
+  // where on the cue ball they struck it, kept inside the edge of the ball
+  let sx = Number(msg.sx) || 0, sy = Number(msg.sy) || 0;
+  const sl = Math.sqrt(sx * sx + sy * sy);
+  if (!Number.isFinite(sl)) { sx = 0; sy = 0; }
+  else if (sl > SPIN_MAX) { sx *= SPIN_MAX / sl; sy *= SPIN_MAX / sl; }
+
+  return { before, dx, dy, speed: power * MAX_SPEED, spin: { x: sx, y: sy } };
+}
+
 /**
  * Strike the cue ball along (dx, dy) — a unit vector — at `speed`, and run
- * the table until everything stops. Returns the final layout, the frames to
- * replay, every ball that dropped in the order it dropped, and the first
- * object ball the cue ball touched (null if it touched nothing).
+ * the table until everything stops. Returns the final layout, frames to draw
+ * it from, every ball that dropped in the order it dropped, the first object
+ * ball the cue ball touched (null if it touched nothing), and how long the
+ * shot ran in seconds.
+ *   opts.fps    frames recorded per second (default FPS; 0 records none)
+ *   opts.exact  record exact positions rather than whole numbers
+ * Neither option changes the physics, only what gets written down.
  */
-export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }) {
+export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }, opts = {}) {
   const b = start.map((o) => ({ x: o.x, y: o.y, vx: 0, vy: 0, in: o.in }));
   let side = spin.x || 0, top = spin.y || 0;
   b[0].vx = dx * speed;
   b[0].vy = dy * speed;
   const dt = 1 / SIM_HZ;
   const minD2 = (BALL_R * 2) * (BALL_R * 2);
-  const frames = [frameOf(b)];
+  const fps = opts.fps == null ? FPS : opts.fps;
+  const every = fps > 0 ? Math.max(1, Math.round(SIM_HZ / fps)) : 0;
+  const exact = !!opts.exact;
+  const frames = every ? [frameOf(b, exact)] : [];
   const potted = [];
   let firstHit = null;
+  // follow or draw still to come after the first hit: an acceleration along
+  // the cue ball's old line of travel, and how much speed it has left to add
+  let fax = 0, fay = 0, fleft = 0;
+  let step = 1;
 
-  for (let step = 1; step <= SIM_HZ * SIM_MAX_S; step++) {
-    const fade = 1 - SPIN_FADE * dt;
-    side *= fade; top *= fade;
+  for (; step <= SIM_HZ * SIM_MAX_S; step++) {
+    side *= 1 - SPIN_FADE * dt;
+    const cue = b[0];
+    if (firstHit === null && !cue.in) {
+      // sliding gives way to rolling the further the ball goes
+      const sp = Math.sqrt(cue.vx * cue.vx + cue.vy * cue.vy);
+      const k = sp / (ROLL_A + ROLL_B * sp) * dt;
+      top += (NATURAL - top) * (k < 1 ? k : 1);
+    }
+    if (fleft > 0 && !cue.in) {
+      const add = SLIDE_ACC * dt < fleft ? SLIDE_ACC * dt : fleft;
+      cue.vx += fax * add;
+      cue.vy += fay * add;
+      fleft -= add;
+    }
     for (const p of b) {
       if (p.in || (p.vx === 0 && p.vy === 0)) continue;
       const sp = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
@@ -207,11 +275,18 @@ export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }) {
         c.vx += j2 * nx; c.vy += j2 * ny;
         if (cueFirst) {
           firstHit = j;
-          // follow or draw: push the cue ball on (or back) along the line it
-          // was travelling, scaled by how fast it arrived
-          a.vx += ux * top * FOLLOW;
-          a.vy += uy * top * FOLLOW;
+          // follow or draw: the cue ball picks up speed on (or back) along
+          // the line it was travelling, scaled by how fast it arrived. it's
+          // fed in over the next few steps, so the path curves
+          const us = Math.sqrt(ux * ux + uy * uy);
+          const total = us * top * FOLLOW;
+          if (us > 0 && total !== 0) {
+            const sgn = total < 0 ? -1 : 1;
+            fax = ux / us * sgn; fay = uy / us * sgn; fleft = total * sgn;
+          }
           top = 0;
+        } else if (i === 0 && fleft > 0) {
+          fleft = 0;                    // a second hit uses up what spin was left
         }
       }
     }
@@ -256,18 +331,19 @@ export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }) {
       if (drop) { p.in = true; p.vx = 0; p.vy = 0; potted.push(n); }
     }
 
-    if (step % FRAME_EVERY === 0) frames.push(frameOf(b));
-    let moving = false;
-    for (const p of b) if (!p.in && (p.vx !== 0 || p.vy !== 0)) { moving = true; break; }
+    if (every && step % every === 0) frames.push(frameOf(b, exact));
+    let moving = fleft > 0 && !b[0].in;
+    if (!moving) for (const p of b) if (!p.in && (p.vx !== 0 || p.vy !== 0)) { moving = true; break; }
     if (!moving) break;
   }
 
-  frames.push(frameOf(b));
+  if (every) frames.push(frameOf(b, exact));
   return {
     balls: b.map((p) => ({ x: p.x, y: p.y, in: p.in })),
     frames,
     potted,
     firstHit,
+    secs: Math.min(step, SIM_HZ * SIM_MAX_S) / SIM_HZ,
   };
 }
 

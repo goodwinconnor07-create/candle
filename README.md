@@ -220,9 +220,16 @@ which match the code points at.
 
 The Durable Object holds the only real copy of a match. Both browsers hold a
 WebSocket to it, so a shot lands on both screens at once. The room simulates
-every shot itself (`simulate()` in `pool.js`) and sends both phones the frames
-to replay, so the two screens can't disagree about whether a ball dropped.
-The 8-ball rules live in `judgeShot()` in the same file.
+every shot itself (`simulate()` in `public/pool.js`) and sends both phones the
+shot: where the balls started, plus the aim, power and spin. Each browser runs
+that through the same `simulate()` and draws it at the screen's own frame
+rate. The shooter's browser doesn't even wait. It runs the shot the moment
+they let go, while the cue stick lunges at the ball. `simulate()` only uses
+basic arithmetic and square roots, which come out the same in every browser,
+so every copy ends exactly where the room's does. The browsers still snap to
+the room's final layout at the end, so the two screens can't disagree about
+whether a ball dropped. The 8-ball rules live in `judgeShot()` in the same
+file.
 
 The answer to a live question is never sent to the browsers. It only goes out
 once the question is resolved, so there's nothing in the page to read ahead.
@@ -240,15 +247,15 @@ npx wrangler deploy     # push it live
 
 There's no build step and no dependencies to install for the Worker itself.
 `public/index.html` is the whole front end, `worker.js` is the backend, and
-pool's table physics and 8-ball rules are split out into `pool.js`. Chess
-rules and the hint engine are in `public/chess.js`, which sits in `public/`
-because both the room and the browser load it. The Towers battle is in
+pool's table physics and 8-ball rules are split out into `public/pool.js`.
+Chess rules and the hint engine are in `public/chess.js`. Both sit in
+`public/` because the room and the browser load them. The Towers battle is in
 `towers.js`, and its cards and arena in `public/towers-cards.js` for the
 same reason.
 
 ## Tuning
 
-The knobs are constants at the top of `worker.js` and `pool.js`:
+The knobs are constants at the top of `worker.js` and `public/pool.js`:
 
 | Constant | What it does |
 | --- | --- |
@@ -266,9 +273,10 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 | `WRONG_LOCK_MS`, `RIGHT_GAP_MS` | Towers: the wait after a wrong answer, and before the next question |
 | `TOWERS_REG_TICKS`, `TOWERS_OT_TICKS` | Towers match and overtime length, in tenths of a second |
 | `CARDS`, `TOWER_STATS` (public/towers-cards.js) | every card's stats, and the towers' |
-| `MAX_SPEED` (pool.js) | how hard a full-power shot hits |
-| `ROLL_DECEL`, `DRAG` (pool.js) | how quickly balls slow down |
-| `CORNER_GAP`, `SIDE_GAP` (pool.js) | pocket sizes |
+| `MAX_SPEED` (public/pool.js) | how hard a full-power shot hits |
+| `ROLL_DECEL`, `DRAG` (public/pool.js) | how quickly balls slow down |
+| `FOLLOW`, `NATURAL`, `SLIDE_ACC` (public/pool.js) | how strong follow and draw are, how much a plain shot rolls on, and how quickly the cue ball's path bends after a hit |
+| `CORNER_GAP`, `SIDE_GAP` (public/pool.js) | pocket sizes |
 
 ## Adding another mini game
 

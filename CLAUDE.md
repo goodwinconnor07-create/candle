@@ -15,9 +15,14 @@ plays and DEPLOY.md for deploy details.
   `JoinCode` is a second, tiny Durable Object, one per 6-digit join code,
   mapping it to a room id. The host asks for one from the lobby; it's let go
   as soon as the guest seat is taken.
-- `pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`), and the
-  test stand-in's shot picker (`botShot()`). The server runs every shot and
-  sends frames for the browsers to replay.
+- `public/pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`),
+  the shot-message check both sides use (`shotFrom()`), and the test
+  stand-in's shot picker (`botShot()`). The room decides every shot and sends
+  its inputs (`T.shot`), not frames. Both browsers run the same `simulate()`
+  at 240 recorded frames a second, and the shooter's browser runs it the
+  instant they let go. Keep `simulate()` to `+ - * /` and `Math.sqrt`, with
+  no randomness, so every engine gets the same bits. The browser logs a
+  console warning if its run ever ends somewhere the room's didn't.
 - `public/chess.js`: chess rules, plus a small alpha-beta engine for the test
   stand-in and as a backup hint. Both the room and the browser import it,
   which is why it lives in `public/`.

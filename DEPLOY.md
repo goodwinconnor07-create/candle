@@ -13,7 +13,7 @@ npx wrangler deploy
 ```
 
 The front end is plain HTML with no build step, and the Worker has no
-dependencies beyond its own `pool.js`. The Durable Object bindings and
+dependencies beyond its own game files. The Durable Object bindings and
 migrations are in `wrangler.toml` (`v2` added the `JoinCode` class for
 6-digit join codes), and `wrangler deploy` applies them itself. No API keys
 or secrets are needed.

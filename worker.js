@@ -7,8 +7,8 @@
  * poll.
  *
  * Pool: 8-ball where every shot has to be earned by answering a question
- * first. The room simulates each shot itself (pool.js) and ships both phones
- * the frames to replay.
+ * first. The room simulates each shot itself (public/pool.js) and sends both
+ * phones the shot, which they run through the same simulation to draw it.
  *
  * Chess: moves always alternate, so nobody ever gets two in a row. Each move
  * still needs a right answer first, but a wrong one costs time off your chess
@@ -41,7 +41,7 @@
  * Everything else is the static site in /public.
  */
 
-import * as Pool from './pool.js';
+import * as Pool from './public/pool.js';
 import * as Chess from './public/chess.js';
 import * as Sea from './public/battleships.js';
 import * as Towers from './towers.js';
@@ -171,7 +171,6 @@ function clean(str, max) {
 
 function rnd(n) { return Math.floor(Math.random() * n); }
 
-function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
 
 // a seat's character is picked in the browser, so it only counts if it's one
 // we actually know about
@@ -558,26 +557,12 @@ export class GameRoom {
     const g = this.game;
     if (!g || g.phase !== 'aim' || role !== g.table.turn) return;
     const T = g.table;
-    let dx = Number(msg.dx), dy = Number(msg.dy);
-    const len = Math.sqrt(dx * dx + dy * dy);
-    if (!(len > 0.0001) || !Number.isFinite(len)) return;
-    dx /= len; dy /= len;
-    const power = clamp(Number(msg.power) || 0, 0.03, 1);
-
-    const before = T.balls.map((b) => ({ ...b }));
-    if (T.ballInHand) {
-      const cx = Number(msg.cx), cy = Number(msg.cy);
-      if (!Pool.placeOk(before, cx, cy, false)) return;
-      before[0] = { x: cx, y: cy, in: false };
-    }
-
-    // where on the cue ball they struck it, kept inside the edge of the ball
-    let sx = Number(msg.sx) || 0, sy = Number(msg.sy) || 0;
-    const sl = Math.sqrt(sx * sx + sy * sy);
-    if (!Number.isFinite(sl)) { sx = 0; sy = 0; }
-    else if (sl > Pool.SPIN_MAX) { sx *= Pool.SPIN_MAX / sl; sy *= Pool.SPIN_MAX / sl; }
-
-    const sim = Pool.simulate(before, dx, dy, power * Pool.MAX_SPEED, { x: sx, y: sy });
+    // the shooter's browser runs this same conversion and the same shot the
+    // moment they let go, so it has to stay in pool.js where both can use it
+    const shot = Pool.shotFrom(T.balls, T.ballInHand, msg);
+    if (!shot) return;
+    const { before } = shot;
+    const sim = Pool.simulate(before, shot.dx, shot.dy, shot.speed, shot.spin, { fps: 0 });
     const rule = Pool.judgeShot({ balls: before, groups: T.groups, broken: T.broken }, sim, role);
     const shooter = role, other = role === 'host' ? 'guest' : 'host';
     const me = g[shooter].name, them = g[other].name;
@@ -588,7 +573,14 @@ export class GameRoom {
     const wasBreak = !T.broken;
     T.broken = true;
     T.shotId += 1;
-    T.shot = { id: T.shotId, frames: sim.frames };
+    // the shot itself, not a recording of it: both browsers run it through
+    // simulate() and get exactly what the room got. positions go out in full,
+    // since a ball a hair out of place could roll somewhere else entirely
+    T.shot = {
+      id: T.shotId,
+      start: before.map((b) => (b.in ? null : [b.x, b.y])),
+      dx: shot.dx, dy: shot.dy, speed: shot.speed, sx: shot.spin.x, sy: shot.spin.y,
+    };
 
     const down = rule.objects.filter((n) => n !== 8);
     const sank = down.length === 1 ? 'the ' + down[0] : (down.length ? down.length + ' balls' : '');
@@ -614,7 +606,7 @@ export class GameRoom {
       call,
     };
     g.phase = 'rolling';
-    g.deadline = Date.now() + Math.ceil(sim.frames.length * 1000 / Pool.FPS) + ROLL_PAD_MS;
+    g.deadline = Date.now() + Math.ceil(sim.secs * 1000) + ROLL_PAD_MS;
     this.sendState();
   }
 
@@ -1268,7 +1260,8 @@ export class GameRoom {
       guest: { name: g.guest.name, char: g.guest.char },
       over: g.over,
       table: {
-        balls: T.balls.map((b) => (b.in ? null : [Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10])),
+        // exact, not rounded: the shooter's browser runs its shot from these
+        balls: T.balls.map((b) => (b.in ? null : [b.x, b.y])),
         turn: T.turn,
         groups: T.groups,
         ballInHand: T.ballInHand,
