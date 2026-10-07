@@ -15,6 +15,17 @@ plays and DEPLOY.md for deploy details.
   `JoinCode` is a second, tiny Durable Object, one per 6-digit join code,
   mapping it to a room id. The host asks for one from the lobby; it's let go
   as soon as the guest seat is taken.
+- `questions.js`: where every question comes from. Games call `nextQ(role)` on
+  the room, which gives each player a `Feed` over a source (maths today, study
+  sets later). Questions carry a hidden `diff` and `why`; snapshots only ever
+  copy `text` and `choices` (and `answer` once resolved), so players never see
+  a difficulty ranking.
+- `library.js` and `migrations/`: the D1 database (`DB` binding, named
+  `study-duel`): anonymous devices, study sets, source text chunks and
+  generated questions. Live matches never live here. A device is a secret the
+  browser keeps (`POST /api/device`), stored only as a SHA-256. Schema changes
+  go in a new numbered file in `migrations/`, applied with
+  `npx wrangler d1 migrations apply study-duel --remote` before deploying.
 - `public/pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`),
   the shot-message check both sides use (`shotFrom()`), and the test
   stand-in's shot picker (`botShot()`). The room decides every shot and sends

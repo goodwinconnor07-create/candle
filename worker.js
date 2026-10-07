@@ -49,6 +49,8 @@ import * as Sea from './public/battleships.js';
 import * as Towers from './towers.js';
 import * as Cards from './public/towers-cards.js';
 import * as Golf from './public/golf.js';
+import { Feed } from './questions.js';
+import * as Library from './library.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
@@ -199,29 +201,6 @@ function shuffle(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
-}
-
-// placeholder subject: simple mental arithmetic, four choices, distractors
-// that sit near the answer so you can't win by eyeballing the odd one out
-function makeQuestion() {
-  const adding = Math.random() < 0.6;
-  let text, value;
-  if (adding) {
-    const a = 2 + rnd(12), b = 3 + rnd(12);
-    text = a + ' + ' + b;
-    value = a + b;
-  } else {
-    const a = 8 + rnd(14), b = 1 + rnd(7);
-    text = a + ' − ' + b;
-    value = a - b;
-  }
-  const pool = new Set([value]);
-  while (pool.size < 4) {
-    const off = (1 + rnd(4)) * (Math.random() < 0.5 ? -1 : 1);
-    if (value + off >= 0) pool.add(value + off);
-  }
-  const choices = shuffle([...pool]);
-  return { text, choices, answer: choices.indexOf(value) };
 }
 
 export class GameRoom {
@@ -572,13 +551,26 @@ export class GameRoom {
     this.startLoop();
   }
 
+  // each player has their own feed of questions for the match. Nothing about
+  // a question beyond its text and choices goes into a snapshot.
+  nextQ(role) {
+    const g = this.game;
+    if (!g.feeds) g.feeds = { host: new Feed(), guest: new Feed() };
+    return g.feeds[role].next();
+  }
+
+  feedResult(role, q, right) {
+    const f = this.game.feeds && this.game.feeds[role];
+    if (f) f.result(q, right);
+  }
+
   // ---- Pool ----
   // a turn is: question → (right) aim and shoot → replay → next question.
   // a wrong answer or a timeout skips the shot and hands the table over.
 
   poolAsk() {
     const g = this.game;
-    g.q = makeQuestion();
+    g.q = this.nextQ(g.table.turn);
     g.table.pqResult = null;
     g.phase = 'pq';
     g.deadline = Date.now() + QUESTION_MS;
@@ -595,6 +587,7 @@ export class GameRoom {
     const T = g.table;
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
+    this.feedResult(role, g.q, right);
     T.stats[role].asked += 1;
     if (right) T.stats[role].right += 1;
     T.pqResult = { choice: picked, right };
@@ -742,7 +735,7 @@ export class GameRoom {
 
   golfAsk() {
     const g = this.game, G = g.golf;
-    g.q = makeQuestion();
+    g.q = this.nextQ(G.turn);
     G.gqResult = null;
     g.phase = 'gq';
     g.deadline = Date.now() + QUESTION_MS;
@@ -759,6 +752,7 @@ export class GameRoom {
     const G = g.golf;
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
+    this.feedResult(role, g.q, right);
     G.stats[role].asked += 1;
     if (right) G.stats[role].right += 1;
     G.gqResult = { choice: picked, right };
@@ -986,7 +980,7 @@ export class GameRoom {
 
   chessAsk() {
     const g = this.game, C = g.chess;
-    g.q = makeQuestion();
+    g.q = this.nextQ(this.chessTurn());
     C.cqResult = null;
     g.phase = 'cq';
     g.deadline = Date.now() + QUESTION_MS;
@@ -1004,6 +998,7 @@ export class GameRoom {
     const C = g.chess;
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
+    this.feedResult(role, g.q, right);
     this.chessStop();
     C.stats[role].asked += 1;
     if (right) {
@@ -1143,7 +1138,7 @@ export class GameRoom {
 
   seaAsk() {
     const g = this.game, S = g.sea;
-    g.q = makeQuestion();
+    g.q = this.nextQ(S.turn);
     S.bqResult = null;
     g.phase = 'bq';
     g.deadline = Date.now() + QUESTION_MS;
@@ -1175,6 +1170,7 @@ export class GameRoom {
     const S = g.sea, other = role === 'host' ? 'guest' : 'host';
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
+    this.feedResult(role, g.q, right);
     S.stats[role].asked += 1;
     let reveal = null;
     if (right) {
@@ -1300,7 +1296,7 @@ export class GameRoom {
     for (const role of ['host', 'guest']) {
       const Q = g.tq[role];
       Q.list = [];
-      for (let i = 0; i < STUDY_QS; i++) Q.list.push(makeQuestion());
+      for (let i = 0; i < STUDY_QS; i++) Q.list.push(this.nextQ(role));
       Q.i = 0;
       Q.results = [];
       this.towersAsk(role);
@@ -1340,6 +1336,7 @@ export class GameRoom {
     const q = Q.list[Q.i];
     const picked = choice == null ? null : Number(choice);
     const right = picked === q.answer;
+    this.feedResult(role, q, right);
     Q.asked += 1;
     let gain = 0;
     if (right) {
@@ -1770,6 +1767,18 @@ async function api(request, env) {
   if (parts[1] === 'codes' && parts.length === 3 && request.method === 'GET') {
     if (!/^\d{6}$/.test(parts[2])) return err(404, 'no such code');
     return codeBook(env, parts[2]).fetch('https://code/lookup');
+  }
+
+  // anonymous players: no account needed to hold study sets. Registering is
+  // on demand (first time someone makes a set), not on every page load.
+  if (parts[1] === 'device' && parts.length === 2 && request.method === 'POST') {
+    const d = await Library.createDevice(env.DB);
+    return json({ id: d.id, secret: d.secret }, { status: 201 });
+  }
+  if (parts[1] === 'me' && parts.length === 2 && request.method === 'GET') {
+    const id = await Library.deviceFrom(env.DB, request);
+    if (!id) return err(401, 'unknown device');
+    return json({ id, sets: await Library.listSets(env.DB, id) });
   }
 
   if (parts[1] !== 'games') return err(404, 'not found');
