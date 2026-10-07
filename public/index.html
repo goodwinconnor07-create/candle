@@ -314,6 +314,28 @@
     border:1px solid var(--hair); border-radius:8px;
   }
 
+  /* link or code: the host picks how to invite, the guest types a code */
+  .sharepick{ display:inline-flex; padding:3px; gap:2px; border:1px solid var(--hair); border-radius:999px; }
+  .sharepick button{
+    font:500 .82rem/1 var(--sans); color:var(--ash); background:transparent; border:0;
+    border-radius:999px; padding:9px 16px; cursor:pointer; transition:background .2s, color .2s;
+  }
+  .sharepick button.on{ background:rgba(255,179,71,.14); color:var(--tallow); box-shadow:inset 0 0 0 1px var(--amber); }
+  .sharepick button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .codebox{
+    font:500 clamp(2rem,10vw,2.6rem)/1 var(--serif); font-variant-numeric:lining-nums tabular-nums;
+    letter-spacing:.18em; padding:12px 14px 12px calc(14px + .18em); color:var(--tallow);
+    border:1px solid var(--hair); border-radius:8px; min-width:min(300px,100%); text-align:center;
+  }
+  .codebox.wait{ color:var(--ash); }
+  .codefield{ font-size:2rem; letter-spacing:.3em; padding-left:calc(6px + .3em); font-variant-numeric:lining-nums tabular-nums; }
+  .textlink{
+    font:400 .84rem/1.3 var(--sans); color:var(--ash); background:none; border:0; padding:6px 8px;
+    cursor:pointer; text-decoration:underline; text-decoration-color:var(--hair); text-underline-offset:3px;
+  }
+  .textlink:hover{ color:var(--tallow); }
+  .textlink:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+
   /* ---------- mode picker ---------- */
   .modes{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; width:100%; }
   .mode{
@@ -1136,6 +1158,15 @@
         </button>
       </div>
       <button class="btn primary" id="introGo">Go</button>
+      <button class="textlink" type="button" id="introJoin">Got a code? Join a match</button>
+    </section>
+
+    <section class="panel" id="scCode" hidden>
+      <h2 class="hd">Enter your code</h2>
+      <p class="lead">Ask whoever invited you for the 6-digit code on their screen.</p>
+      <input class="field codefield" id="codeInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit code">
+      <button class="btn primary" id="codeGo" disabled>Join</button>
+      <p class="note" id="codeNote"></p>
     </section>
 
     <section class="panel" id="scOpponent" hidden>
@@ -1169,7 +1200,13 @@
 
     <section class="panel" id="scHost" hidden>
       <h2 class="hd" id="hostHd">Send this to your opponent</h2>
+      <div class="sharepick" id="hostPick" role="tablist" aria-label="How to invite">
+        <button type="button" class="on" data-share="link" role="tab" aria-selected="true">Share a link</button>
+        <button type="button" data-share="code" role="tab" aria-selected="false">Get a code</button>
+      </div>
       <p class="linkbox" id="hostLink"></p>
+      <p class="codebox" id="hostCode" hidden></p>
+      <p class="note" id="hostCodeNote" hidden></p>
       <div class="row" id="hostShareRow">
         <button class="btn" id="hostCopy"><svg><use href="#i-copy"/></svg>Copy link</button>
         <button class="btn" id="hostSend" hidden><svg><use href="#i-share"/></svg>Share</button>
@@ -1390,11 +1427,12 @@
 (function(){
   const $ = id => document.getElementById(id);
   const app = $('app');
-  const PANELS = ['scIntro','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scSea','scDead'];
+  const PANELS = ['scIntro','scCode','scOpponent','scSetup','scHost','scGuest','scPool','scChess','scSea','scDead'];
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
 
   let ws = null, gameId = null, myRole = null, pickedMode = 'pool', pickedChar = '';
   let opponentType = 'friend', testStarted = false;
+  let shareKind = 'link', hostCode = '', hostCodeFor = null, codeAsk = null;
   let questionMs = 10000;
   let phase = 'intro', deadlineAt = 0;
 
@@ -1530,7 +1568,7 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running or the link's already dead there's nothing sane to back out to,
   // so it stays hidden
-  const BACK_SCREENS = new Set(['scOpponent', 'scSetup', 'scHost', 'scGuest']);
+  const BACK_SCREENS = new Set(['scCode', 'scOpponent', 'scSetup', 'scHost', 'scGuest']);
 
   function show(ids){
     PANELS.forEach(p => { $(p).hidden = !ids.includes(p); });
@@ -3829,8 +3867,9 @@
         show(['scHost']);
         $('hostHd').textContent = s.vsBot ? 'Ready when you are'
           : s.guest.ready ? (s.guest.name || 'They') + ' is ready' : 'Send this to your opponent';
-        $('hostLink').hidden = !!s.vsBot;
+        $('hostPick').hidden = !!s.vsBot;
         $('hostShareRow').hidden = !!s.vsBot;
+        setShareKind(s.vsBot ? 'link' : shareKind, !!s.vsBot);
         setLobbyCard('lbHost', { char: s.host.char, name: s.host.name || 'You', ready: true, statusText: 'Ready' });
         if(!s.vsBot) $('hostLink').textContent = shareUrl();
         if(s.guest.ready){
@@ -3867,6 +3906,66 @@
   }
 
   function shareUrl(){ return location.href.split('#')[0] + '#g=' + gameId; }
+
+  // the host can send the link, or read out a 6-digit code instead. the code
+  // is only asked for the first time someone picks it
+  function setShareKind(kind, hideAll){
+    shareKind = kind;
+    [...$('hostPick').children].forEach(b => {
+      const on = b.dataset.share === kind;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    $('hostLink').hidden = hideAll || kind !== 'link';
+    $('hostCode').hidden = hideAll || kind !== 'code';
+    $('hostCodeNote').hidden = hideAll || kind !== 'code';
+    $('hostCopy').lastChild.textContent = kind === 'code' ? 'Copy code' : 'Copy link';
+    if(kind === 'code' && !hideAll) showCode();
+  }
+
+  function siteName(){ return location.host; }
+
+  function showCode(){
+    if(hostCodeFor === gameId && hostCode){
+      $('hostCode').textContent = hostCode;
+      $('hostCode').classList.remove('wait');
+      $('hostCopy').disabled = false;
+      $('hostCodeNote').className = 'note';
+      $('hostCodeNote').textContent = 'They go to ' + siteName() + ', tap “Got a code?” and type this in.';
+      return;
+    }
+    if(codeAsk) return;
+    const id = gameId;
+    let tok = '';
+    try{ tok = localStorage.getItem('sd-host-' + id) || ''; }catch(e){}
+    $('hostCode').textContent = '······';
+    $('hostCode').classList.add('wait');
+    $('hostCopy').disabled = true;
+    $('hostCodeNote').className = 'note';
+    $('hostCodeNote').textContent = 'Getting a code…';
+    const fail = why => {
+      if(id !== gameId) return;
+      $('hostCode').textContent = '— — —';
+      $('hostCodeNote').className = 'note warm';
+      $('hostCodeNote').textContent = why;
+    };
+    codeAsk = fetch('/api/games/' + id + '/code', {
+      method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ token: tok }),
+    }).then(async r => {
+      if(r.status === 409) return fail('Someone has already joined, so there’s no code to hand out.');
+      if(!r.ok) return fail('Couldn’t get a code. The server answered ' + r.status + '. Switch to the link, or try again.');
+      const made = await r.json();
+      hostCode = made.code;
+      hostCodeFor = id;
+      if(id === gameId && shareKind === 'code') showCode();
+    }).catch(() => fail('Couldn’t reach the server for a code. Check your connection and try again.'))
+      .finally(() => { codeAsk = null; });
+  }
+
+  $('hostPick').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if(b && b.dataset.share !== shareKind) setShareKind(b.dataset.share, false);
+  });
 
   function goCold(hd, sub){
     $('deadHd').textContent = hd;
@@ -4010,6 +4109,7 @@
     // the match exists on the server from here on, so nothing below may report
     // itself as the server being unreachable
     gameId = made.id;
+    shareKind = 'link';
     try{ localStorage.setItem('sd-host-' + gameId, made.token); }catch(e){}
     // putting the link in the address bar is a nicety, and it throws outright
     // in a sandboxed frame or an in-app browser — never let it sink the match
@@ -4022,12 +4122,16 @@
   }
 
   $('hostCopy').addEventListener('click', () => {
+    const kind = shareKind;
     const done = () => {
       $('hostCopy').lastChild.textContent = 'Copied';
-      setTimeout(() => { $('hostCopy').lastChild.textContent = 'Copy link'; }, 1600);
+      setTimeout(() => {
+        if(shareKind === kind) $('hostCopy').lastChild.textContent = kind === 'code' ? 'Copy code' : 'Copy link';
+      }, 1600);
     };
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(shareUrl()).then(done).catch(() => {});
+    const text = kind === 'code' ? hostCode : shareUrl();
+    if(text && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(() => {});
     }
   });
 
@@ -4038,9 +4142,62 @@
         chess: 'Chess, but every move has to be earned. Fancy a game?',
         battleships: 'Battleships, but every shot has to be earned. Fancy a game?',
       }[pickedMode] || 'Pool, but every shot has to be earned. Fancy a game?';
-      navigator.share({ text, url: shareUrl() }).catch(() => {});
+      if(shareKind === 'code' && hostCode){
+        const site = location.href.split('#')[0];
+        navigator.share({ text: text + ' Go to ' + site + ', tap “Got a code?” and enter ' + hostCode + '.' }).catch(() => {});
+      }else{
+        navigator.share({ text, url: shareUrl() }).catch(() => {});
+      }
     });
   }
+
+  // ---------- joining with a code ----------
+  $('introJoin').addEventListener('click', () => {
+    $('codeInput').value = '';
+    $('codeNote').className = 'note';
+    $('codeNote').textContent = '';
+    $('codeGo').disabled = true;
+    show(['scCode']);
+    try{ $('codeInput').focus(); }catch(e){}
+  });
+
+  let codeBusy = false;
+  async function joinByCode(){
+    const code = $('codeInput').value;
+    if(codeBusy || !/^\d{6}$/.test(code)) return;
+    codeBusy = true;
+    $('codeGo').disabled = true;
+    $('codeNote').className = 'note';
+    $('codeNote').textContent = 'Looking for the match…';
+    try{
+      const r = await fetch('/api/codes/' + code);
+      if(r.status === 404){
+        $('codeNote').className = 'note warm';
+        $('codeNote').textContent = 'No match has that code. Check it with whoever sent it.';
+        return;
+      }
+      if(!r.ok) throw new Error('the server answered ' + r.status);
+      const found = await r.json();
+      $('codeNote').textContent = '';
+      location.hash = 'g=' + found.id;   // route() takes it from here, as the guest
+    }catch(e){
+      $('codeNote').className = 'note warm';
+      $('codeNote').textContent = 'Couldn’t reach the server. Check your connection and try again.';
+    }finally{
+      codeBusy = false;
+      $('codeGo').disabled = !/^\d{6}$/.test($('codeInput').value);
+    }
+  }
+
+  $('codeInput').addEventListener('input', () => {
+    const v = $('codeInput').value.replace(/\D/g, '').slice(0, 6);
+    if(v !== $('codeInput').value) $('codeInput').value = v;
+    $('codeGo').disabled = v.length !== 6 || codeBusy;
+    if(v.length < 6){ $('codeNote').className = 'note'; $('codeNote').textContent = ''; }
+    if(v.length === 6) joinByCode();
+  });
+  $('codeInput').addEventListener('keydown', e => { if(e.key === 'Enter') joinByCode(); });
+  $('codeGo').addEventListener('click', joinByCode);
 
   $('hostStart').addEventListener('click', () => {
     $('hostStart').disabled = true;

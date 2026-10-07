@@ -13,8 +13,9 @@ npx wrangler deploy
 ```
 
 The front end is plain HTML with no build step, and the Worker has no
-dependencies beyond its own `pool.js`. Nothing to migrate — the Durable
-Object binding is already in `wrangler.toml` and doesn't change. No API keys
+dependencies beyond its own `pool.js`. The Durable Object bindings and
+migrations are in `wrangler.toml` (`v2` added the `JoinCode` class for
+6-digit join codes), and `wrangler deploy` applies them itself. No API keys
 or secrets are needed.
 
 ## From a fresh machine
@@ -47,7 +48,8 @@ saved seat — and you can play a full match against yourself. Or pick
 
 ## What's actually running
 
-One Worker and one Durable Object per match. No database, no KV, nothing to
+One Worker and one Durable Object per match, plus a tiny one per join code
+that's been handed out. No database, no KV, nothing to
 clean up: each room deletes itself a day after its last activity, and the
 free tier covers all of this comfortably.
 
