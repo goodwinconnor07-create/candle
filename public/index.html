@@ -1199,7 +1199,8 @@
   .btn{ transition:border-color .2s, background .2s, opacity .2s, color .2s, box-shadow .25s, filter .2s, scale var(--settle) var(--spring); }
   .choice{ transition:border-color .15s, background .15s, color .15s, opacity .3s, box-shadow .3s, filter .2s, scale var(--settle) var(--spring); }
   .mode, .charcard{ transition:border-color .2s, background .2s, box-shadow .25s, filter .2s, scale var(--settle) var(--spring); }
-  .backbtn, .quitbtn, .pillbtn, .avatarbtn, .spinbtn, .dot, .codebox, .deckcard, .bcard, .textlink, .game{
+  .game{ transition:scale var(--settle) var(--spring), filter .2s; }
+  .backbtn, .quitbtn, .pillbtn, .avatarbtn, .spinbtn, .dot, .codebox, .deckcard, .bcard, .textlink{
     transition-property:border-color, background, color, box-shadow, opacity, filter, scale;
     transition-duration:.2s, .2s, .2s, .25s, .45s, .2s, var(--settle);
     transition-timing-function:ease, ease, ease, ease, var(--ease-out), ease, var(--spring);
@@ -1213,7 +1214,7 @@
   @media (hover:hover){
     .btn:hover:not(:disabled){ filter:brightness(1.07); }
     .pillbtn:hover, .avatarbtn:hover{ border-color:rgba(239,227,204,.4); }
-    .game:not(.on):hover{ opacity:.8; }
+    .game:not(.on):hover{ filter:brightness(1.15); }
   }
   /* small round buttons keep their look but get a full 44px+ touch area */
   .backbtn::before, .quitbtn::before, .spinbtn::before, .pillbtn::before{ content:""; position:absolute; inset:-5px; border-radius:inherit; }
@@ -1320,14 +1321,36 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(255,255,255,.07), 0 26px 46px -22px rgba(0,0,0,.95);
   }
   .game{ max-height:calc(var(--cardw) * 1.72); align-self:center; height:100%; }
-  .game:not(.on){ scale:.93; opacity:.5; }
-  .game.on{ cursor:default; }
-  /* moving the strip moves the cards: they lean into the direction, stretch a
-     touch and leave a soft sideways trail (#cardSmear), all from how fast the
-     strip is going (see smearMotion). .moving is only on while it's in motion */
-  .games.moving .game{
-    transform:skewX(var(--lean, 0deg)) scaleX(var(--stretch, 1));
-    filter:url(#cardSmear);
+  /* each card's size and brightness come from how close it is to the middle
+     (--p: 1 centred, 0 a card away) and its art drifts a little slower than the
+     card (--d: -1 left .. 1 right). cardDepth() sets both every frame the strip
+     moves, so the cards follow your finger the whole way instead of flipping
+     at the halfway point. until it runs, .on stands in */
+  .game{ --p:0; --d:0; transform:scale(calc(.9 + .1 * var(--p))); opacity:calc(.42 + .58 * var(--p)); }
+  .game.on{ --p:1; cursor:default; }
+  .game-head{ translate:calc(var(--d) * 8px) 0; }
+  .game-scene{ translate:calc(var(--d) * 22px) 0; }
+
+  /* arrows beside the middle card, only with a mouse: a touch screen swipes,
+     and the peeking cards and dots already say there's more */
+  .gamesbox{ position:relative; flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-self:stretch; }
+  .gamesbox > .games{ flex:1 1 auto; }
+  .gamearrow{ display:none; }
+  @media (hover:hover) and (pointer:fine){
+    .gamearrow{
+      position:absolute; top:50%; z-index:2; width:44px; height:44px; margin-top:-22px; padding:0;
+      left:calc(50% - min(82vw, 392px) / 2 - 22px);
+      display:flex; align-items:center; justify-content:center; border-radius:50%;
+      color:var(--tallow); background:rgba(13,10,8,.62); border:1px solid var(--hair);
+      -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+      box-shadow:0 10px 24px -12px rgba(0,0,0,.9); cursor:pointer;
+      transition:opacity .3s var(--ease-out), scale var(--settle) var(--spring), border-color .2s, background .2s;
+    }
+    .gamearrow.next{ left:auto; right:calc(50% - min(82vw, 392px) / 2 - 22px); }
+    .gamearrow svg{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+    .gamearrow:hover{ border-color:rgba(239,227,204,.45); background:rgba(13,10,8,.78); }
+    .gamearrow:active{ scale:.9; transition-duration:var(--press); }
+    .gamearrow:disabled{ opacity:0; pointer-events:none; }
   }
   .game::before{   /* a soft sheen across the top, like light on glass */
     content:""; position:absolute; inset:0 0 auto; height:46%; pointer-events:none;
@@ -1455,7 +1478,7 @@
     .sc-hop, .sc-hint, .sc-taken, .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint, .sc-flag, .lobbyside.waiting .pod{ animation:none; }
     .sc-hint{ opacity:.9; }
     .game{ transition:none; }
-    .games.moving .game{ transform:none; filter:none; }
+    .game-head, .game-scene{ translate:none; }
   }
 
   /* a new question's answers rise in one after another */
@@ -1615,14 +1638,6 @@
 </style>
 </head>
 <body>
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-    <filter id="cardSmear" x="-25%" y="0" width="150%" height="100%" color-interpolation-filters="sRGB">
-      <feGaussianBlur id="smearBlur" in="SourceGraphic" stdDeviation="0 0" result="b"/>
-      <feOffset id="smearOff" in="b" dx="0" dy="0" result="o"/>
-      <feComponentTransfer in="o" result="t"><feFuncA type="linear" slope=".4"/></feComponentTransfer>
-      <feMerge><feMergeNode in="t"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </svg>
   <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="tint" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
@@ -2107,6 +2122,9 @@
         </div>
         <button class="pillbtn" id="introJoin" type="button" aria-label="Join a match with a code"><svg><use href="#i-join"/></svg>Join</button>
       </div>
+      <div class="gamesbox">
+      <button class="gamearrow prev" id="gamePrev" type="button" aria-label="Previous game"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+      <button class="gamearrow next" id="gameNext" type="button" aria-label="Next game"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg></button>
       <div class="games" id="games" role="listbox" aria-label="Choose a game">
         <article class="game" data-mode="pool" role="option" tabindex="-1" aria-label="Pool">
           <div class="game-head">
@@ -2161,6 +2179,7 @@
             <div class="scene" id="sceneGolf" aria-hidden="true"></div>
           </div>
         </article>
+      </div>
       </div>
       <div class="dots" id="gameDots"></div>
       <div class="setsrow"><button class="pillbtn" id="introSets" type="button">Questions: Quick maths</button></div>
@@ -7483,6 +7502,7 @@
     gameScrollRaf = requestAnimationFrame(() => {
       gameScrollRaf = 0;
       const box = $('games'), mid = box.scrollLeft + box.clientWidth / 2;
+      cardDepth(); blendTint(mid);
       let best = null, bd = Infinity;
       for(const c of gameCards){
         const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - mid);
@@ -7494,7 +7514,6 @@
         else gameLock = null;
       }
       if(best && best.dataset.mode !== pickedMode){ pickGame(best.dataset.mode); haptics('tick'); }
-      blendTint(mid);
     });
   }, { passive: true });
 
@@ -7515,43 +7534,33 @@
     st.setProperty('--tint2', `color-mix(in srgb, ${a[1]}, ${b[1]} ${pc}%)`);
   }
 
-  // moving the strip moves the cards: they lean into the direction, stretch a
-  // little and drag a soft trail behind them, then settle as the strip slows.
-  // one frame loop that runs only while there's motion
-  const smearBlur = $('smearBlur'), smearOff = $('smearOff');
-  let smV = 0, smRaf = 0, smLeft = 0, smT = 0, smStill = 0;
-  function smearMotion(now){
-    const box = $('games');
-    const dt = Math.max(1, now - smT), v = (box.scrollLeft - smLeft) / dt;   // px per ms, + = cards go left
-    smLeft = box.scrollLeft; smT = now;
-    smV += (v - smV) * (Math.abs(v) > Math.abs(smV) ? .45 : .14);
-    const a = Math.abs(smV), dir = smV < 0 ? -1 : 1;
-    smStill = a < .02 ? smStill + 1 : 0;
-    if(smStill > 8){
-      smV = 0; smRaf = 0; smStill = 0;
-      box.classList.remove('moving');
-      box.style.removeProperty('--lean'); box.style.removeProperty('--stretch');
-      return;
+  // how close each card is to the middle, for its size, brightness and the
+  // drift of its art (see .game in the styles), and whether there's anywhere
+  // left for the arrows to go
+  function cardDepth(){
+    const box = $('games'), mid = box.scrollLeft + box.clientWidth / 2;
+    const step = (gameCards[1] ? gameCards[1].offsetLeft - gameCards[0].offsetLeft : 0) || 1;
+    for(const c of gameCards){
+      const d = Math.max(-1, Math.min(1, (c.offsetLeft + c.offsetWidth / 2 - mid) / step));
+      c.style.setProperty('--p', (1 - Math.abs(d)).toFixed(3));
+      c.style.setProperty('--d', d.toFixed(3));
     }
-    const trail = Math.min(3.5, a * 2.2);
-    box.classList.add('moving');
-    box.style.setProperty('--lean', (dir * Math.min(2.2, a * 1.5)).toFixed(2) + 'deg');
-    box.style.setProperty('--stretch', (1 + Math.min(.015, a * .01)).toFixed(4));
-    smearBlur.setAttribute('stdDeviation', trail.toFixed(2) + ' 0');
-    smearOff.setAttribute('dx', (dir * trail * 1.2).toFixed(2));
-    smRaf = requestAnimationFrame(smearMotion);
+    $('gamePrev').disabled = box.scrollLeft < 4;
+    $('gameNext').disabled = box.scrollLeft > box.scrollWidth - box.clientWidth - 4;
   }
-  $('games').addEventListener('scroll', () => {
-    if(smRaf || reduceMotion()) return;
-    smLeft = $('games').scrollLeft; smT = performance.now();
-    smRaf = requestAnimationFrame(smearMotion);
-  }, { passive: true });
+  function stepGame(by){
+    const i = gameCards.findIndex(c => c.dataset.mode === pickedMode) + by;
+    if(gameCards[i]) scrollToGame(gameCards[i].dataset.mode, true);
+  }
+  $('gamePrev').addEventListener('click', () => stepGame(-1));
+  $('gameNext').addEventListener('click', () => stepGame(1));
+  window.addEventListener('resize', () => requestAnimationFrame(cardDepth));
+  requestAnimationFrame(cardDepth);
 
   document.addEventListener('keydown', e => {
     if($('scIntro').hidden || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
     if(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-    const i = gameCards.findIndex(c => c.dataset.mode === pickedMode) + (e.key === 'ArrowRight' ? 1 : -1);
-    if(gameCards[i]){ e.preventDefault(); scrollToGame(gameCards[i].dataset.mode, true); }
+    e.preventDefault(); stepGame(e.key === 'ArrowRight' ? 1 : -1);
   });
 
   // your face in the top corner; tap it to change your name or character

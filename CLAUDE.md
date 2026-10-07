@@ -187,7 +187,10 @@ PR to the default branch, merge, deploy, then check the live site.
   background takes the colours of the card in the middle: `--tint` and `--tint2`
   (bright and dark), blended by `blendTint()` in the strip's scroll handler so it
   slides between games as you swipe. The `html[data-game]` values are the
-  starting point and fallback. Screens
+  starting point and fallback. Each card's size, brightness and art drift come from
+  `cardDepth()` (`--p`, `--d`) every frame the strip moves, so they follow the
+  finger; don't put timed transitions on a card's scale or opacity. Arrows
+  (`#gamePrev`/`#gameNext`) only show with a mouse. Screens
   before a game put their main button in a `.dock` at the bottom. `show()` slides
   screens by their `DEPTH` and fades games in.
 - History: screens opened inside the app (`pushSub()`: join code, profile,
