@@ -1,8 +1,8 @@
 # Study Duel
 
 Two-player study mini games. You play a simple game everyone already knows,
-but every move has to be earned by answering a question right. Pool and chess
-so far.
+but every move has to be earned by answering a question right. Pool, chess
+and Towers so far.
 
 Live at https://candle-timer.candle-timer.workers.dev
 
@@ -82,6 +82,69 @@ source is at https://github.com/nmrugg/stockfish.js. To update it, take
 `stockfish-*-lite-single.js` and `.wasm` from the `stockfish` npm package and
 change `SF_URL` in `public/index.html`.
 
+## Towers
+
+A tower battle after Clash Royale, with its own cast. Each side has a king
+tower and two lantern towers, with a river and two bridges between. You win
+by knocking towers down: one crown per lantern tower, all three for the king.
+
+The twist: elixir only comes from answering questions. There are no turns.
+The battle runs in real time and both players answer their own questions at
+once, so you're always weighing up one more question against defending your
+lane right now.
+
+- A right answer is +2 elixir, +3 once you've got three in a row. In the last
+  minute and in overtime ("elixir rush") every right answer is worth 1 more.
+- A wrong answer locks your questions for 2 seconds and resets your streak.
+- You start with 5 elixir, and you can hold 10.
+- 3 minutes of regular time. Most crowns wins. If it's level, up to 2 minutes
+  of sudden-death overtime, where the next tower to fall decides it. Still
+  level after that and whoever's weakest tower has less health left loses.
+- Your deck is 8 cards. You hold 4 and can see the next one. A played card
+  goes to the back of the queue, so the order cycles.
+- Tap a card, then tap the arena, or drag the card straight on. Troops and
+  buildings go on your side of the river. Once you take a lantern tower, the
+  gap it leaves on their side opens up too. Spells go anywhere.
+
+How troops think, the way Clash Royale's do: each one goes for the nearest
+enemy it's allowed to hit within sight, and with nothing in sight it walks
+to the nearest enemy tower. Once it's swinging at something it stays on it.
+Ground troops need a bridge to cross the river. Tower-chasers ignore troops
+entirely, so a building in their path pulls them off course. A king tower
+sleeps until it's hit or loses a lantern tower.
+
+The cards, all original characters:
+
+| Card | Elixir | What it does |
+| --- | --- | --- |
+| Hall Monitor | 3 | Sturdy melee tank for one lane |
+| Pencil Pushers | 3 | Two ranged troops that hit air and ground |
+| Paper Planes | 3 | Three fast flyers |
+| Doodles | 3 | Ten small scribbles that swarm |
+| Janitor | 4 | Spins a mop and hits everything around him |
+| Chem Whiz | 5 | Ranged splash, air and ground |
+| Bookstack | 5 | Slow, huge, and only goes for towers |
+| Skater | 4 | Very fast, jumps the river, goes for towers |
+| Paper Lantern | 5 | Flies to a tower and drops wax on it; bursts when popped |
+| Stapler | 3 | Turret for ground troops; pulls tower-chasers; lasts 30s |
+| Pop Quiz | 4 | Area damage, launched from your king tower |
+| Eraser | 2 | Rolls forward, hitting and shoving ground troops |
+| Detention | 4 | Freezes everything in the circle for 4s, towers too |
+| Coffee Break | 2 | Your troops in the circle move and hit 35% faster |
+
+Spells only do 30% of their damage to towers. The starter deck is Hall
+Monitor, Pencil Pushers, Paper Planes, Doodles, Bookstack, Chem Whiz, Pop Quiz
+and Eraser. Pick your own 8 with **Edit deck** before a match; it's kept in
+your browser.
+
+Under the hood the room runs the whole battle (`towers.js`) ten times a
+second and sends both phones a small picture of it, which they draw smoothly
+between updates. Each player's question, hand and elixir only go to that
+player. The cards, the arena and the drop rules live in
+`public/towers-cards.js`, shared by the room and the browser. In Test Mode,
+Tester plays a random deck, answers about three in four right, defends what
+crosses the river and pushes a lane when it has saved up.
+
 ## Whose turn is it?
 
 Both games put a banner over the board that says whose turn it is, with that
@@ -138,7 +201,9 @@ There's no build step and no dependencies to install for the Worker itself.
 `public/index.html` is the whole front end, `worker.js` is the backend, and
 pool's table physics and 8-ball rules are split out into `pool.js`. Chess
 rules and the hint engine are in `public/chess.js`, which sits in `public/`
-because both the room and the browser load it.
+because both the room and the browser load it. The Towers battle is in
+`towers.js`, and its cards and arena in `public/towers-cards.js` for the
+same reason.
 
 ## Tuning
 
@@ -153,6 +218,10 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 | `CHESS_CLOCK_MS` | each player's chess clock |
 | `CHESS_PENALTY_MS` | time off your chess clock for a wrong answer |
 | `HINT_STREAK` | right answers in a row that unlock the best move |
+| `ELIXIR_RIGHT`, `ELIXIR_STREAK`, `ELIXIR_RUSH` | Towers elixir per right answer, the streak bonus and the rush bonus |
+| `WRONG_LOCK_MS`, `RIGHT_GAP_MS` | Towers: the wait after a wrong answer, and before the next question |
+| `TOWERS_REG_TICKS`, `TOWERS_OT_TICKS` | Towers match and overtime length, in tenths of a second |
+| `CARDS`, `TOWER_STATS` (public/towers-cards.js) | every card's stats, and the towers' |
 | `MAX_SPEED` (pool.js) | how hard a full-power shot hits |
 | `ROLL_DECEL`, `DRAG` (pool.js) | how quickly balls slow down |
 | `CORNER_GAP`, `SIDE_GAP` (pool.js) | pocket sizes |
@@ -160,8 +229,7 @@ The knobs are constants at the top of `worker.js` and `pool.js`:
 ## Adding another mini game
 
 `MODES` in `worker.js` lists the games. A new one needs an entry there, a card
-in `#modeGrid` in `public/index.html` (there's a locked "More games" card
-holding the spot), and its own game loop in the room alongside pool's and
-chess's. The
-lobby, test mode, leaving and the hold-to-quit button are shared and don't
-need to change.
+in `#modeGrid` in `public/index.html` (it's three across now, so a fourth game
+means changing that grid), and its own game loop in the room alongside pool's,
+chess's and Towers'. The lobby, test mode, leaving and the hold-to-quit button
+are shared and don't need to change.

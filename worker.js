@@ -16,6 +16,11 @@
  * move for as long as the streak lasts. The rules live in public/chess.js,
  * which the browser loads too.
  *
+ * Towers: a tower-battle game after Clash Royale. It runs in real time, and
+ * both players answer their own questions at once: every right answer is
+ * elixir, and elixir is the only way to play cards. The battle itself is in
+ * towers.js, and the cards and the arena in public/towers-cards.js.
+ *
  * Judge Mode and Debate Mode used to live here too. They're kept on the
  * `archive/judge-debate-modes` branch.
  *
@@ -27,6 +32,8 @@
 
 import * as Pool from './pool.js';
 import * as Chess from './public/chess.js';
+import * as Towers from './towers.js';
+import * as Cards from './public/towers-cards.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
@@ -34,7 +41,7 @@ const TICK_MS      = 200;     // how often the room checks its own deadlines
 const NAME_MAX     = 16;
 // every mini game gets an entry here; the lobby, test mode and leaving all
 // work the same whichever one is picked
-const MODES        = { pool: 'Pool', chess: 'Chess' };
+const MODES        = { pool: 'Pool', chess: 'Chess', towers: 'Towers' };
 
 // ---- Pool ----
 // every shot is earned: the shooter answers a question first, and a miss
@@ -50,6 +57,19 @@ const CHESS_CLOCK_MS  = 5 * 60 * 1000;   // each player's clock
 const CHESS_PENALTY_MS = 15000;          // off your clock for a wrong answer or no answer
 const CHESS_RESULT_MS = 1500;            // pause on right/wrong; the clock stops for it
 const HINT_STREAK     = 3;               // right answers in a row that unlock the best move
+
+// ---- Towers ----
+// no turns: the battle runs in real time and both players answer their own
+// questions at once. elixir only comes from right answers
+const TOWERS_TICK_MS   = 100;     // one battle step; both screens get a picture every step
+const TOWERS_REG_TICKS = 1800;    // 3:00 of regular time
+const TOWERS_OT_TICKS  = 1200;    // up to 2:00 of sudden-death overtime
+const TOWERS_RUSH_TICKS = 600;    // the last minute of regular time pays extra
+const ELIXIR_RIGHT     = 2;       // elixir for a right answer
+const ELIXIR_STREAK    = 1;       // extra once you've got 3 in a row
+const ELIXIR_RUSH      = 1;       // extra in the last minute and in overtime
+const RIGHT_GAP_MS     = 600;     // after a right answer, the next question comes this soon
+const WRONG_LOCK_MS    = 2000;    // after a wrong one, you wait this long
 
 // a dropped connection mid-match might just be a refresh or a locked phone,
 // so the seat is held this long before the match is called off
@@ -164,6 +184,9 @@ export class GameRoom {
         mode: MODES[body.mode] ? body.mode : 'pool',
         vsBot: test,
         test,
+        // Towers decks; the stand-in brings a random one
+        hostDeck: Cards.cleanDeck(body.deck),
+        guestDeck: test ? shuffle(Cards.CARD_KEYS.slice()).slice(0, Cards.DECK_SIZE) : Cards.DEFAULT_DECK.slice(),
       };
       await this.saveLobby();
       return json({ token: this.lobby.hostToken });
@@ -252,6 +275,7 @@ export class GameRoom {
       if (!char) return;                    // no character, no seat
       lobby.guestName = clean(msg.name, NAME_MAX) || 'Challenger';
       lobby.guestChar = char;
+      lobby.guestDeck = Cards.cleanDeck(msg.deck);
       lobby.guestReady = true;
       await this.saveLobby();
       this.broadcast(this.snapshot());
@@ -268,6 +292,8 @@ export class GameRoom {
     if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
     if (msg.t === 'cans') { this.chessAnswer(role, msg.choice); return; }
     if (msg.t === 'move') { this.chessMove(role, msg); return; }
+    if (msg.t === 'bans') { this.towersAnswer(role, msg.choice, msg.id); return; }
+    if (msg.t === 'play') { this.towersPlay(role, msg); return; }
 
     if (msg.t === 'leave') { this.playerLeft(role); return; }
 
@@ -293,6 +319,17 @@ export class GameRoom {
       botDueAt: 0,
       botChoice: null,
     };
+    if (mode === 'towers') {
+      const lobby = this.lobby;
+      this.game.battle = Towers.newBattle({ host: lobby.hostDeck, guest: lobby.guestDeck });
+      this.game.tq = { host: this.towersQ0(), guest: this.towersQ0() };
+      this.game.bt = 0;
+      this.game.botLast = -99;
+      this.broadcast(this.snapshot());
+      this.towersSend();
+      this.startLoop(TOWERS_TICK_MS);
+      return;
+    }
     if (mode === 'chess') {
       // white is picked at random, the way pool picks who breaks
       const pos = Chess.start();
@@ -650,11 +687,202 @@ export class GameRoom {
     }
   }
 
-  startLoop() {
+  // ---- Towers ----
+  // the room steps the battle every 100ms and sends each player the shared
+  // picture plus their own hand, elixir and question. a question's answer
+  // only goes out once it's been answered
+
+  towersQ0() {
+    return { q: null, id: 0, state: 'wait', readyAt: 0, last: null, streak: 0, asked: 0, right: 0, botAt: 0, botChoice: 0 };
+  }
+
+  towersRush() {
+    const g = this.game;
+    return g.phase === 'overtime' || (g.phase === 'battle' && g.bt >= TOWERS_REG_TICKS - TOWERS_RUSH_TICKS);
+  }
+
+  towersAsk(role) {
+    const g = this.game, Q = g.tq[role];
+    Q.q = makeQuestion();
+    Q.id += 1;
+    Q.state = 'ask';
+    if (g.vsBot && role === 'guest') {
+      Q.botAt = Date.now() + 2000 + rnd(2000);
+      Q.botChoice = Math.random() < .75 ? Q.q.answer : (Q.q.answer + 1 + rnd(3)) % 4;
+    }
+  }
+
+  towersAnswer(role, choice, id) {
+    const g = this.game;
+    if (!g || g.mode !== 'towers' || (g.phase !== 'battle' && g.phase !== 'overtime')) return;
+    const Q = g.tq[role];
+    if (Q.state !== 'ask' || (id != null && Number(id) !== Q.id)) return;
+    const picked = choice == null ? null : Number(choice);
+    const right = picked === Q.q.answer;
+    Q.asked += 1;
+    let gain = 0;
+    if (right) {
+      Q.right += 1;
+      Q.streak += 1;
+      gain = ELIXIR_RIGHT + (Q.streak >= 3 ? ELIXIR_STREAK : 0) + (this.towersRush() ? ELIXIR_RUSH : 0);
+      Towers.addElixir(g.battle, role, gain);
+      Q.state = 'right';
+      Q.readyAt = Date.now() + RIGHT_GAP_MS;
+    } else {
+      Q.streak = 0;
+      Q.state = 'wrong';
+      Q.readyAt = Date.now() + WRONG_LOCK_MS;
+    }
+    Q.last = { id: Q.id, choice: picked, right, gain };
+    this.towersSend();
+  }
+
+  towersPlay(role, msg) {
+    const g = this.game;
+    if (!g || g.mode !== 'towers' || (g.phase !== 'battle' && g.phase !== 'overtime')) return;
+    const slot = Number(msg.slot);
+    if (!(slot >= 0 && slot < 4)) return;
+    const side = g.battle.sides[role];
+    // the hand only changes when you play, so a mismatch is a stale double tap
+    if (msg.card != null && Cards.CARD_KEYS[Number(msg.card)] !== side.hand[slot]) return;
+    const why = Towers.play(g.battle, role, slot, Number(msg.x), Number(msg.y));
+    if (why) this.sendTo(role, { t: 'bno', why, slot });
+  }
+
+  // a player's own question, as they're allowed to see it
+  towersQuestion(role) {
+    const Q = this.game.tq[role];
+    if (!Q.q) return null;
+    const out = { id: Q.id, text: Q.q.text, choices: Q.q.choices, state: Q.state, streak: Q.streak };
+    if (Q.state !== 'ask' && Q.last && Q.last.id === Q.id) {
+      out.answer = Q.q.answer;
+      out.choice = Q.last.choice;
+      out.gain = Q.last.gain;
+      out.wait = Math.max(0, Q.readyAt - Date.now());
+    }
+    return out;
+  }
+
+  towersLeft() {
+    const g = this.game;
+    if (g.phase === 'countdown') return TOWERS_REG_TICKS * TOWERS_TICK_MS;
+    if (g.phase === 'battle') return (TOWERS_REG_TICKS - g.bt) * TOWERS_TICK_MS;
+    if (g.phase === 'overtime') return (TOWERS_REG_TICKS + TOWERS_OT_TICKS - g.bt) * TOWERS_TICK_MS;
+    return 0;
+  }
+
+  towersSend() {
+    const g = this.game, s = g.battle;
+    const base = {
+      t: 'bt', ph: g.phase, tl: Math.max(0, this.towersLeft()), rush: this.towersRush() ? 1 : 0,
+      cd: g.phase === 'countdown' ? Math.max(0, g.deadline - Date.now()) : 0,
+      st: [g.tq.host.streak, g.tq.guest.streak],
+      ...Towers.world(s),
+    };
+    for (const conn of [...this.sockets]) {
+      const msg = { ...base, me: { ...Towers.mine(s, conn.role), q: this.towersQuestion(conn.role) } };
+      try { conn.ws.send(JSON.stringify(msg)); } catch (e) { this.sockets.delete(conn); }
+    }
+  }
+
+  towersTick(g) {
+    const now = Date.now();
+    if (g.phase === 'countdown') {
+      if (now >= g.deadline) {
+        g.phase = 'battle';
+        this.towersAsk('host');
+        this.towersAsk('guest');
+        this.broadcast(this.snapshot());
+      }
+      this.towersSend();
+      return;
+    }
+    const s = g.battle;
+    for (const role of ['host', 'guest']) {
+      const Q = g.tq[role];
+      if (Q.state !== 'ask' && now >= Q.readyAt) this.towersAsk(role);
+      else if (g.vsBot && role === 'guest' && Q.state === 'ask' && now >= Q.botAt) this.towersAnswer('guest', Q.botChoice, Q.id);
+    }
+    // the stand-in plays at most once a second
+    if (g.vsBot && g.bt % 5 === 0 && g.bt - g.botLast >= 10) {
+      const p = Towers.botPlay(s, 'guest');
+      if (p && !Towers.play(s, 'guest', p.slot, p.x, p.y)) g.botLast = g.bt;
+    }
+    Towers.step(s);
+    g.bt += 1;
+
+    const h = s.sides.host.crowns, c = s.sides.guest.crowns;
+    if (s.kingDown) { this.towersOver(s.kingDown === 'host' ? 'guest' : 'host', 'king'); return; }
+    if (g.phase === 'battle' && g.bt >= TOWERS_REG_TICKS) {
+      if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'time'); return; }
+      g.phase = 'overtime';
+      this.broadcast(this.snapshot());
+    } else if (g.phase === 'overtime') {
+      // sudden death: the first tower to fall settles it
+      if (h !== c) { this.towersOver(h > c ? 'host' : 'guest', 'overtime'); return; }
+      if (g.bt >= TOWERS_REG_TICKS + TOWERS_OT_TICKS) {
+        const a = Towers.weakest(s, 'host'), b = Towers.weakest(s, 'guest');
+        this.towersOver(a === b ? null : a > b ? 'host' : 'guest', a === b ? 'draw' : 'tiebreak');
+        return;
+      }
+    }
+    this.towersSend();
+  }
+
+  towersOver(winner, how) {
+    const g = this.game, s = g.battle;
+    const loser = winner && (winner === 'host' ? 'guest' : 'host');
+    const wn = winner && g[winner].name, ln = loser && g[loser].name;
+    const cr = [s.sides.host.crowns, s.sides.guest.crowns];
+    const score = winner === 'host' ? cr[0] + '–' + cr[1] : cr[1] + '–' + cr[0];
+    const why = {
+      king: wn + " knocked down " + ln + "'s king tower.",
+      time: "Time's up with the crowns at " + score + '.',
+      overtime: wn + ' took a tower in overtime.',
+      tiebreak: "Still level after overtime, and " + ln + "'s weakest tower had less left.",
+      draw: "Level on crowns and on tower health. It's a draw.",
+    }[how];
+    g.phase = 'over';
+    g.over = { winner, draw: !winner, why, crowns: cr };
+    this.stopLoop();
+    this.towersSend();
+    this.broadcast(this.snapshot());
+  }
+
+  towersSnapshot(mode) {
+    const g = this.game;
+    return {
+      t: 'state',
+      phase: g.phase,
+      mode,
+      modeName: MODES[mode],
+      test: !!g.test,
+      ms: g.phase === 'countdown' ? Math.max(0, g.deadline - Date.now()) : 0,
+      host: { name: g.host.name, char: g.host.char },
+      guest: { name: g.guest.name, char: g.guest.char },
+      over: g.over,
+      towers: {
+        stats: {
+          host: { asked: g.tq.host.asked, right: g.tq.host.right },
+          guest: { asked: g.tq.guest.asked, right: g.tq.guest.right },
+        },
+      },
+    };
+  }
+
+  sendTo(role, msg) {
+    const payload = JSON.stringify(msg);
+    for (const conn of [...this.sockets]) {
+      if (conn.role !== role) continue;
+      try { conn.ws.send(payload); } catch (e) { this.sockets.delete(conn); }
+    }
+  }
+
+  startLoop(ms = TICK_MS) {
     if (this.loop) return;
     this.loop = setInterval(() => {
       try { this.tick(); } catch (e) { /* a dropped tick just means a slightly late deadline */ }
-    }, TICK_MS);
+    }, ms);
   }
 
   stopLoop() {
@@ -675,7 +903,7 @@ export class GameRoom {
     g.over = { winner: other, left: role, why: g[role].name + ' left the game.' };
     g.q = null;
     if (g.chess) { if (g.chess.since) this.chessStop(); g.chess.call = g.over.why; }
-    else { g.table.shot = null; g.table.after = null; g.table.call = g.over.why; }
+    else if (g.table) { g.table.shot = null; g.table.after = null; g.table.call = g.over.why; }
     this.stopLoop();
     this.broadcast(this.snapshot());
   }
@@ -691,6 +919,7 @@ export class GameRoom {
       }
     }
     if (g.mode === 'chess') this.chessTick(g);
+    else if (g.mode === 'towers') this.towersTick(g);
     else this.poolTick(g);
   }
 
@@ -716,6 +945,7 @@ export class GameRoom {
     }
 
     if (g.chess) return this.chessSnapshot(mode);
+    if (g.battle) return this.towersSnapshot(mode);
 
     const T = g.table;
     const snap = {
@@ -813,7 +1043,7 @@ async function api(request, env) {
     const res = await room.fetch('https://room/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char, test: body.test }),
+      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char, test: body.test, deck: body.deck }),
     });
     const created = await res.json();
     return json({ id, token: created.token }, { status: 201 });
