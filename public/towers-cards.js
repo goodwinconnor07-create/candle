@@ -29,7 +29,7 @@ export const TOWER_STATS = {
   side: { hp: 3000, dmg: 100, hit: 0.8, range: 7, shotSpeed: 15 },
 };
 
-export const START_ELIXIR = 5, MAX_ELIXIR = 10;
+export const START_ELIXIR = 0, MAX_ELIXIR = 10;
 // spells only chip towers: they take this share of a spell's damage
 export const TOWER_SPELL = 0.3;
 
