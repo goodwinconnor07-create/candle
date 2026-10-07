@@ -49,7 +49,7 @@ import * as Sea from './public/battleships.js';
 import * as Towers from './towers.js';
 import * as Cards from './public/towers-cards.js';
 import * as Golf from './public/golf.js';
-import { Feed } from './questions.js';
+import { Feed, mathsSource, setSource } from './questions.js';
 import * as Library from './library.js';
 import * as Generate from './generate.js';
 export { SetJob } from './setjob.js';
@@ -253,6 +253,10 @@ export class GameRoom {
         test,
         // Towers decks; the stand-in brings a random one
         hostDeck: Cards.cleanDeck(body.deck),
+        // the host's study set, already checked by the Worker: { id, name } or null for maths
+        hostSet: body.set && body.set.id ? { id: String(body.set.id), name: clean(body.set.name, 60) } : null,
+        // the guest's: 'host' (play the host's set), null (maths) or { id, name }
+        guestSet: 'host',
         guestDeck: test ? shuffle(Cards.CARD_KEYS.slice()).slice(0, Cards.DECK_SIZE) : Cards.DEFAULT_DECK.slice(),
       };
       await this.saveLobby();
@@ -391,6 +395,7 @@ export class GameRoom {
       lobby.guestName = clean(msg.name, NAME_MAX) || 'Challenger';
       lobby.guestChar = char;
       lobby.guestDeck = Cards.cleanDeck(msg.deck);
+      lobby.guestSet = await this.guestSetFrom(msg.set);
       lobby.guestReady = true;
       await this.saveLobby();
       this.sendState();
@@ -403,7 +408,7 @@ export class GameRoom {
 
     if (msg.t === 'start' && role === 'host' && lobby.guestReady
         && lobby.hostChar && lobby.guestChar && !this.game) {
-      this.startGame();
+      await this.startGame();
       return;
     }
 
@@ -422,11 +427,58 @@ export class GameRoom {
     if (msg.t === 'leave') { this.playerLeft(role); return; }
 
     if (msg.t === 'again' && this.game && this.game.phase === 'over' && !this.game.over.left) {
-      this.startGame();
+      await this.startGame();
     }
   }
 
-  startGame() {
+  // what the guest picked in the lobby: the host's set, maths, or one of
+  // their own sets, which they prove with their device secret. The secret is
+  // checked here and never kept
+  async guestSetFrom(choice) {
+    if (choice === 'maths') return null;
+    if (choice && typeof choice === 'object' && this.env.DB) {
+      try {
+        const dev = await Library.deviceBySecret(this.env.DB, choice.secret);
+        const set = await Library.playableSet(this.env.DB, dev, choice.id);
+        if (set) return { id: set.id, name: set.name };
+      } catch (e) {}
+      return null;
+    }
+    return 'host';
+  }
+
+  // a study set's question source, loaded once per room and kept for rematches
+  async sourceFor(set) {
+    if (!set || !this.env.DB) return mathsSource;
+    this.sources = this.sources || {};
+    if (!this.sources[set.id]) {
+      try {
+        const data = await Library.loadSetForGame(this.env.DB, set.id);
+        this.sources[set.id] = data && data.questions.length ? setSource(data) : mathsSource;
+      } catch (e) {
+        return mathsSource;
+      }
+    }
+    return this.sources[set.id];
+  }
+
+  async startGame() {
+    if (this.starting) return;
+    this.starting = true;
+    let feeds;
+    try {
+      const L = this.lobby;
+      const guestSet = L.guestSet === 'host' || L.vsBot ? L.hostSet : L.guestSet;
+      feeds = { host: new Feed(await this.sourceFor(L.hostSet)), guest: new Feed(await this.sourceFor(guestSet)) };
+    } finally {
+      this.starting = false;
+    }
+    if (this.game && this.game.phase !== 'over') return;
+    this.flushAnswers();
+    this.beginGame(feeds);
+  }
+
+  beginGame(feeds) {
     const now = Date.now();
     const mode = MODES[this.lobby.mode] ? this.lobby.mode : 'pool';
     const breaker = Math.random() < 0.5 ? 'host' : 'guest';
@@ -442,6 +494,7 @@ export class GameRoom {
       test: !!this.lobby.test,
       botDueAt: 0,
       botChoice: null,
+      feeds,
     };
     if (mode === 'towers') {
       const lobby = this.lobby;
@@ -564,6 +617,24 @@ export class GameRoom {
   feedResult(role, q, right) {
     const f = this.game.feeds && this.game.feeds[role];
     if (f) f.result(q, right);
+    // Tester's answers say nothing about how hard a question is
+    if (!(this.game.vsBot && role === 'guest') && q && q.dbId) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = setTimeout(() => this.flushAnswers(), 5000);
+    }
+  }
+
+  // writes how often each study set question was shown and answered right
+  flushAnswers() {
+    const g = this.game;
+    if (!g || !g.feeds || !this.env.DB) return;
+    clearTimeout(this.flushTimer);
+    const rows = [];
+    for (const role of ['host', 'guest']) {
+      if (g.vsBot && role === 'guest') { g.feeds.guest.take(); continue; }
+      rows.push(...g.feeds[role].take());
+    }
+    if (rows.length) Library.recordAnswers(this.env.DB, rows).catch(() => {});
   }
 
   // ---- Pool ----
@@ -1594,8 +1665,21 @@ export class GameRoom {
     else this.poolTick(g);
   }
 
-  // role says whose eyes it's for. only battleships keeps secrets per seat
+  // role says whose eyes it's for. A live question goes only to the player
+  // answering it: the other one sees that they're answering and then
+  // whether they got it right, never the question itself (their notes can be
+  // a different subject entirely)
   snapshot(role) {
+    const snap = this.snapshotFor(role);
+    const g = this.game;
+    if (snap && snap.q && g) {
+      const owner = g.chess ? this.chessTurn() : g.sea ? g.sea.turn : g.golf ? g.golf.turn : g.table ? g.table.turn : null;
+      if (owner && owner !== role) snap.q = { text: '', choices: ['', '', '', ''], theirs: true };
+    }
+    return snap;
+  }
+
+  snapshotFor(role) {
     const lobby = this.lobby;
     const g = this.game;
     const mode = lobby && MODES[lobby.mode] ? lobby.mode : 'pool';
@@ -1608,6 +1692,9 @@ export class GameRoom {
         modeName: MODES[mode],
         vsBot: !!(lobby && lobby.vsBot),
         test: !!(lobby && lobby.test),
+        // which study set each side's questions come from, by name only
+        hostSet: lobby && lobby.hostSet ? lobby.hostSet.name : null,
+        guestSet: !lobby ? null : lobby.guestSet === 'host' ? 'host' : lobby.guestSet ? lobby.guestSet.name : null,
         host: { name: lobby ? lobby.hostName : '', ready: true, char: lobby ? lobby.hostChar : '' },
         guest: {
           name: lobby ? lobby.guestName : '', ready: !!(lobby && lobby.guestReady),
@@ -1835,14 +1922,22 @@ async function api(request, env) {
   if (parts.length === 2 && request.method === 'POST') {
     const body = await request.json().catch(() => ({}));
     const id = randomId(9);
+    // a study set only counts if this device owns it and it has questions;
+    // anything else quietly plays maths, and the reply says so
+    let set = null;
+    if (body.set && env.DB) {
+      const me = await Library.deviceFrom(env.DB, request);
+      const row = await Library.playableSet(env.DB, me, body.set);
+      if (row) set = { id: row.id, name: row.name };
+    }
     const room = env.GAMES.get(env.GAMES.idFromName(id));
     const res = await room.fetch('https://room/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char, test: body.test, deck: body.deck }),
+      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char, test: body.test, deck: body.deck, set }),
     });
     const created = await res.json();
-    return json({ id, token: created.token }, { status: 201 });
+    return json({ id, token: created.token, set: set ? set.name : null }, { status: 201 });
   }
 
   if (parts.length === 4 && parts[3] === 'code' && request.method === 'POST') {

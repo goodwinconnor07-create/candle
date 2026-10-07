@@ -101,7 +101,7 @@ export function checkQuestions(list, sliceText) {
   let dropped = 0;
   for (const q of Array.isArray(list) ? list : []) {
     const ok = q && str(q.q, 10, 300) && Array.isArray(q.choices) && q.choices.length === 4
-      && q.choices.every(c => str(c, 1, 160)) && Number.isInteger(q.answer) && q.answer >= 0 && q.answer < 4
+      && q.choices.every(c => str(c, 1, 100)) && Number.isInteger(q.answer) && q.answer >= 0 && q.answer < 4
       && new Set(q.choices.map(c => squash(c))).size === 4
       && str(q.quote, 8, 400) && squash(q.quote).length >= 12 && notes.includes(squash(q.quote))
       && !seen.has(squash(q.q));
@@ -190,7 +190,7 @@ Rules: the term, and the date, member or number, must be written exactly as they
 const QUESTIONS_SYSTEM = `You write multiple-choice questions for a two-player game. Players answer from their own notes, so every question must be answerable from the notes below and nothing else. ${INJECTION_NOTE}
 
 Rules:
-- Each question has exactly 4 choices and exactly one correct answer. The wrong choices must be believable to someone who half knows the topic: the same kind of thing, the same length and the same level of detail as the right one. Never use "all of the above", "none of the above" or "both".
+- Each question has exactly 4 choices and exactly one correct answer. Keep every choice short, ideally under 6 words, because players read them on a phone mid-game. The wrong choices must be believable to someone who half knows the topic: the same kind of thing, the same length and the same level of detail as the right one. Never use "all of the above", "none of the above" or "both".
 - Test understanding where the notes allow it (why, how, what follows, which one differs), not only word-for-word recall. Spread the questions across different parts of the notes.
 - Each question must make sense on its own. Never write "according to the notes", "the text" or "the passage".
 - "quote" is one short passage copied exactly, word for word, from the notes, that proves the answer (8 to 25 words).
@@ -335,7 +335,7 @@ export function mockClient() {
           const s = sentences(notesOf(req));
           const questions = s.slice(0, 12).map((x, i) => ({
             q: 'Which statement comes from the notes (' + (i + 1) + ')?',
-            choices: [x.slice(0, 60), 'Something else ' + i, 'Another idea ' + i, 'A different claim ' + i],
+            choices: [x.split(' ').slice(0, 4).join(' '), 'Something else ' + i, 'Another idea ' + i, 'A different claim ' + i],
             answer: 0, why: 'It is stated in the notes.', quote: x, level: 1 + (i % 5),
           }));
           const body = { questions };

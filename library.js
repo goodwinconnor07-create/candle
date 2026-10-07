@@ -20,7 +20,8 @@ function randomHex(bytes) {
 }
 
 // a new anonymous player. The secret is returned once and never stored.
-export const MAX_DEVICES_PER_IP_DAY = 10;
+// high enough for a classroom sharing one school network
+export const MAX_DEVICES_PER_IP_DAY = 30;
 
 // ip is only used to stop one network minting endless devices; it's stored
 // hashed. Returns null when that network has made too many today.
@@ -203,4 +204,44 @@ export async function failRun(db, setId, runId, note, costMicroTotal, detail) {
     db.prepare(`UPDATE gen_runs SET status = 'failed', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`)
       .bind(now, costMicroTotal, detail ? JSON.stringify(detail) : null, runId),
   ]);
+}
+
+// ---- study sets in a match ----
+
+// the device a raw secret belongs to (the guest sends theirs over the socket)
+export async function deviceBySecret(db, secret) {
+  if (!/^[0-9a-f]{48}$/.test(String(secret || ''))) return null;
+  const row = await db.prepare('SELECT id FROM devices WHERE secret_hash = ?').bind(await sha256(secret)).first();
+  return row ? row.id : null;
+}
+
+// a set this device may play with: its own, and only once it has questions
+export async function playableSet(db, deviceId, setId) {
+  if (!deviceId || !/^[0-9a-f]{16}$/.test(String(setId || ''))) return null;
+  return db.prepare(`SELECT id, name FROM study_sets WHERE id = ? AND owner = ? AND status = 'ready'`).bind(setId, deviceId).first();
+}
+
+// everything the room needs to ask questions from a set
+export async function loadSetForGame(db, setId) {
+  const set = await db.prepare('SELECT id, name, templates FROM study_sets WHERE id = ?').bind(setId).first();
+  if (!set) return null;
+  const [qs, fs] = await db.batch([
+    db.prepare('SELECT id, text, choices, answer, why, diff FROM questions WHERE set_id = ? AND active = 1').bind(setId),
+    db.prepare('SELECT kind, a, b FROM facts WHERE set_id = ?').bind(setId),
+  ]);
+  let templates = null;
+  try { templates = JSON.parse(set.templates || 'null'); } catch (e) {}
+  return {
+    name: set.name,
+    templates,
+    facts: fs.results,
+    questions: qs.results.map(q => ({ id: q.id, text: q.text, choices: JSON.parse(q.choices), answer: q.answer, why: q.why, diff: q.diff })),
+  };
+}
+
+// how often each core question was shown and answered right, for picking
+// and difficulty later
+export async function recordAnswers(db, rows) {
+  if (!rows.length) return;
+  await batched(db, rows.map(r => db.prepare('UPDATE questions SET shown = shown + ?, right = right + ? WHERE id = ?').bind(r.shown, r.right, r.dbId)));
 }
