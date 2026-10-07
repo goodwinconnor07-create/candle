@@ -2324,15 +2324,22 @@
   });
 
   // ---------- pool ----------
-  // the room runs every shot and sends back frames to replay. this side only
-  // draws the table, lets the shooter aim and place, and plays frames back.
+  // the room decides every shot. it sends the shot itself (where the cue ball
+  // started, the aim, power and spin) and this side runs it through the same
+  // simulate() from /pool.js, recording 240 positions a second so it can be
+  // drawn smoothly at whatever rate the screen runs. the shooter doesn't wait
+  // for the room at all: their browser runs the shot the moment they let go,
+  // and only restarts it if the room's version somehow differs.
   // table units match pool.js: 500 across, 1000 long, rack at the top.
   const PW = 500, PL = 1000, PR = 14, HEAD_Y = 750, FOOT_Y = 250, CUE_SPOT = [250, 830];
   // rails, iMessage-proportioned: a teal cushion strip, then the wood
   const CUSH = 16, WOOD = 42, RAIL = CUSH + WOOD;
   const CORNER_GAP = 39, SIDE_GAP = 29;     // pocket mouths, matching pool.js
   const OW = PW + RAIL * 2, OL = PL + RAIL * 2;
-  const POOL_FPS = 30, AIM_MS = 30000;
+  const SHOT_FPS = 240, AIM_MS = 30000;
+  const STRIKE_MS = 90, FOLLOW_MS = 220;   // the cue stick's lunge, then its follow-through
+  let Pool = null;
+  import('/pool.js').then(m => { Pool = m; if(pv.waiting) playShot(pv.waiting); }).catch(() => {});
   const POCKET_AT = [[0, 0], [PW, 0], [0, PL / 2], [PW, PL / 2], [0, PL], [PW, PL]];
   const BALL_COL = ['#fbfbf8', '#f6c40c', '#1f4fc6', '#e2282a', '#5b2c93', '#f3701d', '#138c46', '#7d1e1f', '#121212',
                     '#f6c40c', '#1f4fc6', '#e2282a', '#5b2c93', '#f3701d', '#138c46', '#7d1e1f'];
@@ -2341,6 +2348,7 @@
     aim: { x: 0, y: -1 }, power: 0, cue: null, drag: null, pull: null,
     sent: false, picked: null, qKey: '', spin: { x: 0, y: 0 },
     w: 0, h: 0, scale: 1, dpr: 1,
+    pred: null, waiting: null, strike: null, drawn: '', drawnBalls: null, drawnS: null,
   };
   const poolClamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
   const groupNums = g => g === 'solids' ? [1, 2, 3, 4, 5, 6, 7] : g === 'stripes' ? [9, 10, 11, 12, 13, 14, 15] : null;
@@ -2596,13 +2604,15 @@
     }
   }
 
-  function ballSprite(n){
-    const b = balls3d[n], rp = PR * pv.scale * pv.dpr;
-    const size = Math.ceil(rp * 2) + 2;
-    if(!b.sprite || b.px !== size){ b.sprite = document.createElement('canvas'); b.sprite.width = b.sprite.height = size; b.px = size; b.dirty = true; }
-    if(!b.dirty) return b.sprite;
-    const g = b.sprite.getContext('2d'), img = g.createImageData(size, size), d = img.data, m = b.m;
-    const base = BALL_RGB[n], c = size / 2;
+  // everything about a ball's look that doesn't turn with it (its outline,
+  // the light, the shine) depends only on the sprite's size, so it's worked
+  // out once per size. turning a ball then only means repainting which
+  // pixels are colour and which are white, which is cheap enough to do for
+  // all sixteen at once on the break
+  let ballGeo = null;
+  function ballGeometry(size, rp){
+    if(ballGeo && ballGeo.size === size && ballGeo.rp === rp) return ballGeo;
+    const c = size / 2, xs = [], ys = [], zs = [], lit = [], spec = [], alpha = [], at = [];
     for(let py = 0; py < size; py++){
       const y = (py + .5 - c) / rp;
       for(let px = 0; px < size; px++){
@@ -2610,24 +2620,44 @@
         const edge = (1 - Math.sqrt(r2)) * rp + .5;
         if(edge <= 0) continue;
         const z = Math.sqrt(Math.max(0, 1 - r2));
-        // the same point in the ball's own frame
-        const bx = m[0] * x + m[3] * y + m[6] * z;
-        const bz = m[2] * x + m[5] * y + m[8] * z;
-        let col = base;
-        if(n === 0 || bz > .9 || (n >= 9 && (bx > .5 || bx < -.5))) col = SHELL;
         const diff = Math.max(0, x * LIGHT[0] + y * LIGHT[1] + z * LIGHT[2]);
         // a crisp glint on top of a broad soft sheen, like a polished ball
         const h = Math.max(0, x * HALF[0] + y * HALF[1] + z * HALF[2]);
-        const spec = Math.pow(h, 90) * 255 + Math.pow(h, 8) * 34;
-        const lit = (.42 + .68 * diff) * (.82 + .18 * z);
-        const o = (py * size + px) * 4;
-        d[o] = Math.min(255, col[0] * lit + spec);
-        d[o + 1] = Math.min(255, col[1] * lit + spec);
-        d[o + 2] = Math.min(255, col[2] * lit + spec);
-        d[o + 3] = Math.min(1, edge) * 255;
+        xs.push(x); ys.push(y); zs.push(z);
+        spec.push(Math.pow(h, 90) * 255 + Math.pow(h, 8) * 34);
+        lit.push((.42 + .68 * diff) * (.82 + .18 * z));
+        alpha.push(Math.min(1, edge) * 255);
+        at.push((py * size + px) * 4);
       }
     }
-    g.putImageData(img, 0, 0);
+    const F = a => Float32Array.from(a);
+    ballGeo = { size, rp, x: F(xs), y: F(ys), z: F(zs), lit: F(lit), spec: F(spec), alpha: F(alpha), at: Int32Array.from(at) };
+    return ballGeo;
+  }
+
+  function ballSprite(n){
+    const b = balls3d[n], rp = PR * pv.scale * pv.dpr;
+    const size = Math.ceil(rp * 2) + 2;
+    if(!b.sprite || b.px !== size){
+      b.sprite = document.createElement('canvas'); b.sprite.width = b.sprite.height = size; b.px = size; b.dirty = true;
+      b.img = b.sprite.getContext('2d').createImageData(size, size);
+    }
+    if(!b.dirty) return b.sprite;
+    const G = ballGeometry(size, rp), d = b.img.data, m = b.m, base = BALL_RGB[n];
+    const stripe = n >= 9, plain = n === 0;
+    for(let i = 0, len = G.at.length; i < len; i++){
+      const x = G.x[i], y = G.y[i], z = G.z[i];
+      // the same point in the ball's own frame
+      const bx = m[0] * x + m[3] * y + m[6] * z;
+      const bz = m[2] * x + m[5] * y + m[8] * z;
+      const col = plain || bz > .9 || (stripe && (bx > .5 || bx < -.5)) ? SHELL : base;
+      const l = G.lit[i], sp = G.spec[i], o = G.at[i];
+      d[o] = col[0] * l + sp;
+      d[o + 1] = col[1] * l + sp;
+      d[o + 2] = col[2] * l + sp;
+      d[o + 3] = G.alpha[i];
+    }
+    b.sprite.getContext('2d').putImageData(b.img, 0, 0);
     b.dirty = false;
     return b.sprite;
   }
@@ -2772,7 +2802,7 @@
     ctx.restore();
   }
 
-  function poolDraw(pos){
+  function poolDraw(pos, now){
     const ctx = $('pCanvas').getContext('2d'), T = pv.s.table;
     const k = pv.dpr * pv.scale;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -2797,6 +2827,16 @@
       ctx.setLineDash([]);
     }
     if(c){ drawGuide(ctx, c, pv.aim, pos); drawStick(ctx, c, pv.aim, pv.power); }
+
+    // the shot just taken: the stick lunges at the ball, speeding up as it
+    // goes, then follows through and fades as the ball rolls away
+    if(pv.strike && now != null){
+      const k = pv.strike, el = now - k.t0;
+      let p, alpha = 1;
+      if(el < STRIKE_MS){ const u = el / STRIKE_MS; p = k.p0 + (-.06 - k.p0) * u * u; }
+      else{ const u = Math.min(1, (el - STRIKE_MS) / FOLLOW_MS); p = -.06 - .1 * u; alpha = 1 - u; }
+      ctx.save(); ctx.globalAlpha = alpha; drawStick(ctx, k.c, k.aim, p); ctx.restore();
+    }
   }
 
   function poolFrame(now){
@@ -2804,8 +2844,15 @@
     if(!pv.s || $('scPool').hidden || !pv.w) return;
     let pos = pv.balls;
     if(pv.anim){
-      const f = pv.anim.frames, t = Math.max(0, (now - pv.anim.t0) * POOL_FPS / 1000), i = Math.floor(t);
-      if(i >= f.length - 1){ pv.anim = null; poolCall(pv.s); }
+      const f = pv.anim.frames, t = Math.max(0, (now - pv.anim.t0) * SHOT_FPS / 1000), i = Math.floor(t);
+      if(i >= f.length - 1 && pv.pred){
+        // finished here before the room has confirmed it: hold still on the
+        // last frame rather than jump back to where the balls started
+        const a = f[f.length - 1];
+        pos = new Array(16);
+        for(let n = 0; n < 16; n++) pos[n] = a[n * 2] < 0 ? null : [a[n * 2], a[n * 2 + 1]];
+      }
+      else if(i >= f.length - 1){ shotDone(f[f.length - 1]); }
       else{
         const a = f[i], b = f[i + 1], k = t - i;
         pos = new Array(16);
@@ -2818,7 +2865,16 @@
       }
     }
     rollBalls(pos);
-    poolDraw(pos);
+    // nothing on the table has changed since the last frame? leave it be
+    const st = pv.strike && now - pv.strike.t0 < STRIKE_MS + FOLLOW_MS;
+    if(!st) pv.strike = null;
+    const idle = !pv.anim && !st && !sinks.length;
+    const key = [phase, pv.w, pv.h, pv.aim.x, pv.aim.y, pv.power, pv.sent, pv.cue && pv.cue.x, pv.cue && pv.cue.y].join('|');
+    if(!idle || key !== pv.drawn || pv.balls !== pv.drawnBalls || pv.s !== pv.drawnS){
+      poolDraw(pos, now);
+      // the first still frame after any movement always gets drawn
+      pv.drawn = idle ? key : ''; pv.drawnBalls = pv.balls; pv.drawnS = pv.s;
+    }
 
     $('pCard').hidden = !(pv.cardWanted && !pv.anim);
     const left = Math.max(0, deadlineAt - now);
@@ -2867,10 +2923,56 @@
   function poolShoot(){
     const c = cuePos();
     if(!c || !ws || (pv.s.table.ballInHand && !placeValid(c.x, c.y))) return;
-    ws.send(JSON.stringify({ t:'shoot', dx: pv.aim.x, dy: pv.aim.y, power: pv.power, cx: c.x, cy: c.y, sx: pv.spin.x, sy: pv.spin.y }));
+    const msg = { t:'shoot', dx: pv.aim.x, dy: pv.aim.y, power: pv.power, cx: c.x, cy: c.y, sx: pv.spin.x, sy: pv.spin.y };
+    ws.send(JSON.stringify(msg));
     pv.sent = true;
+    const now = performance.now();
+    pv.strike = { c: { x: c.x, y: c.y }, aim: { x: pv.aim.x, y: pv.aim.y }, p0: pv.power, t0: now };
+    // run the shot here and now, exactly as the room will, so the ball
+    // leaves the instant the stick reaches it rather than a round trip later
+    if(Pool){
+      const shot = Pool.shotFrom(roomBalls(), pv.s.table.ballInHand, msg);
+      if(shot){
+        const sim = Pool.simulate(shot.before, shot.dx, shot.dy, shot.speed, shot.spin, { fps: SHOT_FPS, exact: true });
+        const key = shotKey(shot.before.map(b => b.in ? null : [b.x, b.y]), shot.dx, shot.dy, shot.speed, shot.spin.x, shot.spin.y);
+        pv.pred = { key };
+        pv.anim = { frames: sim.frames, t0: now + STRIKE_MS };
+      }
+    }
     pv.power = 0;
     updateCueBar();
+  }
+
+  // the table as the room holds it, in the shape pool.js wants
+  function roomBalls(){
+    return pv.balls.map(b => b ? { x: b[0], y: b[1], in: false } : { x: -1, y: -1, in: true });
+  }
+
+  // two shots are the same shot if every input matches to the last digit
+  function shotKey(start, dx, dy, speed, sx, sy){
+    return JSON.stringify([start, dx, dy, speed, sx, sy]);
+  }
+
+  // run a shot the room sent and start drawing it
+  function playShot(shot){
+    if(!Pool){ pv.waiting = shot; return; }
+    pv.waiting = null;
+    const before = shot.start.map(b => b ? { x: b[0], y: b[1], in: false } : { x: -1, y: -1, in: true });
+    const sim = Pool.simulate(before, shot.dx, shot.dy, shot.speed, { x: shot.sx, y: shot.sy }, { fps: SHOT_FPS, exact: true });
+    // the clock starts after the simulation, so the time it took isn't skipped
+    pv.anim = { frames: sim.frames, t0: performance.now() };
+  }
+
+  // the last frame of a shot should be exactly where the room left the balls.
+  // if it isn't, the room wins; say so in the console so it gets noticed
+  function shotDone(last){
+    pv.anim = null;
+    const off = pv.balls.some((b, n) => {
+      const x = last[n * 2], y = last[n * 2 + 1];
+      return b ? (x < 0 || Math.abs(b[0] - x) > .01 || Math.abs(b[1] - y) > .01) : x >= 0;
+    });
+    if(off && pv.s && pv.s.phase !== 'aim') console.warn('pool: this browser\'s shot ended somewhere other than the room\'s');
+    poolCall(pv.s);
   }
 
   $('pCard').addEventListener('pointerdown', () => {
@@ -3142,14 +3244,22 @@
   function applyPool(s){
     const T = s.table, prev = pv.s;
     if(s.phase === 'countdown' && (!prev || prev.phase !== 'countdown')){
-      pv.played = 0; pv.anim = null;
+      pv.played = 0; pv.anim = null; pv.pred = null; pv.waiting = null; pv.strike = null;
       resetBalls3d();
     }
     pv.s = s;
     if(s.ms != null) deadlineAt = performance.now() + s.ms;
     if(T.shot && T.shot.id !== pv.played){
       pv.played = T.shot.id;
-      pv.anim = { frames: T.shot.frames, t0: performance.now() };
+      const sh = T.shot;
+      // already rolling it here since the shooter let go: carry on, unless
+      // the room's shot is any different, in which case play the room's
+      const same = pv.pred && pv.pred.key === shotKey(sh.start, sh.dx, sh.dy, sh.speed, sh.sx, sh.sy);
+      pv.pred = null;
+      if(!same) playShot(sh);
+    }else if(pv.pred && s.phase !== 'aim' && s.phase !== 'rolling'){
+      // the room never took that shot (time ran out first), so drop it
+      pv.pred = null; pv.anim = null; pv.strike = null;
     }
     pv.balls = T.balls;
     if(s.phase === 'aim' && (!prev || prev.phase !== 'aim')){
