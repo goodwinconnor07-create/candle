@@ -50,6 +50,7 @@ import * as Towers from './towers.js';
 import * as Cards from './public/towers-cards.js';
 import * as Golf from './public/golf.js';
 import { Feed } from './questions.js';
+import * as Library from './library.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
 const COUNTDOWN_MS = 3200;    // 3 - 2 - 1 before the first question
@@ -1766,6 +1767,18 @@ async function api(request, env) {
   if (parts[1] === 'codes' && parts.length === 3 && request.method === 'GET') {
     if (!/^\d{6}$/.test(parts[2])) return err(404, 'no such code');
     return codeBook(env, parts[2]).fetch('https://code/lookup');
+  }
+
+  // anonymous players: no account needed to hold study sets. Registering is
+  // on demand (first time someone makes a set), not on every page load.
+  if (parts[1] === 'device' && parts.length === 2 && request.method === 'POST') {
+    const d = await Library.createDevice(env.DB);
+    return json({ id: d.id, secret: d.secret }, { status: 201 });
+  }
+  if (parts[1] === 'me' && parts.length === 2 && request.method === 'GET') {
+    const id = await Library.deviceFrom(env.DB, request);
+    if (!id) return err(401, 'unknown device');
+    return json({ id, sets: await Library.listSets(env.DB, id) });
   }
 
   if (parts[1] !== 'games') return err(404, 'not found');

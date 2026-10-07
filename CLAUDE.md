@@ -20,6 +20,12 @@ plays and DEPLOY.md for deploy details.
   sets later). Questions carry a hidden `diff` and `why`; snapshots only ever
   copy `text` and `choices` (and `answer` once resolved), so players never see
   a difficulty ranking.
+- `library.js` and `migrations/`: the D1 database (`DB` binding, named
+  `study-duel`): anonymous devices, study sets, source text chunks and
+  generated questions. Live matches never live here. A device is a secret the
+  browser keeps (`POST /api/device`), stored only as a SHA-256. Schema changes
+  go in a new numbered file in `migrations/`, applied with
+  `npx wrangler d1 migrations apply study-duel --remote` before deploying.
 - `public/pool.js`: pool physics (`simulate()`), 8-ball rules (`judgeShot()`),
   the shot-message check both sides use (`shotFrom()`), and the test
   stand-in's shot picker (`botShot()`). The room decides every shot and sends

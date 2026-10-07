@@ -25,3 +25,12 @@ new_sqlite_classes = ["GameRoom"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["JoinCode"]
+
+# Study sets, their source text and generated questions. Live matches stay in
+# the GameRoom Durable Objects. Apply schema changes with
+# `npx wrangler d1 migrations apply study-duel --remote`.
+[[d1_databases]]
+binding = "DB"
+database_name = "study-duel"
+database_id = "8af16b05-6087-4169-aad4-4141275e454a"
+migrations_dir = "migrations"
