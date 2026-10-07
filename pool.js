@@ -329,3 +329,51 @@ export function judgeShot(pre, sim, shooter) {
     next: foul ? 'other' : (keptGoing ? 'same' : 'other'),
   };
 }
+
+/**
+ * A simple pool opponent, used by test matches. For every legal ball and
+ * pocket it works out the ghost-ball aim, skips cuts that are too thin, and
+ * takes the straightest, shortest one. If nothing is pottable it just rolls
+ * into a legal ball. It doesn't check whether the path is blocked, so it
+ * misses plenty — which is fine for a stand-in.
+ */
+export function botShot(balls, groups, role, broken, ballInHand) {
+  const R = BALL_R;
+  const mine = groups[role];
+  const nums = mine === 'solids' ? [1, 2, 3, 4, 5, 6, 7] : mine === 'stripes' ? [9, 10, 11, 12, 13, 14, 15] : null;
+  const legal = (n) => {
+    if (!nums) return !broken || n !== 8;
+    return nums.every((m) => balls[m].in) ? n === 8 : nums.includes(n);
+  };
+  const cue = balls[0];
+  let best = null;
+  for (let n = 1; n <= 15; n++) {
+    const b = balls[n];
+    if (b.in || !legal(n)) continue;
+    for (const [px, py] of POCKETS) {
+      const tx = px - b.x, ty = py - b.y, tl = Math.sqrt(tx * tx + ty * ty);
+      const gx = b.x - tx / tl * 2 * R, gy = b.y - ty / tl * 2 * R;
+      let cx = cue.x, cy = cue.y;
+      if (ballInHand) {
+        cx = gx - tx / tl * 90; cy = gy - ty / tl * 90;
+        if (!placeOk(balls, cx, cy, false)) continue;
+      }
+      const dx = gx - cx, dy = gy - cy, dl = Math.sqrt(dx * dx + dy * dy);
+      if (dl < 1) continue;
+      const cut = Math.acos(Math.max(-1, Math.min(1, (dx * tx + dy * ty) / (dl * tl))));
+      if (cut > 1.15) continue;
+      const score = cut + tl / 2000 + dl / 3000;
+      if (!best || score < best.score) best = { score, dx: dx / dl, dy: dy / dl, cx, cy, power: Math.min(1, .25 + (dl + tl) / 1600) };
+    }
+  }
+  if (best) return best;
+  let cx = cue.x, cy = cue.y;
+  if (ballInHand) [cx, cy] = CUE_SPOT;
+  for (let n = 1; n <= 15; n++) {
+    const b = balls[n];
+    if (b.in || !legal(n)) continue;
+    const dx = b.x - cx, dy = b.y - cy, l = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { dx: dx / l, dy: dy / l, cx, cy, power: .45 };
+  }
+  return { dx: 0, dy: -1, cx, cy, power: .5 };
+}
