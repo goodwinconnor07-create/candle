@@ -1736,6 +1736,20 @@
   /* a long name keeps its line; the buttons drop underneath when they don't fit */
   .setitem{ flex-wrap:wrap; row-gap:var(--s2); }
   .setitem > div:first-child{ flex:1 1 150px; min-width:0; }
+  .setopen{ all:unset; display:block; flex:1 1 150px; min-width:0; min-height:var(--tap); cursor:pointer; border-radius:var(--r-sm); transition:scale var(--settle) var(--spring); }
+  .setopen:active{ scale:.97; transition-duration:var(--press); }
+  .setopen:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .setopen b::after{ content:" ›"; color:var(--ash); font-weight:400; }
+  #scSet{ gap:var(--s3); min-height:0; }
+  .setdetacts{ display:flex; flex-wrap:wrap; justify-content:center; gap:var(--s2); }
+  .setdetacts .btn{ min-height:var(--tap); padding:8px 16px; font:600 .88rem/1 var(--sans); }
+  .qlist{ width:min(420px, 100%); flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:var(--s2); text-align:left; padding-bottom:var(--s3); }
+  .qlist h3{ font:600 .78rem/1.3 var(--sans); color:var(--ash); text-transform:uppercase; letter-spacing:.06em; margin-top:var(--s2); }
+  .qitem{ padding:var(--s3); border:1px solid var(--hair); border-radius:var(--r-md); background:rgba(239,227,204,.03); }
+  .qitem p{ font:500 .88rem/1.35 var(--sans); }
+  .qitem small{ display:block; margin-top:3px; font:400 .78rem/1.3 var(--sans); color:var(--ash); }
+  .qitem .qrep{ display:flex; flex-wrap:wrap; gap:var(--s3); margin-top:2px; }
+  .qitem .textlink{ min-height:32px; font-size:.78rem; }
   .setempty{ font:400 .9rem/1.5 var(--sans); color:var(--ash); max-width:30ch; padding:var(--s4) 0; }
   textarea.field{ width:min(380px, 100%); min-height:0; flex:1 1 120px; max-height:34dvh; resize:none; font:400 .95rem/1.45 var(--sans); text-align:left; }
   #scNewSet .field{ width:min(380px, 100%); }
@@ -2626,6 +2640,14 @@
       <div class="dock"><button class="btn" id="setsAdd" type="button">Add a code</button><button class="btn primary" id="setsNew" type="button">New study set</button></div>
     </section>
 
+    <section class="panel" id="scSet" hidden>
+      <h2 class="hd" id="setDetHd">Study set</h2>
+      <p class="lead" id="setDetLine"></p>
+      <div class="setdetacts" id="setDetActs"></div>
+      <p class="note" id="setDetNote" aria-live="polite"></p>
+      <div class="qlist" id="setDetList"></div>
+    </section>
+
     <section class="panel" id="scAddSet" hidden>
       <h2 class="hd">Add a friend's set</h2>
       <p class="lead">Type the code they shared. You get your own copy of their questions.</p>
@@ -2778,7 +2800,7 @@
     fire.set = v => { on = !!v; try{ localStorage.setItem('sd-haptics', v ? '1' : '0'); }catch(e){} };
     return fire;
   })();
-  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scSets','scNewSet','scAddSet','scDead'];
+  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scSets','scNewSet','scAddSet','scSet','scDead'];
   const GAME_NAMES = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers', golf: 'Mini Golf' };
   const GAME_ICON = { pool: 'pool', chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' };
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
@@ -2987,12 +3009,12 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running or the link's already dead there's nothing sane to back out to,
   // so it stays hidden
-  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scSets', 'scNewSet', 'scAddSet', 'scDead']);
+  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scSets', 'scNewSet', 'scAddSet', 'scSet', 'scDead']);
 
   // how deep each screen sits, so moving deeper slides in from the right and
   // backing out slides in from the left. games just fade up, since they
   // measure their own layout as they appear
-  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2, scSets: 1, scNewSet: 2, scAddSet: 2 };
+  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2, scSets: 1, scNewSet: 2, scAddSet: 2, scSet: 2 };
   let shownKey = '';
   app.addEventListener('animationend', e => {
     if(e.target.classList && e.target.classList.contains('panel')) e.target.classList.remove('enter', 'enter-back', 'enter-fade');
@@ -7955,7 +7977,7 @@
     let made;
     try{
       // the room only takes a study set this browser can prove is its own
-      const useSet = chosenSet(), dev = useSet ? readDevice() : null;
+      const useSet = chosenSet(), dev = readDevice();
       const r = await fetch('/api/games', {
         method:'POST',
         headers:{ 'content-type':'application/json', ...(dev ? { authorization: 'Bearer ' + dev.secret } : {}) },
@@ -7963,7 +7985,7 @@
           name: $('introName').value.trim(), mode: pickedMode, char: pickedChar,
           deck: pickedMode === 'towers' ? loadDeck() : undefined,
           test: opponentType === 'test',
-          set: dev ? useSet.id : undefined,
+          set: dev && useSet ? useSet.id : undefined,
         })
       });
       if(!r.ok) throw new Error('the server answered ' + r.status);
@@ -8107,7 +8129,8 @@
   $('guestReady').addEventListener('click', () => {
     if(!pickedChar) return;
     try{ localStorage.setItem('sd-name', $('guestName').value.trim()); }catch(e){}
-    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim(), char: pickedChar, deck: loadDeck(), set: guestSetChoice() }));
+    const myDev = readDevice();
+    ws.send(JSON.stringify({ t:'ready', name: $('guestName').value.trim(), char: pickedChar, deck: loadDeck(), set: guestSetChoice(), dev: myDev ? myDev.secret : undefined }));
     $('guestReady').disabled = true;
   });
   $('guestName').addEventListener('keydown', e => { if(e.key === 'Enter') $('guestReady').click(); });
@@ -8187,13 +8210,18 @@
   setsChip();
 
   // one row of the list: a name, a line under it and its buttons
-  function setRow(name, line, acts, inUse){
+  function setRow(name, line, acts, inUse, onOpen){
     const row = document.createElement('div');
     row.className = 'setitem' + (inUse ? ' inuse' : '');
-    const txt = document.createElement('div');
+    const txt = document.createElement(onOpen ? 'button' : 'div');
     const b = document.createElement('b'); b.textContent = name;
     const small = document.createElement('small'); small.textContent = line;
     txt.append(b, small);
+    if(onOpen){
+      txt.type = 'button'; txt.className = 'setopen';
+      txt.setAttribute('aria-label', name + ': settings and questions');
+      txt.addEventListener('click', onOpen);
+    }
     const box = document.createElement('div');
     box.className = 'setacts';
     if(inUse){ const tag = document.createElement('span'); tag.className = 'inusetag'; tag.textContent = 'In use'; box.append(tag); }
@@ -8244,6 +8272,26 @@
       if(cur && !sets.some(x => x.id === cur.id && x.status === 'ready')) chooseSet(null);
       const using = chosenSet();
       list.append(setRow('Quick maths', 'Built in: quick sums', using ? [useBtn(null)] : [], !using));
+      // ready-made topic sets anyone can add for free
+      try{
+        const tr = await setsApi('/api/topics');
+        const { topics } = await tr.json();
+        const have = new Set(sets.map(x => x.name));
+        for(const t of topics || []){
+          if(have.has(t.name)) continue;
+          const add = document.createElement('button');
+          add.type = 'button'; add.className = 'btn'; add.textContent = 'Add';
+          add.addEventListener('click', async () => {
+            add.disabled = true;
+            const r = await setsApi('/api/topics/' + t.id, { method:'POST' });
+            const j = await r.json().catch(() => ({}));
+            if(r.ok){ chooseSet({ id: j.id, name: j.name }); }
+            else $('setsNote').textContent = sayErr(j);
+            loadSets();
+          });
+          list.append(setRow(t.name, 'Topic set · ' + t.questions + ' questions · free', [add], false));
+        }
+      }catch(e){}
       if(!sets.length){
         const p = document.createElement('p');
         p.className = 'setempty';
@@ -8260,12 +8308,6 @@
         const acts = [];
         const inUse = !!using && using.id === s.id;
         if(s.status === 'ready' && !inUse) acts.push(useBtn({ id: s.id, name: s.name }));
-        if(s.status === 'ready' && !s.copy){
-          const sh = document.createElement('button');
-          sh.type = 'button'; sh.className = 'btn'; sh.textContent = 'Share';
-          sh.addEventListener('click', () => shareSetNow(s, sh));
-          acts.push(sh);
-        }
         if(s.status === 'new' || s.status === 'failed'){
           const go = document.createElement('button');
           go.type = 'button'; go.className = 'btn primary'; go.textContent = s.status === 'failed' ? 'Try again' : 'Make questions';
@@ -8275,17 +8317,7 @@
           });
           acts.push(go);
         }
-        const del = document.createElement('button');
-        del.type = 'button'; del.className = 'btn'; del.textContent = 'Delete';
-        del.disabled = s.status === 'generating';
-        del.addEventListener('click', async () => {
-          if(del.dataset.sure !== '1'){ del.dataset.sure = '1'; del.textContent = 'Sure?'; setTimeout(() => { del.dataset.sure = ''; del.textContent = 'Delete'; }, 3000); return; }
-          del.disabled = true;
-          try{ await setsApi('/api/sets/' + s.id, { method:'DELETE' }); }catch(e){}
-          loadSets();
-        });
-        acts.push(del);
-        list.append(setRow(s.name, line, acts, inUse));
+        list.append(setRow(s.name, line, acts, inUse, () => openSet(s.id)));
       }
       // while any set is being made, look again every few seconds
       clearTimeout(setsPoll);
@@ -8454,15 +8486,98 @@
   }
   $('keepNo').addEventListener('click', () => { $('keepTip').hidden = true; });
 
+  // ---------- one set's own screen ----------
+  // its questions (each can be reported), sharing, deleting, and the offers:
+  // more questions once it's been played a lot (a credit, never automatic),
+  // a free upgrade for sets made before the master sheet, and for admins,
+  // making it a topic set
+  let setDetPoll = null;
+  async function openSet(id, quiet){
+    if(!quiet){ $('setDetNote').textContent = ''; $('setDetList').textContent = ''; }
+    if($('scSet').hidden){ pushSub('scSet'); show(['scSet']); }
+    clearTimeout(setDetPoll);
+    let d;
+    try{
+      const r = await setsApi('/api/sets/' + id);
+      d = await r.json();
+      if(!r.ok){ $('setDetNote').textContent = sayErr(d); return; }
+    }catch(e){ $('setDetNote').textContent = "Couldn't load that set. Check your connection."; return; }
+    $('setDetHd').textContent = d.name;
+    $('setDetLine').textContent = d.questions.length + ' questions' + (d.plays ? ' · answered ' + d.plays.toLocaleString() + ' times' : '')
+      + (d.copy ? ' · a shared copy' : '') + (d.public ? ' · topic set' : '');
+    const acts = $('setDetActs');
+    acts.textContent = '';
+    const btn = (label, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (cls ? ' ' + cls : ''); b.textContent = label; b.addEventListener('click', () => fn(b)); acts.append(b); return b; };
+    const using = chosenSet();
+    if(d.status === 'ready' && !(using && using.id === d.id)) btn('Use', 'primary', () => { chooseSet({ id: d.id, name: d.name }); openSet(d.id, true); });
+    if(d.status === 'ready' && !d.copy) btn('Share', '', b => shareSetNow({ id: d.id, name: d.name }, b, $('setDetNote')));
+    if(d.topupRunning) $('setDetNote').textContent = 'Making more questions. They’ll appear here within the hour.';
+    else if(d.topupOffered) btn('More questions · 1 credit', '', async b => {
+      b.disabled = true;
+      const r = await setsApi('/api/sets/' + d.id + '/topup', { method:'POST' });
+      const j = await r.json().catch(() => ({}));
+      $('setDetNote').textContent = r.ok ? 'Making more, harder questions. They’ll appear here within the hour.' : sayErr(j);
+      if(r.ok) openSet(d.id, true); else b.disabled = false;
+    });
+    if(d.status === 'ready' && !d.copy && !d.hasSheet && d.hasNotes) btn('Upgrade questions · free', '', async b => {
+      b.disabled = true;
+      const r = await setsApi('/api/sets/' + d.id + '/upgrade', { method:'POST' });
+      const j = await r.json().catch(() => ({}));
+      $('setDetNote').textContent = r.ok ? 'Upgrading: games on this set will mix in many more question types in a minute or two.' : sayErr(j);
+    });
+    if(d.admin && d.status === 'ready' && !d.copy) btn(d.public ? 'Remove from topics' : 'Make topic set', '', async b => {
+      b.disabled = true;
+      await setsApi('/api/sets/' + d.id + '/public', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ on: !d.public }) });
+      openSet(d.id, true);
+    });
+    const del = btn('Delete', '', async b => {
+      if(b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'Sure?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Delete'; }, 3000); return; }
+      b.disabled = true;
+      try{ await setsApi('/api/sets/' + d.id, { method:'DELETE' }); }catch(e){}
+      if(using && using.id === d.id) chooseSet(null);
+      if(subEntry('scSet')) history.back(); else openSets();
+    });
+    del.disabled = d.status === 'generating';
+    // the questions, each with a small Report
+    const list = $('setDetList');
+    list.textContent = '';
+    if(d.questions.length){
+      const h = document.createElement('h3'); h.textContent = 'Questions'; list.append(h);
+    }
+    for(const q of d.questions){
+      const item = document.createElement('div'); item.className = 'qitem';
+      const p = document.createElement('p'); p.textContent = q.text;
+      const a = document.createElement('small'); a.textContent = 'Answer: ' + q.answer;
+      const rep = document.createElement('div'); rep.className = 'qrep';
+      const link = (label, fn) => { const l = document.createElement('button'); l.type = 'button'; l.className = 'textlink'; l.textContent = label; l.addEventListener('click', fn); return l; };
+      const report = link('Report', () => {
+        rep.textContent = '';
+        const send = reason => async () => {
+          rep.textContent = 'Sending…';
+          const r = await setsApi('/api/sets/' + d.id + '/report', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ question: q.id, reason }) });
+          const j = await r.json().catch(() => ({}));
+          if(!r.ok){ rep.textContent = sayErr(j); return; }
+          item.remove();
+          $('setDetNote').textContent = j.replacing ? 'Thanks. That question’s gone, and a better one is on its way.' : 'Thanks. That question’s gone.';
+        };
+        rep.append(link('Wrong answer', send('wrong')), link('Confusing', send('confusing')), link('Remove it', send('remove')), link('Cancel', () => { rep.textContent = ''; rep.append(report); }));
+      });
+      rep.append(report);
+      item.append(p, a, rep);
+      list.append(item);
+    }
+    if(d.topupRunning) setDetPoll = setTimeout(() => { if(!$('scSet').hidden) openSet(d.id, true); }, 30000);
+  }
+
   // ---------- share codes ----------
   // the owner hands out a code (or a link with it in); whoever types it gets
   // their own copy of the questions. no API calls, nothing to pay for
   const fmtCode = c => c.slice(0, 3) + '-' + c.slice(3);
   const rawCodeOf = v => String(v).toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 6);
   const shareLink = c => location.origin + location.pathname + '#s=' + c;
-  async function shareSetNow(set, btn){
+  async function shareSetNow(set, btn, noteEl){
     btn.disabled = true;
-    const note = $('setsNote');
+    const note = noteEl || $('setsNote');
     try{
       const r = await setsApi('/api/sets/' + set.id + '/share', { method:'POST' });
       const j = await r.json().catch(() => ({}));
@@ -8480,10 +8595,10 @@
         stop.disabled = true;
         try{ await setsApi('/api/sets/' + set.id + '/share', { method:'DELETE' }); }catch(e){}
         note.textContent = 'That code no longer works. Copies already made keep working.';
-        loadSets();
+        if(!$('scSet').hidden) openSet(set.id, true); else loadSets();
       });
       note.append(stop);
-      loadSets();
+      if($('scSet').hidden) loadSets();
     }catch(e){
       note.textContent = "Couldn't share that. Check your connection.";
     }finally{ btn.disabled = false; }
@@ -8645,7 +8760,7 @@
       return;
     }
     if(!$('scDeck').hidden){ show([deckFrom]); deckRows(); return; }
-    if(!$('scNewSet').hidden || !$('scAddSet').hidden){ show(['scSets']); loadSets(); return; }
+    if(!$('scNewSet').hidden || !$('scAddSet').hidden || !$('scSet').hidden){ show(['scSets']); loadSets(); return; }
     if(!$('scSets').hidden){ toIntro(); return; }
     const linked = /[#&]g=/.test(location.hash);
     if((!$('scCode').hidden || !$('scSetup').hidden) && !linked) toIntro();
@@ -8690,7 +8805,7 @@
   // depend on it succeeding
   $('backBtn').addEventListener('click', () => {
     if(!$('scDeck').hidden){ closeDeck(); return; }   // back throws away deck changes
-    if((!$('scSets').hidden && subEntry('scSets')) || (!$('scNewSet').hidden && subEntry('scNewSet')) || (!$('scAddSet').hidden && subEntry('scAddSet'))){ history.back(); return; }
+    if((!$('scSets').hidden && subEntry('scSets')) || (!$('scNewSet').hidden && subEntry('scNewSet')) || (!$('scAddSet').hidden && subEntry('scAddSet')) || (!$('scSet').hidden && subEntry('scSet'))){ history.back(); return; }
     if((!$('scCode').hidden && subEntry('scCode')) || (!$('scSetup').hidden && subEntry('scSetup'))){ history.back(); return; }
     goHome();
   });

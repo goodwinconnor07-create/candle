@@ -19,13 +19,40 @@ plays and DEPLOY.md for deploy details.
   as soon as the guest seat is taken.
 - `questions.js`: where every question comes from. Games call `nextQ(role)` on
   the room, which gives each player a `Feed` over a source: `mathsSource`, or
-  `setSource()` for a study set. A set deals its core questions like a
-  shuffled deck and, about a third of the time, has the local engine
-  (`engineMakers()`) fill the set's templates from its facts, which costs
-  nothing. Questions carry a hidden `diff` and `why`; snapshots only ever copy
-  `text` and `choices` (and `answer` once resolved), so players never see a
-  difficulty ranking. How often each core question was shown and answered
-  right goes back to D1 (`flushAnswers()`); Tester's answers don't count.
+  `setSource()` for a study set. A set's core questions come unseen first,
+  then ones the player missed, then the oldest; about a third of the time
+  (0.6 once every core question has been seen) the local engine
+  (`engineMakers()`) builds one from the set's master sheet (`study_sets.sheet`:
+  terms, categories, relations, sequences, numbers, each quoted from the
+  notes), which costs nothing. Sets made before the sheet fall back to
+  `sheetFromFacts()`. Questions carry a hidden `diff`, `rating` and `why`;
+  snapshots only ever copy `text` and `choices` (and `answer` once resolved),
+  so players never see a difficulty ranking.
+- Memory and ratings (stage 10): each player (device, or account's home
+  device) has `seen` rows per question key and an Elo `player_ratings` row
+  per set; questions have a `rating` too. The `Feed` picks the candidate
+  nearest the player's rating minus 147 (about 70% right). Wrong picks on
+  engine questions go to `wrong_picks` and come back as distractors.
+  `flushAnswers()` calls `recordPlay()` per player; Tester never counts. A
+  core question shown 15+ times and right under 12% retires itself while
+  the set has more than 10 left.
+- Rewording: the room sometimes asks Workers AI (`AI` binding, a small Llama)
+  to reword an engine stem in the background (`maybeReword()`); the result
+  is checked in code (one line, a question, keeps the term, doesn't give
+  away the answer), saved in `rewordings` and used next time. Capped per
+  room and switched off on any error.
+- Set settings (`#scSet`, `openSet()`, `GET /api/sets/:id`): Use, Share,
+  Delete, a free "Upgrade questions" (adds a master sheet to an old set),
+  and the question list. Each question has a small text **Report** link
+  (wrong answer, confusing, remove it); a report retires the question and,
+  for the owner's original set, a Haiku call writes one replacement from the
+  same part of the notes (`kind = 'fix'`). "More questions · 1 credit" only
+  shows once the set's been played heavily (plays ≥ 4× questions); it runs
+  through the Batch API at half price. Top-ups are never automatic.
+- Twins: a new set whose notes hash (`source_hash`) matches a finished set
+  copies it instead of calling the model, and costs no credit.
+- Topic sets: an admin (`ADMIN_EMAILS`) can mark a set public; anyone can
+  add a free copy from the list under Quick maths (`/api/topics`).
 - Study sets in a match: the host's set is whichever one they chose on the
   home screen (`sd-set` in localStorage, the "Questions:" pill), checked by
   the Worker on `POST /api/games` (must be theirs and ready). The guest picks
@@ -71,8 +98,8 @@ plays and DEPLOY.md for deploy details.
   go in a new numbered file in `migrations/`, applied with
   `npx wrangler d1 migrations apply study-duel --remote` before deploying.
 - `generate.js` and `setjob.js`: making a study set's questions. Per slice of
-  the notes, two calls run side by side: facts (Haiku 4.5, `kind | a | b`
-  lines for the local engine) and core questions plus, for the first slice,
+  the notes (at most 4, spread evenly), two calls run side by side: the master
+  sheet (Haiku 4.5, structured output) and core questions plus, for the first slice,
   wording templates (Sonnet 5.5, structured output, low effort, `fallbacks:
   'default'`). Everything the models return is checked in code (the quote on
   each question has to appear in the notes, choices are shuffled here,
@@ -83,7 +110,9 @@ plays and DEPLOY.md for deploy details.
   local testing; never set it in production.
 - Spending caps (all checked in the route before any money is spent):
   `DAILY_BUDGET_USD` for the whole app per UTC day, `DEVICE_RUNS_PER_DAY` per
-  browser, 30 new devices per network per day, and `GENERATION_ENABLED =
+  browser, `ACCOUNT_BUDGET_USD` per account for its whole life ($0.50; a new
+  set gets a fair share of what's left, `maxSlices`, so all 3 credits fit),
+  30 new devices per network per day, and `GENERATION_ENABLED =
   "false"` to switch it off. They're `[vars]` in `wrangler.toml`. The key is a
   secret: `npx wrangler secret put ANTHROPIC_API_KEY`. Every run's real cost
   is in `gen_runs` (micro-dollars, with per-call token counts in `detail`).
