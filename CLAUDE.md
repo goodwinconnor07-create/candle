@@ -230,6 +230,11 @@ PR to the default branch, merge, deploy, then check the live site.
 - Ids must be unique across the whole page, including SVG gradient ids in the
   home card scenes (`buildScenes()`): a gradient called `scSea` once hid the
   Battleships screen from `$('scSea')`.
+- iPhone Safari 26 doesn't draw the page under the status bar or the floating
+  tab bar, and ignores `theme-color`: it fills them with the solid
+  `background-color` of a fixed element touching each edge. `.edgetint` strips
+  (top and bottom, 4px) carry `--edge-top`/`--edge-bot`, which follow the game
+  tint on the home screen and are soot elsewhere. Keep them, and keep them solid.
 - The app icon is `public/icons/mark.svg` (rendered to the PNGs beside it) and
   `public/manifest.webmanifest` makes it installable.
 

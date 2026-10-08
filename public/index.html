@@ -41,11 +41,21 @@
   /* what Safari samples for the bars above and below the page: on the home
      screen, a still copy of the glow (the moving one can't reach the bars) */
   html{ background:var(--soot); }
+  /* Safari 26 on iPhone doesn't draw the page behind the status bar or the
+     floating tab bar, and it ignores theme-color. It fills those areas with
+     the solid background-color of a fixed element touching each edge, or the
+     root's. These two strips give it the colours of the page's own top and
+     bottom, following the game card's tint on the home screen */
+  .edgetint{ position:fixed; left:0; right:0; height:4px; z-index:0; pointer-events:none; }
+  .edgetint.top{ top:0; background-color:var(--edge-top, var(--soot)); }
+  .edgetint.bot{ bottom:0; background-color:var(--edge-bot, var(--soot)); }
   html.home{
+    --edge-top:color-mix(in srgb, var(--tint) 34%, var(--soot));
+    --edge-bot:color-mix(in srgb, var(--tint2) 75%, var(--soot));
     background:
       radial-gradient(90% 38% at 28% 0%, color-mix(in srgb, var(--tint) 46%, transparent), transparent 70%),
       radial-gradient(90% 40% at 80% 100%, color-mix(in srgb, var(--tint2) 80%, transparent), transparent 70%),
-      var(--soot);
+      var(--edge-bot);
   }
   body{
     background:var(--soot); color:var(--tallow);
@@ -1705,6 +1715,7 @@
   <div class="aurora" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="tint" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
+  <div class="edgetint top" aria-hidden="true"></div><div class="edgetint bot" aria-hidden="true"></div>
   <div class="testchip" id="testChip" hidden>Practice</div>
   <div class="whytip" id="whyTip" hidden><button class="whybtn" id="whyBtn" type="button">Why?</button><button class="whytxt" id="whyTxt" type="button" hidden></button></div>
   <div class="yourturn" id="yourTurn" aria-hidden="true">Your turn</div>
