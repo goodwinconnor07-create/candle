@@ -42,8 +42,8 @@ const JAWS = [
 ];
 
 export const MAX_SPEED = 2600;          // table units per second at full power
-const ROLL_DECEL = 300;                 // constant rolling resistance, units/s^2
-const DRAG = 0.15;                      // extra slow-down that scales with speed, 1/s
+const ROLL_DECEL = 100;                 // constant rolling resistance, units/s^2 (real cloth is ~40)
+const DRAG = 0.25;                      // extra slow-down that scales with speed, 1/s
 const RAIL_E = 0.78;                    // how much speed survives a cushion
 const BALL_E = 0.97;                    // and a ball-on-ball hit
 const STOP_SPEED = 3;
@@ -266,13 +266,35 @@ export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }, opts = {})
         const ox = c.x - a.x, oy = c.y - a.y;
         const d2 = ox * ox + oy * oy;
         if (d2 >= minD2 || d2 === 0) continue;
-        const d = Math.sqrt(d2);
-        const nx = ox / d, ny = oy / d;
-        const push = (BALL_R * 2 - d) / 2;
-        a.x -= nx * push; a.y -= ny * push;
-        c.x += nx * push; c.y += ny * push;
+        // the step usually finds them already overlapping. for two balls
+        // closing on each other, rewind both to the instant they touched so
+        // the line between centres (which sets where the object ball goes) is
+        // the true one. judging it from the overlap threw cuts off by up to
+        // 4 degrees, enough to miss a long pot. they then run on for the
+        // rewound time with their new speeds
+        const rvx = c.vx - a.vx, rvy = c.vy - a.vy;
+        const rv2 = rvx * rvx + rvy * rvy, rdv = ox * rvx + oy * rvy;
+        let back = 0;
+        if (rdv < 0 && rv2 > 0) {
+          back = (rdv + Math.sqrt(rdv * rdv - rv2 * (d2 - minD2))) / rv2;
+          if (back > dt) back = dt;
+          a.x -= a.vx * back; a.y -= a.vy * back;
+          c.x -= c.vx * back; c.y -= c.vy * back;
+        }
+        const ex = c.x - a.x, ey = c.y - a.y;
+        const d = Math.sqrt(ex * ex + ey * ey) || BALL_R * 2;
+        const nx = ex / d, ny = ey / d;
+        if (d < BALL_R * 2) {
+          const push = (BALL_R * 2 - d) / 2;
+          a.x -= nx * push; a.y -= ny * push;
+          c.x += nx * push; c.y += ny * push;
+        }
         const closing = (a.vx - c.vx) * nx + (a.vy - c.vy) * ny;
-        if (closing <= 0) continue;
+        if (closing <= 0) {
+          a.x += a.vx * back; a.y += a.vy * back;
+          c.x += c.vx * back; c.y += c.vy * back;
+          continue;
+        }
         const cueFirst = firstHit === null && i === 0;
         const ux = a.vx, uy = a.vy;
         const j2 = closing * (1 + BALL_E) / 2;
@@ -293,6 +315,8 @@ export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }, opts = {})
         } else if (i === 0 && fleft > 0) {
           fleft = 0;                    // a second hit uses up what spin was left
         }
+        a.x += a.vx * back; a.y += a.vy * back;
+        c.x += c.vx * back; c.y += c.vy * back;
       }
     }
 
@@ -302,10 +326,13 @@ export function simulate(start, dx, dy, speed, spin = { x: 0, y: 0 }, opts = {})
 
       // rn = the cushion's normal pointing back into the table, if one was hit
       let rnx = 0, rny = 0;
-      if (p.x < BALL_R && inSideRail(p.y)) { p.x = BALL_R; if (p.vx < 0) { p.vx = -p.vx * RAIL_E; rnx = 1; } }
-      if (p.x > PW - BALL_R && inSideRail(p.y)) { p.x = PW - BALL_R; if (p.vx > 0) { p.vx = -p.vx * RAIL_E; rnx = -1; } }
-      if (p.y < BALL_R && inEndRail(p.x)) { p.y = BALL_R; if (p.vy < 0) { p.vy = -p.vy * RAIL_E; rny = 1; } }
-      if (p.y > PL - BALL_R && inEndRail(p.x)) { p.y = PL - BALL_R; if (p.vy > 0) { p.vy = -p.vy * RAIL_E; rny = -1; } }
+      // a ball that crossed the cushion line this step bounces back by what
+      // it crossed (scaled like its speed), rather than being parked on the
+      // line, which shifted where it came off by a few units
+      if (p.x < BALL_R && inSideRail(p.y)) { if (p.vx < 0) { p.vx = -p.vx * RAIL_E; rnx = 1; p.x = BALL_R + (BALL_R - p.x) * RAIL_E; } else p.x = BALL_R; }
+      if (p.x > PW - BALL_R && inSideRail(p.y)) { if (p.vx > 0) { p.vx = -p.vx * RAIL_E; rnx = -1; p.x = PW - BALL_R - (p.x - PW + BALL_R) * RAIL_E; } else p.x = PW - BALL_R; }
+      if (p.y < BALL_R && inEndRail(p.x)) { if (p.vy < 0) { p.vy = -p.vy * RAIL_E; rny = 1; p.y = BALL_R + (BALL_R - p.y) * RAIL_E; } else p.y = BALL_R; }
+      if (p.y > PL - BALL_R && inEndRail(p.x)) { if (p.vy > 0) { p.vy = -p.vy * RAIL_E; rny = -1; p.y = PL - BALL_R - (p.y - PL + BALL_R) * RAIL_E; } else p.y = PL - BALL_R; }
       if (n === 0 && side !== 0 && (rnx || rny)) {
         // side spin grips the cushion and throws the ball along it. right
         // spin turns the same way whichever way it's travelling, so the
