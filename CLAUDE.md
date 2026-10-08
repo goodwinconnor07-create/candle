@@ -112,7 +112,7 @@ plays and DEPLOY.md for deploy details.
   `DAILY_BUDGET_USD` for the whole app per UTC day, `DEVICE_RUNS_PER_DAY` per
   browser, `ACCOUNT_BUDGET_USD` per account for its whole life ($0.50; a new
   set gets a fair share of what's left, `maxSlices`, so all 3 credits fit),
-  30 new devices per network per day, and `GENERATION_ENABLED =
+  200 new devices per network per day (a whole school on one network), and `GENERATION_ENABLED =
   "false"` to switch it off. They're `[vars]` in `wrangler.toml`. The key is a
   secret: `npx wrangler secret put ANTHROPIC_API_KEY`. Every run's real cost
   is in `gen_runs` (micro-dollars, with per-call token counts in `detail`).
@@ -233,6 +233,23 @@ PR to the default branch, merge, deploy, then check the live site.
   table in `poolResize()`, chess its board in `chessResize()` and battleships
   its sea in `seaResize()`, golf its course view in `golfResize()`, from the space left over, so anything added above or below them is accounted
   for automatically. Check new screens at 360x640 and 1280x720.
+- Wide screens (`body.wide`, set by `setWide()`: 900px+ wide, landscape,
+  500px+ tall) split each game into two panes with CSS grid: the board fills
+  the left pane at full height (each resize function reads it with
+  `boardPane()`), and players, the turn banner, the question and controls
+  stack in a column on the right, under the Leave game button (top right
+  there). The cards that float over a board on a phone (`pCard`, `gCard`,
+  `bStudy`, `bOver`) are moved into that column and back (`SIDE_CARDS`).
+  Pool's table is drawn upright as always and turned a quarter by CSS, so
+  `tablePoint()` turns pointer positions back; `simulate()` never knows.
+  Battleships adds a small copy of the other sea (`renderMiniSea()`), and
+  study sets show the list and the open set side by side.
+- Screens before a game share one layout: `.panel.form` centres its content
+  above a `.dock` that sits at the bottom on phones and right under the
+  content from 600px wide. The back button lines up with the content column
+  (`--colw`). The turn coming to you lights up your question card
+  (`.turnpop`) rather than putting "Your turn" on top of it; the pop-up only
+  shows when there's no question, centred on the board.
 - Match the existing style: dark "soot" background, tallow text, amber accent,
   the system font (SF Pro on Apple devices) for all interface text, Fraunces
   only for the Study Duel wordmark, and the iMessage-inspired pool table. Each

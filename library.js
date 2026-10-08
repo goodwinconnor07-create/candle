@@ -21,8 +21,9 @@ function randomHex(bytes) {
 }
 
 // a new anonymous player. The secret is returned once and never stored.
-// high enough for a classroom sharing one school network
-export const MAX_DEVICES_PER_IP_DAY = 30;
+// high enough for a whole school sharing one network: a device costs nothing,
+// and everything that does cost money is capped per account and per day
+export const MAX_DEVICES_PER_IP_DAY = 200;
 
 // ip is only used to stop one network minting endless devices; it's stored
 // hashed. Returns null when that network has made too many today.

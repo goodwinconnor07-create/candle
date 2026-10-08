@@ -230,7 +230,7 @@
   .authcard .field{ width:100%; font-size:1rem; padding:12px 14px; }
   .authcard .codefield{ font-size:1.6rem; }
   .authcard .btn.primary{ min-height:48px; font:600 1rem/1 var(--sans); }
-  .authlinks{ display:flex; justify-content:space-between; gap:var(--s2); flex-wrap:wrap; }
+  .authlinks{ display:flex; justify-content:center; gap:var(--s2) var(--s4); flex-wrap:wrap; }
   .authlinks .textlink{ min-height:var(--tap); }
   .authx{ position:absolute; top:6px; right:6px; width:var(--tap); height:var(--tap); border:0; background:none; color:var(--ash); font:400 1.6rem/1 var(--sans); cursor:pointer; transition:scale var(--settle) var(--spring); }
   .authx:active{ scale:.88; transition-duration:var(--press); }
@@ -238,13 +238,16 @@
   /* making sets needs an account: the button is locked until then */
   .btn.locked{
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; line-height:1.1;
-    color:var(--amber) !important; background:rgba(239,227,204,.07) !important; border:1px dashed rgba(255,179,71,.55) !important;
+    color:var(--amber) !important; background:rgba(255,179,71,.1) !important; border:1px solid rgba(255,179,71,.6) !important;
     box-shadow:none !important; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
   }
   .btn.locked > *{ pointer-events:none; }
   .btn.locked .lockline{ display:flex; align-items:center; gap:7px; font:600 .95rem/1.1 var(--sans); }
   .btn.locked .lockline svg{ width:16px; height:16px; flex:0 0 auto; fill:currentColor; }
   .btn.locked small{ font:500 .74rem/1 var(--sans); color:var(--ash); }
+  #scSets .dock #setsAdd{ flex:0 0 auto; padding-inline:18px; }
+  #setsNew.locked{ padding-inline:14px; }
+  #setsNew.locked .lockline{ font-size:.92rem; }
   .credits{ font:500 .8rem/1.3 var(--sans); color:var(--ash); }
   .leaveask{
     position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
@@ -373,7 +376,7 @@
     max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     transition:color .2s ease, opacity .2s ease;
   }
-  .lobbyname.dim{ color:var(--ash); opacity:.75; font-style:italic; }
+  .lobbyname.dim{ color:var(--ash); opacity:1; font-style:italic; }
   .lobbystatus{
     font:600 .72rem/1.4 var(--sans); letter-spacing:.03em; color:var(--ash);
     display:flex; align-items:center; gap:5px; transition:color .2s ease;
@@ -600,6 +603,14 @@
     box-shadow:0 0 40px -6px rgba(255,179,71,.8), 0 18px 40px -12px rgba(0,0,0,.8);
   }
   .yourturn.go{ animation:yourturn 1.1s ease forwards; }
+  /* your question card opening on your turn: a short glow and lift */
+  .turnpop{ animation:turnpop .7s var(--spring); }
+  @keyframes turnpop{
+    0%{ scale:.94; outline:3px solid rgba(255,179,71,0); outline-offset:6px; }
+    45%{ scale:1.02; outline:3px solid rgba(255,179,71,.6); outline-offset:2px; }
+    100%{ scale:1; outline:3px solid rgba(255,179,71,0); outline-offset:0; }
+  }
+  @media (prefers-reduced-motion: reduce){ .turnpop{ animation:none; } }
   @keyframes yourturn{
     0%  { opacity:0; transform:translate(-50%,-50%) scale(.85); }
     18% { opacity:1; transform:translate(-50%,-50%) scale(1.04); }
@@ -958,7 +969,6 @@
   /* ---------- mini golf ---------- */
   #scGolf{ gap:8px; }
   .app[data-screen="scGolf"]{ margin-top:0; }
-  body.testing .app[data-screen="scGolf"]{ padding-bottom:30px; }
   /* which hole, sitting on the course in the top-left corner */
   .ghole{
     position:absolute; left:10px; top:10px; pointer-events:none;
@@ -982,11 +992,11 @@
     border:1px solid var(--hair); border-radius:999px; background:rgba(13,10,8,.82);
   }
   .gclubs button{
-    font:500 .8rem/1 var(--sans); color:var(--ash); background:transparent; border:0;
-    border-radius:999px; padding:9px 14px; cursor:pointer; transition:background .2s, color .2s;
+    min-height:38px; font:600 .84rem/1 var(--sans); color:var(--tallow); background:transparent; border:0;
+    border-radius:999px; padding:0 16px; cursor:pointer; transition:background .2s, color .2s;
   }
   .gclubs button.on{ background:rgba(255,179,71,.16); color:var(--tallow); box-shadow:inset 0 0 0 1px var(--amber); }
-  .gclubs button:disabled{ opacity:.45; cursor:default; }
+  .gclubs button:disabled{ opacity:.6; cursor:default; }
   .gclubs button:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
   .gcard{ max-height:calc(100% - 16px); overflow:hidden; }
   .gsc{ width:100%; border-collapse:collapse; font:400 .8rem/1.3 var(--sans); color:var(--tallow); font-variant-numeric:tabular-nums; }
@@ -1001,7 +1011,6 @@
   #scBattle{ gap:6px; }
   .app[data-screen="scBattle"]{ margin-top:0; }
   .app[data-screen="scBattle"] .logo, .app[data-screen="scDeck"] .logo{ display:none; }
-  body.testing .app[data-screen="scBattle"]{ padding-bottom:30px; }
   .brow{ width:100%; display:flex; align-items:center; gap:8px; min-height:40px; padding-left:46px; }
   .brow .pod{ width:30px; flex:0 0 auto; }
   .brow .pod::after{ display:none; }
@@ -1050,10 +1059,10 @@
   }
   .bstrip-mid{ color:var(--tallow); overflow:hidden; text-overflow:ellipsis; }
   .bstrip .hot{ color:var(--cold); }
-  .bhand.rest{ opacity:.45; filter:saturate(.5); }
+  .bhand.rest{ opacity:.6; filter:saturate(.5); }
 
   /* your hand: four cards and the next one */
-  .bhand{ width:100%; display:flex; align-items:stretch; gap:6px; flex:0 0 auto; }
+  .bhand{ width:min(100%, 440px); display:flex; align-items:stretch; gap:6px; flex:0 0 auto; }
   .bnext{ flex:0 0 auto; width:44px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:3px; }
   .bnext span{ font:500 .6rem/1 var(--sans); letter-spacing:.06em; text-transform:uppercase; color:var(--ash); }
   .bcards{ flex:1 1 auto; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
@@ -1082,7 +1091,7 @@
   .bcard.small .cost i{ font-size:.56rem; }
 
   /* elixir: ten flasks' worth, filled by answering */
-  .belixir{ position:relative; width:100%; display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .belixir{ position:relative; width:min(100%, 440px); display:flex; align-items:center; gap:8px; flex:0 0 auto; }
   .bdrop{
     flex:0 0 auto; width:26px; height:26px; border-radius:50% 50% 50% 6px; transform:rotate(-45deg);
     display:flex; align-items:center; justify-content:center; background:var(--amber);
@@ -1152,10 +1161,7 @@
   .deckinfo .btn{ padding:5px 12px; font-size:.78rem; flex:0 0 auto; }
   .deckinfo p{ font:400 .78rem/1.4 var(--sans); color:var(--ash); }
   .deckinfo .stats{ color:var(--tallow); opacity:.8; margin-top:2px; }
-  .deckfoot{ width:100%; max-width:470px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .deckfoot span{ font:500 .8rem/1.3 var(--sans); color:var(--ash); }
-  .deckfoot .row{ flex-wrap:nowrap; gap:8px; }
-  .deckfoot .btn{ padding:9px 14px; font-size:.86rem; }
+  .deckcount{ font:500 .8rem/1.3 var(--sans); color:var(--ash); font-variant-numeric:tabular-nums; }
   @media (max-height:600px){
     .app[data-screen="scGuest"] .logo{ display:none; }
     .lobbyside .pod{ width:40px; }
@@ -1230,8 +1236,24 @@
   }
 
   /* the test mode tag gets its own strip under a game, never on top of it */
-  body.testing .app[data-screen="scPool"], body.testing .app[data-screen="scChess"], body.testing .app[data-screen="scSea"]{ padding-bottom:30px; }
-  body.testing .testchip{ bottom:max(6px, env(safe-area-inset-bottom)); }
+  /* a practice match says so next to Tester's name, up in the top bar,
+     instead of taking a strip of its own under the board */
+  .testchip{ display:none !important; }
+  body.testing #pNameTheirs::after, body.testing #cNameTheirs::after, body.testing #sNameTheirs::after,
+  body.testing #gNameTheirs::after, body.testing #bNameTheirs::after{
+    content:"Practice"; flex:0 0 auto; display:inline-block; margin-left:6px; padding:2px 6px; border-radius:6px;
+    font:700 .6rem/1.2 var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--amber);
+    border:1px solid rgba(255,179,71,.5); vertical-align:1px;
+  }
+  body.testing .pside.them .pname::after{ order:-1; margin:0 6px 0 0; }
+  /* pool and golf have no room beside the name on a phone, so the tag sits
+     at the end of the turn banner there */
+  body.testing:not(.wide) #pNameTheirs::after, body.testing:not(.wide) #gNameTheirs::after{ display:none; }
+  body.testing:not(.wide) #pTurn::after, body.testing:not(.wide) #gTurn::after{
+    content:"Practice"; flex:0 0 auto; margin-left:auto; padding:2px 6px; border-radius:6px;
+    font:700 .6rem/1.2 var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--amber);
+    border:1px solid rgba(255,179,71,.5);
+  }
   /* reduced motion means less travel across the screen, not a dead page. the
      demo still plays its shots, since that's the point of it. what goes is
      the sliding and bobbing */
@@ -1346,9 +1368,20 @@
   /* --- screens before a game: title at the top, the main button docked at
      the bottom where a thumb is --- */
   .app[data-screen="scIntro"], .app[data-screen="scCode"], .app[data-screen="scSetup"],
-  .app[data-screen="scHost"], .app[data-screen="scGuest"], .app[data-screen="scDead"]{ flex:1 1 auto; margin:0; min-height:0; }
-  #scCode, #scSetup, #scHost, #scGuest, #scDead{ flex:1 1 auto; min-height:0; padding-top:56px; gap:14px; }
-  #scDead{ justify-content:flex-start; }
+  .app[data-screen="scHost"], .app[data-screen="scGuest"], .app[data-screen="scDead"],
+  .app[data-screen="scSets"], .app[data-screen="scSet"], .app[data-screen="scNewSet"],
+  .app[data-screen="scAddSet"], .app[data-screen="scDeck"]{ flex:1 1 auto; margin:0; min-height:0; }
+  #scCode, #scSetup, #scHost, #scGuest, #scDead, #scSets, #scSet, #scNewSet, #scAddSet, #scDeck{ flex:1 1 auto; min-height:0; padding-top:56px; }
+  #scCode, #scSetup, #scHost, #scGuest, #scDead, #scSets, #scAddSet{ gap:14px; }
+  /* on a phone the content sits in the middle of the room above the docked
+     button, so a tall screen has no hole between them. wider screens have
+     no thumb to reach for, so the button follows the content and the two
+     sit together in the middle */
+  .panel.form > :first-child{ margin-top:auto; }
+  @media (min-width:600px){
+    .panel.form > .dock{ margin-top:var(--s5); }
+    .panel.form::after{ content:""; margin-top:auto; }
+  }
   .dock{ margin-top:auto; width:100%; max-width:440px; display:flex; gap:10px; padding-top:8px; }
   .dock .btn{ flex:1 1 0; min-height:52px; padding:14px 18px; font:600 1.02rem/1 var(--sans); }
   .dock .btn.primary{ flex-grow:1.4; }
@@ -1366,6 +1399,13 @@
     box-shadow:inset 0 1px 2px rgba(0,0,0,.35); transition:border-color .2s, box-shadow .2s, background .2s;
   }
   .field::placeholder{ color:rgba(239,227,204,.32); }
+  /* a big code placeholder mustn't look like a code someone already typed */
+  .codefield::placeholder{ color:rgba(239,227,204,.14); font-weight:500; }
+  /* a label over each field, so you can still tell them apart once filled */
+  .flabel{ display:flex; flex-direction:column; align-items:stretch; gap:6px; text-align:left; }
+  .flabel > span{ font:600 .74rem/1.2 var(--sans); letter-spacing:.04em; color:var(--ash); padding-left:4px; }
+  /* a main button that isn't ready yet: its outline, not a muddy copy of itself */
+  .btn.primary:disabled{ background:rgba(239,227,204,.05); color:rgba(239,227,204,.5); border-color:var(--hair); box-shadow:none; opacity:1; }
   .field:focus{ border-color:rgba(255,179,71,.7); background:rgba(239,227,204,.07); box-shadow:0 0 0 4px rgba(255,179,71,.14); }
   .codefield{ font:700 2rem/1.2 var(--sans); letter-spacing:.32em; padding-left:calc(16px + .32em); width:min(280px, 100%); }
 
@@ -1425,7 +1465,7 @@
     background:radial-gradient(130% 78% at 50% 0%, var(--g1), var(--g2) 80%);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.16), inset 0 0 0 1px rgba(255,255,255,.07), 0 26px 46px -22px rgba(0,0,0,.95);
   }
-  .game{ max-height:calc(var(--cardw) * 1.72); align-self:center; height:100%; }
+  .game{ max-height:calc(var(--cardw) * 1.6); align-self:center; height:100%; }
   /* each card's size and brightness come from how close it is to the middle
      (--p: 1 centred, 0 a card away) and its art drifts a little slower than the
      card (--d: -1 left .. 1 right). cardDepth() sets both every frame the strip
@@ -1617,7 +1657,8 @@
   /* short phones: the lobby and profile screens tighten up so the button
      at the bottom always stays on screen */
   @media (max-height:780px){
-    #scCode, #scSetup, #scHost, #scGuest, #scDead{ padding-top:50px; gap:10px; }
+    #scCode, #scSetup, #scHost, #scGuest, #scDead, #scSets, #scAddSet{ padding-top:50px; gap:10px; }
+    #scSet, #scNewSet, #scDeck{ padding-top:50px; }
     .lobby{ padding:12px 10px 10px; }
     .lobbyside .pod{ width:clamp(40px, 7dvh, 58px); }
     #scGuest .hd, #scHost .hd{ font-size:clamp(1.3rem, 5.6vw, 1.6rem); }
@@ -1632,13 +1673,16 @@
     .dock .btn{ min-height:48px; }
   }
   @media (max-height:640px){
-    #scGuest .charcard b{ display:none; }
+    #scGuest .charcard b{ font-size:.6rem; }
+    #scGuest .charcard{ padding:4px 3px; gap:2px; }
+    #scGuest .charcard .pod{ width:26px; }
     #scGuest .status{ min-height:0; font-size:.82rem; }
-    #scSetup .lead, #scCode .lead{ display:none; }
+    #scSetup .lead, #scCode .lead{ font-size:.8rem; }
   }
   @media (max-height:600px){
     #scGuest .lobby{ display:none; }
   }
+  @media (max-height:700px){ #scDeck{ padding-top:46px; gap:7px; } }
 
   .togglerow{
     width:min(320px, 100%); display:flex; align-items:center; justify-content:space-between; gap:14px;
@@ -1699,6 +1743,89 @@
     .sc-aim, .sc-shell, .sc-flash, .sc-ring, .sc-burn, .sc-flame, .sc-smoke, .sc-hitship, .sc-troop, .sc-bolt, .sc-spark, .sc-hp, .sc-glint{ animation:none; }
   }
 
+  /* ---------- wide screens: every game in two panes ----------
+     a laptop or a tablet on its side (body.wide, set by setWide()). the board
+     fills the left pane top to bottom; players, the turn, the question and
+     the controls stack in a column on the right. the first row of that
+     column is left for the Leave game button, which moves to the top right */
+  body.wide .app[data-screen="scPool"], body.wide .app[data-screen="scChess"], body.wide .app[data-screen="scSea"],
+  body.wide .app[data-screen="scGolf"], body.wide .app[data-screen="scBattle"]{
+    max-width:1440px; flex:1 1 auto; min-height:0; margin:0;
+  }
+  body.wide #scPool, body.wide #scChess, body.wide #scSea, body.wide #scGolf, body.wide #scBattle{
+    flex:1 1 auto; min-height:0; display:grid; align-items:start; text-align:left;
+    grid-template-columns:minmax(0, 1fr) clamp(320px, 30vw, 400px);
+    grid-template-rows:repeat(7, auto) 1fr; column-gap:clamp(20px, 3vw, 44px); row-gap:10px;
+  }
+  body.wide #scPool > *, body.wide #scChess > *, body.wide #scSea > *, body.wide #scGolf > *, body.wide #scBattle > *{ grid-column:2; width:100%; }
+  body.wide #scPool::before, body.wide #scChess::before, body.wide #scSea::before, body.wide #scGolf::before, body.wide #scBattle::before{
+    content:""; grid-column:2; height:38px;
+  }
+  body.wide #pStage, body.wide #cWrap, body.wide #sWrap, body.wide #gWrap, body.wide #bWrap{
+    grid-column:1; grid-row:1 / -1; align-self:center; justify-self:center;
+  }
+  body.wide #pStage{ width:auto; align-items:center; }
+  body.wide #cWrap, body.wide #sWrap, body.wide #bWrap{ width:auto; }
+  body.wide #pTable{ display:flex; align-items:center; justify-content:center; }
+  body.wide #pCanvas{ position:absolute; left:50%; top:50%; translate:-50% -50%; rotate:90deg; }
+  body.wide .pbar, body.wide .crow.them, body.wide .srow, body.wide .brow{ padding-left:0; }
+  body.wide #cRowMine{ grid-row:-2; align-self:end; }
+  /* the cards that float over a board on a phone sit in the column here */
+  body.wide #pCard, body.wide #gCard, body.wide #bStudy, body.wide #bOver{
+    position:relative; inset:auto; transform:none; max-height:none; width:100%;
+  }
+  body.wide #bStudy, body.wide #bOver{ order:1; }
+  body.wide #scBattle .bhand, body.wide #scBattle .belixir{ order:2; width:100%; }
+  body.wide .quitbtn{ left:auto; right:max(16px, env(safe-area-inset-right)); }
+  /* battleships: the other sea, small, under the card */
+  .seamini{ display:none; }
+  body.wide .seamini{
+    display:flex; flex-direction:column; align-items:center; gap:6px; padding:0; border:0; background:none;
+    color:var(--ash); font:600 .74rem/1.2 var(--sans); letter-spacing:.04em; cursor:pointer;
+    transition:scale var(--settle) var(--spring);
+  }
+  body.wide .seamini:active{ scale:.97; transition-duration:var(--press); }
+  body.wide .seamini:focus-visible{ outline:2px solid var(--amber); outline-offset:3px; border-radius:var(--r-sm); }
+  .sboard.mini{ position:relative; display:block; inset:auto; width:min(100%, 230px); aspect-ratio:1; }
+  .sboard.mini .cell{ display:block; }
+  @media (hover:hover){ body.wide .seamini:hover .sboard.mini{ box-shadow:0 0 0 2px rgba(239,227,204,.35); } }
+  body.wide .turnbar{ height:auto; min-height:56px; }
+  body.wide .turnbar .pcall{ -webkit-line-clamp:3; }
+
+  /* ---------- wide screens: menus ---------- */
+  /* study sets: the list and the open set side by side */
+  body.wide .app:has(> #scSets:not([hidden])):has(> #scSet:not([hidden])){
+    max-width:1100px; display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.25fr);
+    grid-template-rows:minmax(0, 1fr); column-gap:clamp(24px, 4vw, 56px); align-items:stretch;
+  }
+  body.wide #scSets:has(~ #scSet:not([hidden])) > :first-child{ margin-top:0; }
+  body.wide #scSets:has(~ #scSet:not([hidden]))::after{ display:none; }
+  body.wide #scSets:has(~ #scSet:not([hidden])) > .dock{ margin-top:auto; }
+  .setitem.open{ border-color:rgba(239,227,204,.55); background:rgba(239,227,204,.08); }
+  /* the deck: the cards on the left, the one you're reading on the right */
+  @media (min-width:860px) and (min-height:560px){
+    .app[data-screen="scDeck"]{ max-width:940px; }
+    #scDeck{ display:grid; grid-template-columns:minmax(0, 470px) minmax(0, 360px); justify-content:center; align-content:center; column-gap:28px; row-gap:12px; }
+    #scDeck > *{ grid-column:1 / -1; justify-self:center; }
+    #scDeck > :first-child{ margin-top:0; }
+    #scDeck::after{ display:none; }
+    #scDeck .deckgrid{ grid-column:1; }
+    #scDeck .deckinfo{ grid-column:2; align-self:start; justify-self:stretch; }
+    #scDeck .dock{ margin-top:var(--s3); }
+  }
+  /* home on a wide screen: the strip runs edge to edge and the cards either
+     side of the middle one are easier to see */
+  @media (min-width:1000px){
+    .games{ --stripw:100vw; }
+    .game{ opacity:calc(.62 + .38 * var(--p)); }
+  }
+  /* the back button lines up with the left edge of the screen's content */
+  body{ --colw:540px; }
+  body:has(.app[data-screen="scNewSet"]){ --colw:720px; }
+  body.wide:has(#scSet:not([hidden])):has(#scSets:not([hidden])){ --colw:1100px; }
+  @media (min-width:860px) and (min-height:560px){ body:has(.app[data-screen="scDeck"]){ --colw:940px; } }
+  .backbtn{ left:max(14px, env(safe-area-inset-left), calc((100vw - var(--colw)) / 2)); }
+
   /* ---------- study set questions in a match ---------- */
   /* real questions run longer than sums: smaller type, one answer per row */
   .pcard-q.long{ font:600 clamp(1rem,4.3vw,1.18rem)/1.35 var(--sans); letter-spacing:0; text-wrap:balance; }
@@ -1723,7 +1850,7 @@
   .setsrow{ display:flex; justify-content:center; max-width:100%; }
   .setsrow .rejoinbtn{ color:var(--amber); border-color:rgba(255,179,71,.55); }
   .setsrow .pillbtn{ max-width:min(320px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .setlist{ width:min(380px, 100%); display:flex; flex-direction:column; gap:var(--s2); max-height:44dvh; overflow-y:auto; overscroll-behavior:contain; }
+  .setlist{ width:min(380px, 100%); display:flex; flex-direction:column; gap:var(--s2); flex:0 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:2px; margin:-2px; }
   .setitem{
     display:flex; align-items:center; justify-content:space-between; gap:var(--s3); text-align:left;
     padding:var(--s3) var(--s4); min-height:var(--tap); border-radius:var(--r-md);
@@ -1736,10 +1863,17 @@
   /* a long name keeps its line; the buttons drop underneath when they don't fit */
   .setitem{ flex-wrap:wrap; row-gap:var(--s2); }
   .setitem > div:first-child{ flex:1 1 150px; min-width:0; }
-  .setopen{ all:unset; display:block; flex:1 1 150px; min-width:0; min-height:var(--tap); cursor:pointer; border-radius:var(--r-sm); transition:scale var(--settle) var(--spring); }
-  .setopen:active{ scale:.97; transition-duration:var(--press); }
-  .setopen:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
-  .setopen b::after{ content:" ›"; color:var(--ash); font-weight:400; }
+  /* a row that opens its set: the whole row is the button (the name's button
+     stretches over it), with its own buttons sitting on top */
+  .setitem{ position:relative; transition:scale var(--settle) var(--spring), border-color .2s; }
+  .setopen{ all:unset; display:flex; flex-direction:column; justify-content:center; flex:1 1 150px; min-width:0; min-height:var(--tap); cursor:pointer; }
+  .setopen::after{ content:""; position:absolute; inset:0; border-radius:var(--r-md); }
+  .setopen:focus-visible::after{ outline:2px solid var(--amber); outline-offset:2px; }
+  .setitem.opens:has(.setopen:active){ scale:.98; transition-duration:var(--press); }
+  @media (hover:hover){ .setitem.opens:hover{ border-color:rgba(239,227,204,.32); } }
+  .setitem .setacts{ position:relative; z-index:1; }
+  .setchev{ flex:0 0 auto; font:400 1.4rem/1 var(--sans); color:var(--ash); pointer-events:none; margin-right:-4px; }
+  .setitem.opens{ flex-wrap:nowrap; }
   #scSet{ gap:var(--s3); min-height:0; }
   .setdetacts{ display:flex; flex-wrap:wrap; justify-content:center; gap:var(--s2); }
   .setdetacts .btn{ min-height:var(--tap); padding:8px 16px; font:600 .88rem/1 var(--sans); }
@@ -1748,14 +1882,26 @@
   .qitem{ padding:var(--s3); border:1px solid var(--hair); border-radius:var(--r-md); background:rgba(239,227,204,.03); }
   .qitem p{ font:500 .88rem/1.35 var(--sans); }
   .qitem small{ display:block; margin-top:3px; font:400 .78rem/1.3 var(--sans); color:var(--ash); }
-  .qitem .qrep{ display:flex; flex-wrap:wrap; gap:var(--s3); margin-top:2px; }
-  .qitem .textlink{ min-height:32px; font-size:.78rem; }
-  .setempty{ font:400 .9rem/1.5 var(--sans); color:var(--ash); max-width:30ch; padding:var(--s4) 0; }
-  textarea.field{ width:min(380px, 100%); min-height:0; flex:1 1 120px; max-height:34dvh; resize:none; font:400 .95rem/1.45 var(--sans); text-align:left; }
+  /* the report links stay small to look at, with a full 44px to tap */
+  .qitem .qrep{ display:flex; flex-wrap:wrap; align-items:center; column-gap:var(--s2); margin:2px 0 -8px -8px; }
+  .qitem .textlink{ min-height:var(--tap); padding:0 8px; font-size:.8rem; }
+  .qitem .textlink.qx{ min-width:36px; font-size:1.15rem; text-decoration:none; }
+  @media (max-width:400px){ .qitem .qrep{ column-gap:0; } .qitem .textlink{ padding:0 6px; } }
+  .dangerlink{ min-height:var(--tap); padding:0 var(--s4); color:var(--ember); text-decoration-color:rgba(255,106,42,.4); font-weight:600; }
+  .dangerlink:disabled{ opacity:.4; cursor:default; }
+  .setempty{ font:400 .9rem/1.5 var(--sans); color:var(--ash); max-width:30ch; padding:var(--s4) 0; align-self:center; text-align:center; }
+  /* the notes box takes all the room down to the button */
+  textarea.field{ width:min(380px, 100%); min-height:120px; flex:1 1 120px; resize:none; font:400 .95rem/1.45 var(--sans); text-align:left; }
   #scNewSet .field{ width:min(380px, 100%); }
   .filerow{ width:min(380px, 100%); display:flex; align-items:center; gap:var(--s3); }
-  .filerow .btn{ min-height:var(--tap); padding:8px 16px; font:600 .9rem/1 var(--sans); }
-  .filerow span{ font:400 .8rem/1.3 var(--sans); color:var(--ash); text-align:left; }
+  .wordcount{ margin-left:auto; font:500 .8rem/1.3 var(--sans); color:var(--ash); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  /* people paste whole pages here, so wider screens get a page-width box */
+  @media (min-width:760px){
+    .app[data-screen="scNewSet"]{ max-width:720px; }
+    #scNewSet .field, #scNewSet .filerow{ width:min(680px, 100%); }
+  }
+  .filerow .btn{ min-height:var(--tap); padding:8px 16px; font:600 .9rem/1 var(--sans); flex:0 0 auto; white-space:nowrap; }
+  .filerow span{ font:400 .8rem/1.3 var(--sans); color:var(--ash); text-align:left; min-width:0; }
   #scNewSet{ gap:var(--s3); }
   #scNewSet, #scSets{ min-height:0; }
 </style>
@@ -1787,9 +1933,9 @@
       <button class="authx" id="authX" type="button" aria-label="Close">×</button>
       <h2 id="authHd">Sign up</h2>
       <p class="authlead" id="authLead"></p>
-      <input class="field" id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="Email" aria-label="Email">
-      <input class="field" id="authPass" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
-      <input class="field codefield" id="authCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit code">
+      <label class="flabel" id="authEmailL"><span>Email</span><input class="field" id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com"></label>
+      <label class="flabel" id="authPassL"><span id="authPassLbl">Password</span><input class="field" id="authPass" type="password" autocomplete="current-password" placeholder="8 or more characters"></label>
+      <label class="flabel" id="authCodeL"><span>6-digit code</span><input class="field codefield" id="authCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000"></label>
       <p class="note" id="authNote" aria-live="polite"></p>
       <button class="btn primary" id="authGo" type="button">Sign up</button>
       <p class="authlinks"><button class="textlink" id="authSwap" type="button"></button><button class="textlink" id="authForgot" type="button">Forgot password?</button></p>
@@ -2341,7 +2487,7 @@
       </div>
     </section>
 
-    <section class="panel" id="scCode" hidden>
+    <section class="panel form" id="scCode" hidden>
       <h2 class="hd">Join a match</h2>
       <p class="lead">Type the 6-digit code from your opponent's screen.</p>
       <input class="field codefield" id="codeInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit code">
@@ -2349,7 +2495,7 @@
       <div class="dock"><button class="btn primary" id="codeGo" type="button" disabled>Join</button></div>
     </section>
 
-    <section class="panel" id="scSetup" hidden>
+    <section class="panel form" id="scSetup" hidden>
       <h2 class="hd" id="setupHd">Who are you?</h2>
       <p class="lead" id="setupLead">Your opponent sees this next to every move.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="Your name" autocomplete="name" aria-label="Your name">
@@ -2362,7 +2508,7 @@
       <div class="dock"><button class="btn primary" id="setupGo" type="button" disabled>Create a match</button></div>
     </section>
 
-    <section class="panel" id="scHost" hidden>
+    <section class="panel form" id="scHost" hidden>
       <h2 class="hd" id="hostHd">Invite your opponent</h2>
       <p class="gamechip" id="hostGame"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
       <p class="lobbyset" id="hostSetNote"></p>
@@ -2380,9 +2526,9 @@
         </div>
       </div>
       <div class="invite" id="hostInvite">
-        <p class="invite-label">Or they can join with this code</p>
+        <p class="invite-label">Join code</p>
         <button class="codebox wait" id="hostCode" type="button" aria-label="Copy the join code">······</button>
-        <p class="note" id="hostCodeNote">They tap Join on the home screen and type it in.</p>
+        <p class="note" id="hostCodeNote">They tap Join on the home screen and type it in, or open the link you send.</p>
       </div>
       <div class="dock" id="hostShareRow">
         <button class="btn" id="hostCopy" type="button"><svg><use href="#i-copy"/></svg><span>Copy link</span></button>
@@ -2393,7 +2539,7 @@
       </div>
     </section>
 
-    <section class="panel" id="scGuest" hidden>
+    <section class="panel form" id="scGuest" hidden>
       <h2 class="hd" id="guestHd">You've been challenged</h2>
       <p class="gamechip" id="guestMode"><svg><use href="#i-pool"/></svg><span>Pool</span></p>
       <div class="lobby" id="guestLobby">
@@ -2582,6 +2728,10 @@
           <button class="btn leavelink" type="button">Home</button>
         </div>
       </div>
+      <button class="seamini" id="sMini" type="button">
+        <span class="seamini-lbl" id="sMiniLbl">Your waters</span>
+        <span class="sboard mini" id="sMiniBoard"><span class="sships" id="sMiniShips"></span><span class="sgrid" id="sMiniGrid"></span></span>
+      </button>
     </section>
 
     <section class="panel" id="scBattle" hidden>
@@ -2631,7 +2781,7 @@
       </div>
     </section>
 
-    <section class="panel" id="scSets" hidden>
+    <section class="panel form" id="scSets" hidden>
       <h2 class="hd">Study sets</h2>
       <p class="lead">Add your notes here and your games ask questions from them.</p>
       <div class="setlist" id="setList"></div>
@@ -2646,9 +2796,10 @@
       <div class="setdetacts" id="setDetActs"></div>
       <p class="note" id="setDetNote" aria-live="polite"></p>
       <div class="qlist" id="setDetList"></div>
+      <button class="textlink dangerlink" id="setDetDel" type="button">Delete this set</button>
     </section>
 
-    <section class="panel" id="scAddSet" hidden>
+    <section class="panel form" id="scAddSet" hidden>
       <h2 class="hd">Add a friend's set</h2>
       <p class="lead">Type the code they shared. You get your own copy of their questions.</p>
       <input class="field codefield" id="addCode" type="text" maxlength="7" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC-123" aria-label="Share code">
@@ -2664,22 +2815,21 @@
         <button class="btn" id="setPick" type="button">Add files</button>
         <input type="file" id="setFile" accept=".pdf,.docx,.pptx,.txt,.md" multiple hidden>
         <span id="setInfo">PDF, Word, slides or text</span>
+        <span class="wordcount" id="setWords" aria-live="polite"></span>
       </div>
       <p class="note" id="setNote" aria-live="polite"></p>
       <div class="dock"><button class="btn primary" id="setSave" type="button" disabled>Save set</button></div>
     </section>
 
-    <section class="panel" id="scDeck" hidden>
+    <section class="panel form" id="scDeck" hidden>
       <h2 class="hd">Your deck</h2>
       <p class="deck-sub">Pick 8 cards. Tap a card to read about it, then add it or take it out.</p>
       <div class="deckgrid" id="deckGrid"></div>
       <div class="deckinfo" id="deckInfo"></div>
-      <div class="deckfoot">
-        <span id="deckCount">8 of 8</span>
-        <div class="row">
-          <button class="btn" id="deckReset" type="button">Starter</button>
-          <button class="btn primary" id="deckDone" type="button">Done</button>
-        </div>
+      <p class="deckcount" id="deckCount">8 of 8</p>
+      <div class="dock">
+        <button class="btn" id="deckReset" type="button">Starter deck</button>
+        <button class="btn primary" id="deckDone" type="button">Done</button>
       </div>
     </section>
 
@@ -2733,7 +2883,7 @@
       </div>
     </section>
 
-    <section class="panel" id="scDead" hidden>
+    <section class="panel form" id="scDead" hidden>
       <h2 class="hd" id="deadHd">No match here</h2>
       <p class="lead" id="deadSub">That link's expired, or it was mistyped.</p>
       <div class="dock"><button class="btn primary" id="deadHome" type="button">Back to games</button></div>
@@ -2763,6 +2913,43 @@
     if(appH() === lastAppH) return;
     setAppH(); window.dispatchEvent(new Event('resize'));
   });
+
+  /* wide screens (a laptop, a tablet on its side): each game splits into two
+     panes, the board on the left at full height and everything else in a
+     column beside it (body.wide). the question cards that float over a board
+     on a phone move into that column, and back when the window narrows. this
+     runs before every game's own resize handler, since they measure the
+     layout it sets up */
+  const SIDE_CARDS = [['pCard', 'scPool'], ['gCard', 'scGolf'], ['bStudy', 'scBattle'], ['bOver', 'scBattle']];
+  const cardHome = {};
+  let wide = null;
+  function setWide(){
+    const w = window.innerWidth, h = appH();
+    const now = w >= 900 && h >= 500 && w >= h * 1.2;
+    if(now === wide) return;
+    const was = wide;
+    wide = now;
+    document.body.classList.toggle('wide', now);
+    // an open study set: side by side with the list when wide, alone when not
+    if(was !== null && !$('scSet').hidden){
+      if(now && $('scSets').hidden){ show(['scSets', 'scSet']); loadSets(); }
+      else if(!now && !$('scSets').hidden) show(['scSet']);
+    }
+    for(const [id, panel] of SIDE_CARDS){
+      const el = $(id);
+      if(!cardHome[id]) cardHome[id] = { parent: el.parentNode, next: el.nextSibling };
+      if(now) $(panel).append(el);
+      else cardHome[id].parent.insertBefore(el, cardHome[id].next);
+    }
+  }
+  setWide();
+  window.addEventListener('resize', setWide);
+  // the left pane of a wide game screen: its width from the grid's first
+  // column, its height the panel's own
+  function boardPane(panel){
+    const cols = getComputedStyle(panel).gridTemplateColumns.split(' ');
+    return { w: Math.floor(parseFloat(cols[0]) || panel.clientWidth), h: Math.floor(panel.clientHeight) };
+  }
   /* ---------- haptics ----------
      Android and most browsers buzz through navigator.vibrate. iPhone Safari
      has no vibrate, but toggling a native switch input (iOS 17.4 and later)
@@ -2841,13 +3028,28 @@
     $(prefix + 'TurnWho').textContent = who;
   }
 
+  // when the turn comes to you. if your question card is opening, the card
+  // itself lights up (the banner above already says it's your turn) instead
+  // of a pop-up landing on top of it. otherwise "Your turn" flashes over the
+  // middle of the board, not the middle of the screen, since boards sit off
+  // centre (pool's cue is on the left, and wide screens put a panel beside)
+  const TURN_CARD = { scPool: 'pCard', scChess: 'cCard', scSea: 'sCard', scGolf: 'gCard' };
+  const TURN_BOARD = { scPool: 'pTable', scChess: 'cWrap', scSea: 'sWrap', scGolf: 'gWrap' };
   let lastTurn = null;
   function turnCue(s, turn){
     if(s.phase === 'countdown'){ lastTurn = null; return; }
     if(s.phase === 'over') return;
     if(turn === myRole && lastTurn !== myRole){
-      const el = $('yourTurn');
-      el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+      const at = app.dataset.screen, card = $(TURN_CARD[at]);
+      if(/^(pq|cq|bq|gq)$/.test(s.phase) && card && !card.hidden){
+        card.classList.remove('turnpop'); void card.offsetWidth; card.classList.add('turnpop');
+      } else {
+        const el = $('yourTurn'), board = $(TURN_BOARD[at]);
+        const r = board && board.getBoundingClientRect();
+        el.style.left = r && r.width ? (r.left + r.width / 2) + 'px' : '';
+        el.style.top = r && r.height ? (r.top + r.height / 2) + 'px' : '';
+        el.classList.remove('go'); void el.offsetWidth; el.classList.add('go');
+      }
       haptics('turn');
     }
     lastTurn = turn;
@@ -3476,10 +3678,23 @@
 
   function poolResize(){
     const stage = $('pStage');
-    const availW = Math.min(stage.clientWidth || 360, 540) - 46;
-    const availH = appH() - 176 - ($('testChip').hidden ? 0 : 30);
-    const w = Math.max(200, Math.floor(Math.min(availW, availH * OW / OL)));
+    let w;
+    if(wide){
+      // the table turns on its side to fill the left pane: the canvas keeps
+      // drawing it upright and CSS turns it, so the drawn width is the
+      // height on screen
+      const pane = boardPane($('scPool'));
+      w = Math.max(200, Math.floor(Math.min(pane.h - 8, (pane.w - 54) * OW / OL)));
+    }else{
+      const availW = Math.min(stage.clientWidth || 360, 540) - 46;
+      const availH = appH() - 176;
+      w = Math.max(200, Math.floor(Math.min(availW, availH * OW / OL)));
+    }
     const h = Math.round(w * OL / OW);
+    const tbl = $('pTable');
+    tbl.style.width = wide ? h + 'px' : '';
+    tbl.style.height = wide ? w + 'px' : '';
+    $('cueBar').style.height = ((wide ? w : h) - 46) + 'px';
     if(w === pv.w && h === pv.h) return;
     const c = $('pCanvas'), dpr = Math.min(window.devicePixelRatio || 1, 3);
     pv.w = w; pv.h = h; pv.scale = w / OW; pv.dpr = dpr;
@@ -3487,7 +3702,6 @@
     tableCache = null;
     c.style.width = w + 'px'; c.style.height = h + 'px';
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
-    $('cueBar').style.height = (h - 46) + 'px';
     updateCueBar();
   }
   window.addEventListener('resize', () => { if(!$('scPool').hidden) poolResize(); });
@@ -4140,6 +4354,12 @@
     const cv = $('pCanvas'), bar = $('cueBar');
     const tablePoint = e => {
       const r = cv.getBoundingClientRect();
+      if(wide){
+        // the canvas is turned a quarter clockwise on wide screens, so a
+        // point on screen is turned back before it's read as a table point
+        const sx = e.clientX - (r.left + r.width / 2), sy = e.clientY - (r.top + r.height / 2);
+        return { x: (pv.w / 2 + sy) / pv.scale - RAIL, y: (pv.h / 2 - sx) / pv.scale - RAIL };
+      }
       return { x: (e.clientX - r.left) / pv.scale - RAIL, y: (e.clientY - r.top) / pv.scale - RAIL };
     };
     cv.addEventListener('pointerdown', e => {
@@ -4843,7 +5063,9 @@
     const top = panel.getBoundingClientRect().top;
     const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
     const room = appH() - top - others - gaps - below - 2;
-    const size = Math.floor(Math.max(150, Math.min(panel.clientWidth, room, 600)));
+    const pane = wide && boardPane(panel);
+    const size = pane ? Math.floor(Math.max(240, Math.min(pane.w, pane.h, 860)))
+      : Math.floor(Math.max(150, Math.min(panel.clientWidth, room, 600)));
     wrap.style.width = size + 'px';
   }
   // the card keeps the height of its tallest in-game state, so the board
@@ -5003,9 +5225,39 @@
     el.toggleAttribute('data-v', !!ship[1]);
   }
 
+  // wide screens only: the sea you're not looking at, small, beside the big
+  // one. it shows the same marks and ships, and a tap swaps the two
+  function renderMiniSea(){
+    if(!wide || !Sea || !sv.s) return;
+    const grid = $('sMiniGrid'), ships = $('sMiniShips');
+    if(!grid.children.length){
+      for(let sq = 0; sq < 100; sq++) grid.insertAdjacentHTML('beforeend', '<i class="cell"></i>');
+      for(let i = 0; i < 5; i++) ships.insertAdjacentHTML('beforeend', '<div class="ship" hidden><i>' + shipArt(i, Sea.FLEET[i].len) + '</i></div>');
+    }
+    const S = sv.s.sea, view = sv.view === 'mine' ? 'theirs' : 'mine', B = S[view];
+    const board = $('sMiniBoard');
+    board.dataset.view = view;
+    board.style.setProperty('--cell', (board.clientWidth / 10 || 18).toFixed(2) + 'px');
+    const op = myRole === 'host' ? 'guest' : 'host', them = (sv.s[op] || {}).name;
+    $('sMiniLbl').textContent = view === 'mine' ? 'Your waters' : them ? owns(them) + ' waters' : 'Their waters';
+    $('sMini').setAttribute('aria-label', 'Show ' + $('sMiniLbl').textContent.toLowerCase());
+    const fleet = view === 'mine' && phase === 'place' && sv.layout ? sv.layout : B.fleet;
+    [...ships.children].forEach((el, i) => {
+      placeShip(el, fleet[i], Sea.FLEET[i].len);
+      el.classList.toggle('sunk', !!B.sunk[i] && phase !== 'place');
+    });
+    [...grid.children].forEach((el, sq) => {
+      const shot = B.shots[sq], mark = B.marks[sq];
+      const cls = 'cell' + (shot === 'o' ? ' miss' : shot === 'x' ? ' hit' : mark !== '.' ? (mark === 'r' ? ' slip' : ' clear') : '');
+      if(el.className !== cls) el.className = cls;
+    });
+  }
+  $('sMini').addEventListener('click', () => seaView(sv.view === 'mine' ? 'theirs' : 'mine'));
+
   function renderSea(){
     if(!Sea || !sv.s) return;
     buildSea();
+    renderMiniSea();
     const S = sv.s.sea, view = sv.view, B = S[view], now = performance.now();
     const placing = view === 'mine' && canPlace();
     const board = $('sBoard');
@@ -5407,7 +5659,9 @@
     const top = panel.getBoundingClientRect().top;
     const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
     const room = appH() - top - others - gaps - below - 2;
-    const size = Math.floor(Math.max(170, Math.min(panel.clientWidth, room, 560)));
+    const pane = wide && boardPane(panel);
+    const size = pane ? Math.floor(Math.max(240, Math.min(pane.w, pane.h, 820)))
+      : Math.floor(Math.max(170, Math.min(panel.clientWidth, room, 560)));
     wrap.style.width = size + 'px';
     $('sBoard').style.setProperty('--cell', ((size - 16) / 10).toFixed(2) + 'px');
   }
@@ -5420,7 +5674,7 @@
   window.addEventListener('resize', () => {
     if($('scSea').hidden) return;
     sv.cardH = 0; $('sCard').style.minHeight = '';
-    seaCardHold(); seaResize();
+    seaCardHold(); seaResize(); renderMiniSea();
   });
 
   // the timers run off the last update, between updates
@@ -5500,13 +5754,17 @@
     const bs = getComputedStyle(document.body), as = getComputedStyle(app);
     const top = panel.getBoundingClientRect().top;
     const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
-    const w = Math.floor(panel.clientWidth);
-    const h = Math.floor(Math.max(220, appH() - top - others - gaps - below - 2));
+    const pane = wide && boardPane(panel);
+    const w = pane ? pane.w : Math.floor(panel.clientWidth);
+    const h = pane ? Math.max(220, pane.h) : Math.floor(Math.max(220, appH() - top - others - gaps - below - 2));
+    wrap.style.width = pane ? w + 'px' : '';
     if(w === gv.w && h === gv.h) return;
     const c = $('gCanvas'), dpr = Math.min(window.devicePixelRatio || 1, 3);
     gv.w = w; gv.h = h; gv.dpr = dpr;
     // about ten tiles across, and never fewer than eight top to bottom
-    gv.scale = Math.min(w / (10 * 32), h / (8 * 32));
+    // a wide pane shows a little more of the course instead of the same ten
+    // tiles blown up
+    gv.scale = pane ? Math.min(w / (13 * 32), h / (10 * 32)) : Math.min(w / (10 * 32), h / (8 * 32));
     c.style.height = h + 'px';
     c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
     wrap.style.height = h + 'px';
@@ -6413,8 +6671,10 @@
     const below = parseFloat(bs.paddingBottom) + parseFloat(as.paddingBottom);
     const room = appH() - top - others - gaps - below - 2;
     const TW = Cards.W + FR * 2, TH = Cards.H + FR * 2;
-    let h = Math.max(180, room), w = h * TW / TH;
-    if(w > panel.clientWidth){ w = panel.clientWidth; h = w * TH / TW; }
+    const pane = wide && boardPane(panel);
+    let h = Math.max(180, pane ? pane.h : room), w = h * TW / TH;
+    const maxW = pane ? pane.w : panel.clientWidth;
+    if(w > maxW){ w = maxW; h = w * TH / TW; }
     w = Math.floor(w); h = Math.floor(h);
     if(w === bv.w && h === bv.h) return;
     bv.w = w; bv.h = h; bv.k = w / TW; bv.dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -7473,8 +7733,10 @@
         $('hostSetNote').textContent = 'Your questions: ' + (s.hostSet || 'quick maths') + (s.guest.ready ? '. Theirs: ' + theirs + '.' : '.');
         // once they're in, the code is no use and sharing is done
         $('hostInvite').hidden = bot || ready || here || away;
-        $('hostShareRow').hidden = bot || ready;
-        $('hostStartRow').hidden = !(bot || ready);
+        // and while they pick a character, the main button says so instead
+        // of still offering a link nobody needs
+        $('hostShareRow').hidden = bot || ready || here;
+        $('hostStartRow').hidden = !(bot || ready || here);
         if(!bot && !ready && !here && !away) showCode();
         setLobbyCard('lbHost', { char: s.host.char, name: s.host.name || 'You', ready: true, statusText: 'Ready' });
         const side = $('lbGuestSide'), was = side.dataset.ready === '1';
@@ -7491,6 +7753,7 @@
         side.dataset.ready = ready ? '1' : '';
         side.classList.toggle('waiting', !here && !ready);
         $('hostStart').disabled = !(s.guest.ready && s.host.char && s.guest.char);
+        $('hostStart').textContent = bot || ready ? 'Start the match' : 'Waiting for ' + (s.guest.name || 'them') + '…';
         $('hostStart').classList.toggle('ready', !$('hostStart').disabled);
       }else{
         show(['scGuest']);
@@ -7554,7 +7817,7 @@
       $('hostCode').textContent = hostCode;
       $('hostCode').classList.remove('wait');
       $('hostCodeNote').className = 'note';
-      $('hostCodeNote').textContent = 'They tap Join on the home screen and type it in.';
+      $('hostCodeNote').textContent = 'They tap Join on the home screen and type it in, or open the link you send.';
       return;
     }
     if(codeAsk) return;
@@ -7587,7 +7850,7 @@
     copyText(hostCode, () => {
       $('hostCodeNote').textContent = 'Code copied';
       bump($('hostCode'));
-      setTimeout(() => { if(hostCodeFor === gameId) $('hostCodeNote').textContent = 'They tap Join on the home screen and type it in.'; }, 1600);
+      setTimeout(() => { if(hostCodeFor === gameId) $('hostCodeNote').textContent = 'They tap Join on the home screen and type it in, or open the link you send.'; }, 1600);
     });
   });
 
@@ -8227,6 +8490,11 @@
     if(inUse){ const tag = document.createElement('span'); tag.className = 'inusetag'; tag.textContent = 'In use'; box.append(tag); }
     box.append(...acts);
     row.append(txt, box);
+    if(onOpen){
+      row.classList.add('opens');
+      const chev = document.createElement('span'); chev.className = 'setchev'; chev.setAttribute('aria-hidden', 'true'); chev.textContent = '›';
+      row.append(chev);
+    }
     return row;
   }
   function useBtn(c){
@@ -8317,9 +8585,12 @@
           });
           acts.push(go);
         }
-        list.append(setRow(s.name, line, acts, inUse, () => openSet(s.id)));
+        const row = setRow(s.name, line, acts, inUse, () => openSet(s.id));
+        row.dataset.id = s.id;
+        list.append(row);
       }
       // while any set is being made, look again every few seconds
+      markOpenSet();
       clearTimeout(setsPoll);
       if(sets.some(x => x.status === 'generating')) setsPoll = setTimeout(() => { if(!$('scSets').hidden) loadSets(); }, 3000);
     }catch(e){
@@ -8328,8 +8599,10 @@
   }
 
   function setReady(){
-    const n = $('setText').value.trim().length;
+    const t = $('setText').value.trim(), n = t.length;
     $('setSave').disabled = !($('setName').value.trim() && n >= 20);
+    const w = t ? t.split(/\s+/).length : 0;
+    $('setWords').textContent = w ? w.toLocaleString() + (w === 1 ? ' word' : ' words') : '';
   }
 
   function openNewSet(){
@@ -8356,7 +8629,7 @@
     $('acctRowHd').textContent = e ? 'Signed in' : 'Account';
     $('acctRowSub').textContent = e || 'Sign up free to create study sets';
   }
-  const sayErr = j => j && j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'Something went wrong. Try again.';
+  const sayErr = j => j && j.error ? (j.error.charAt(0).toUpperCase() + j.error.slice(1)).replace(/[.!?]*$/, '.') : 'Something went wrong. Try again.';
 
   function authShow(mode, step){
     authMode = mode; authStep = step || 1;
@@ -8372,9 +8645,11 @@
     $('authLead').textContent = authStep === 2 && mode === 'signup' ? 'Type the 6-digit code we sent to ' + $('authEmail').value.trim() + '.' : T[1];
     $('authEmail').hidden = out || authStep === 2 && mode === 'signup';
     $('authPass').hidden = out || mode === 'reset' && authStep === 1 || mode === 'signup' && authStep === 2;
-    $('authPass').placeholder = mode === 'reset' ? 'New password (8 or more characters)' : mode === 'signup' ? 'Password (8 or more characters)' : 'Password';
+    $('authPassLbl').textContent = mode === 'reset' ? 'New password' : 'Password';
+    $('authPass').placeholder = mode === 'signin' ? '' : '8 or more characters';
     $('authPass').autocomplete = mode === 'signin' ? 'current-password' : 'new-password';
     $('authCode').hidden = authStep !== 2;
+    for(const f of ['authEmail', 'authPass', 'authCode']) $(f + 'L').hidden = $(f).hidden;
     $('authGo').textContent = out ? 'Sign out' : mode === 'signup' ? (authStep === 2 ? 'Confirm' : 'Sign up') : mode === 'signin' ? 'Sign in' : (authStep === 2 ? 'Save new password' : 'Email me a code');
     $('authSwap').hidden = out;
     $('authSwap').textContent = mode === 'signup' ? 'Have an account? Sign in' : mode === 'reset' ? 'Back to sign in' : 'New here? Sign up';
@@ -8491,10 +8766,18 @@
   // more questions once it's been played a lot (a credit, never automatic),
   // a free upgrade for sets made before the master sheet, and for admins,
   // making it a topic set
-  let setDetPoll = null;
+  let setDetPoll = null, setDetId = null;
+  // in the side-by-side view, the list shows which set is open
+  function markOpenSet(){
+    const open = !$('scSet').hidden && setDetId;
+    document.querySelectorAll('#setList .setitem').forEach(r => r.classList.toggle('open', !!open && r.dataset.id === open));
+  }
   async function openSet(id, quiet){
     if(!quiet){ $('setDetNote').textContent = ''; $('setDetList').textContent = ''; }
-    if($('scSet').hidden){ pushSub('scSet'); show(['scSet']); }
+    // a wide screen keeps the list beside the set (list and detail)
+    if($('scSet').hidden){ pushSub('scSet'); show(wide ? ['scSets', 'scSet'] : ['scSet']); }
+    setDetId = id;
+    markOpenSet();
     clearTimeout(setDetPoll);
     let d;
     try{
@@ -8509,7 +8792,7 @@
     acts.textContent = '';
     const btn = (label, cls, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (cls ? ' ' + cls : ''); b.textContent = label; b.addEventListener('click', () => fn(b)); acts.append(b); return b; };
     const using = chosenSet();
-    if(d.status === 'ready' && !(using && using.id === d.id)) btn('Use', 'primary', () => { chooseSet({ id: d.id, name: d.name }); openSet(d.id, true); });
+    if(d.status === 'ready' && !(using && using.id === d.id)) btn('Use', 'primary', () => { chooseSet({ id: d.id, name: d.name }); openSet(d.id, true); if(!$('scSets').hidden) loadSets(); });
     if(d.status === 'ready' && !d.copy) btn('Share', '', b => shareSetNow({ id: d.id, name: d.name }, b, $('setDetNote')));
     if(d.topupRunning) $('setDetNote').textContent = 'Making more questions. They’ll appear here within the hour.';
     else if(d.topupOffered) btn('More questions · 1 credit', '', async b => {
@@ -8530,14 +8813,18 @@
       await setsApi('/api/sets/' + d.id + '/public', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ on: !d.public }) });
       openSet(d.id, true);
     });
-    const del = btn('Delete', '', async b => {
-      if(b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'Sure?'; setTimeout(() => { b.dataset.sure = ''; b.textContent = 'Delete'; }, 3000); return; }
-      b.disabled = true;
+    // delete lives apart from the everyday buttons, at the bottom in red,
+    // and asks once more before it goes
+    const del = $('setDetDel');
+    del.dataset.sure = ''; del.textContent = 'Delete this set';
+    del.disabled = d.status === 'generating';
+    del.onclick = async () => {
+      if(del.dataset.sure !== '1'){ del.dataset.sure = '1'; del.textContent = 'Tap again to delete'; setTimeout(() => { del.dataset.sure = ''; del.textContent = 'Delete this set'; }, 3000); return; }
+      del.disabled = true;
       try{ await setsApi('/api/sets/' + d.id, { method:'DELETE' }); }catch(e){}
       if(using && using.id === d.id) chooseSet(null);
       if(subEntry('scSet')) history.back(); else openSets();
-    });
-    del.disabled = d.status === 'generating';
+    };
     // the questions, each with a small Report
     const list = $('setDetList');
     list.textContent = '';
@@ -8560,7 +8847,9 @@
           item.remove();
           $('setDetNote').textContent = j.replacing ? 'Thanks. That question’s gone, and a better one is on its way.' : 'Thanks. That question’s gone.';
         };
-        rep.append(link('Wrong answer', send('wrong')), link('Confusing', send('confusing')), link('Remove it', send('remove')), link('Cancel', () => { rep.textContent = ''; rep.append(report); }));
+        const x = link('×', () => { rep.textContent = ''; rep.append(report); });
+        x.classList.add('qx'); x.setAttribute('aria-label', 'Cancel');
+        rep.append(link('Wrong answer', send('wrong')), link('Confusing', send('confusing')), link('Remove it', send('remove')), x);
       });
       rep.append(report);
       item.append(p, a, rep);
@@ -8664,11 +8953,13 @@
       const line = document.createElement('span'); line.className = 'lockline';
       line.innerHTML = '<svg aria-hidden="true"><use href="#i-lock"/></svg>';
       line.append('Sign up to create sets');
-      const small = document.createElement('small'); small.textContent = 'Free to join';
-      btn.append(line, small);
+      btn.append(line);
     }else btn.textContent = 'New study set';
-    $('setsCredits').hidden = !email;
-    if(email) $('setsCredits').textContent = credits > 0 ? credits + ' of 3 free sets left' : 'You’ve used your 3 free sets';
+    // "free to join" sits on its own line above the buttons, so the locked
+    // button keeps to one line like every other docked button
+    $('setsCredits').hidden = false;
+    $('setsCredits').textContent = !email ? 'Free to join. Every account makes 3 sets.'
+      : credits > 0 ? credits + ' of 3 free sets left' : 'You’ve used your 3 free sets';
   }
   $('setsNew').addEventListener('click', () => {
     if(!signedIn()){ openAuth('signup', openNewSet); return; }
