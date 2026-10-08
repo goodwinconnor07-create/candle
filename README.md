@@ -265,7 +265,7 @@ full-screen app with its own icon. Safari suggests this once.
 Only two people can be in a match. A third person opening the link is told it's
 full. If either player refreshes or their phone locks, they land back in the
 same match. The seat is held for 15 seconds, and after that the match is called
-off. Leaving on purpose (hold the X for three seconds) ends it for both players
+off. Leaving on purpose (Leave game, then confirm) ends it for both players
 straight away.
 
 ## How it's built

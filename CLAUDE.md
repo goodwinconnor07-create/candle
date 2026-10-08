@@ -196,7 +196,8 @@ PR to the default branch, merge, deploy, then check the live site.
 - History: screens opened inside the app (`pushSub()`: join code, profile,
   deck) and a match (`{ sd: 'match' }`) get their own history entry, so the
   phone's back gesture moves through the app. A live match ignores back and
-  says to hold the X. `goHome()` steps back out of our entry or clears the link
+  asks whether to leave (`#leaveAsk`, the same question the Leave game button
+  opens; on narrow screens that button is a round X). `goHome()` steps back out of our entry or clears the link
   in place. Don't add `location.hash =` navigations; use `replaceState`/
   `pushState` with the same `sd` state.
 - Lobby leaving: the browser sends `leave` when backing out of a lobby

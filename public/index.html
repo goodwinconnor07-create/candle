@@ -139,30 +139,52 @@
   .backbtn:hover{ color:var(--tallow); border-color:rgba(239,227,204,.4); }
   .backbtn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
 
-  /* the way out mid-match — holds the same corner as .backbtn, but the two
-     are never visible at once, so nothing collides. Held down, a ring fills
-     over 3s; let go early and it snaps back empty and fires nothing */
+  /* the way out mid-match: holds the same corner as .backbtn (the two are
+     never visible at once). it only asks; leaving happens in #leaveAsk */
   .quitbtn{
     position:fixed; z-index:20;
     top:max(14px, env(safe-area-inset-top)); left:max(14px, env(safe-area-inset-left));
-    width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+    height:38px; padding:0 13px 0 10px; display:flex; align-items:center; gap:6px;
+    font:600 .82rem/1 var(--sans); color:var(--ash);
     background:rgba(13,10,8,.6); border:1px solid var(--hair); border-radius:999px;
-    color:var(--ash); cursor:pointer; -webkit-tap-highlight-color:transparent;
-    -webkit-user-select:none; user-select:none; touch-action:none;
-    transition:border-color .18s ease, color .18s ease, background .18s ease;
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    cursor:pointer; -webkit-tap-highlight-color:transparent;
   }
   .quitbtn:hover{ color:var(--tallow); border-color:rgba(239,227,204,.4); }
   .quitbtn:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
-  .quitbtn.holding{ color:var(--ember); border-color:rgba(255,106,42,.5); }
-  .quitbtn-icon{ width:14px; height:14px; fill:currentColor; position:relative; z-index:1; }
-  .quitbtn-ring{
-    position:absolute; inset:-1px; width:40px; height:40px;
-    transform:rotate(-90deg); pointer-events:none;
+  .quitbtn svg{ width:13px; height:13px; fill:currentColor; }
+  /* each game's top row keeps the corner's first 46px clear, so until the
+     column is far enough from the edge the button is a round X (it still
+     asks first) and the words are for screen readers only */
+  @media (max-width:759px){
+    .quitbtn{ width:38px; padding:0; justify-content:center; }
+    .quitbtn svg{ width:14px; height:14px; }
+    .quitlbl{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
   }
-  .quitbtn-ring-fill{
-    fill:none; stroke:var(--ember); stroke-width:2.4; stroke-linecap:round;
-    stroke-dasharray:109.96; stroke-dashoffset:109.96;
+
+  /* are you sure? a small sheet over a dimmed game */
+  .leaveask{
+    position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+    padding:var(--s4); background:rgba(5,4,3,.62);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    opacity:0; transition:opacity .22s var(--ease-out);
   }
+  .leaveask[hidden]{ display:none; }
+  .leaveask.open{ opacity:1; }
+  .leavecard{
+    width:min(100%, 340px); padding:var(--s5) var(--s4) var(--s4); text-align:center;
+    background:rgba(30,24,19,.97); border:1px solid rgba(239,227,204,.16); border-radius:var(--r-lg);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,.9);
+    scale:.94; transition:scale var(--settle) var(--spring);
+  }
+  .leaveask.open .leavecard{ scale:1; }
+  .leavecard h2{ font:700 1.15rem/1.2 var(--sans); color:var(--tallow); }
+  .leavecard p{ margin:8px 0 var(--s4); font:400 .9rem/1.4 var(--sans); color:var(--ash); }
+  .leavebtns{ display:flex; flex-direction:column; gap:10px; }
+  .leavebtns .btn{ width:100%; min-height:46px; }
+  .btn.danger{ color:var(--ember); border-color:rgba(255,106,42,.45); }
+  .btn.danger:hover:not(:disabled){ background:rgba(255,106,42,.08); }
+  @media (prefers-reduced-motion: reduce){ .leaveask, .leavecard{ transition:none; } }
 
   /* ---------- characters ---------- */
   /* an svg with no height attribute falls back to 150px, which leaves a dead
@@ -1648,12 +1670,19 @@
   <button class="backbtn" id="backBtn" type="button" aria-label="Back to menu" hidden>
     <svg><use href="#i-back"/></svg>
   </button>
-  <button class="quitbtn" id="quitBtn" type="button" aria-label="Hold to end the match and return to the menu" hidden>
-    <svg class="quitbtn-ring" viewBox="0 0 40 40" aria-hidden="true">
-      <circle class="quitbtn-ring-fill" id="quitRing" cx="20" cy="20" r="17.5"/>
-    </svg>
-    <svg class="quitbtn-icon"><use href="#i-close"/></svg>
+  <button class="quitbtn" id="quitBtn" type="button" aria-haspopup="dialog" hidden>
+    <svg aria-hidden="true"><use href="#i-close"/></svg><span class="quitlbl">Leave game</span>
   </button>
+  <div class="leaveask" id="leaveAsk" role="dialog" aria-modal="true" aria-labelledby="leaveHd" aria-describedby="leaveText" hidden>
+    <div class="leavecard">
+      <h2 id="leaveHd">Leave this match?</h2>
+      <p id="leaveText">The match ends for both players and you go back to the menu.</p>
+      <div class="leavebtns">
+        <button class="btn primary" id="leaveStay" type="button">Keep playing</button>
+        <button class="btn danger" id="leaveGo" type="button">Leave game</button>
+      </div>
+    </div>
+  </div>
 
   <svg class="sprite" aria-hidden="true">
     <defs>
@@ -2848,9 +2877,8 @@
     $('wordmark').hidden = inMatch;
     $('backBtn').hidden = !ids.some(id => BACK_SCREENS.has(id));
     // a finished match has its own way out ("New opponent") on the end card,
-    // so the hold-to-quit button only covers a match that's still going
+    // so the Leave game button only covers a match that's still going
     const showQuit = inMatch && phase !== 'over';
-    if(showQuit && $('quitBtn').hidden) resetQuitRing();
     $('quitBtn').hidden = !showQuit;
     if(ids.includes('scIntro')) demoStart(); else demoStop();
   }
@@ -8115,7 +8143,7 @@
   // ---------- the phone's back gesture ----------
   // screens opened inside the app get a history entry of their own, so back
   // closes them instead of leaving the site. a match in progress ignores
-  // back (hold the X to leave), so a stray swipe can't end a game
+  // back and asks whether to leave instead, so a stray swipe can't end a game
   function pushSub(id){ try{ history.pushState({ sd: id }, '', location.href); }catch(e){} }
   function ownEntry(){ try{ return !!(history.state && history.state.sd); }catch(e){ return false; } }
   function subEntry(id){ try{ return !!(history.state && history.state.sd === id); }catch(e){ return false; } }
@@ -8123,7 +8151,7 @@
   window.addEventListener('popstate', () => {
     if(gameId && ws && !$('quitBtn').hidden){
       try{ history.pushState({ sd: 'match' }, '', shareUrl()); }catch(e){}
-      nudge('Hold the X for 3 seconds to leave the match.');
+      if($('leaveAsk').hidden) leaveAskOpen(); else leaveAskClose();
       return;
     }
     if(!$('scDeck').hidden){ show([deckFrom]); deckRows(); return; }
@@ -8172,61 +8200,41 @@
     goHome();
   });
 
-  // hold-to-quit: mid-match, one tap should never be enough to leave. the
-  // ring fills over 3s of holding; let go early — pointer or key — and it
-  // snaps back to empty without firing anything
-  const QUIT_HOLD_MS = 3000;
-  const QUIT_RING_CIRC = 109.96;
-  let quitTimer = null;
-
-  function resetQuitRing(){
-    const ring = $('quitRing');
-    ring.style.transition = 'none';
-    ring.style.strokeDashoffset = String(QUIT_RING_CIRC);
-    void ring.offsetWidth;   // force reflow so the next hold fills from empty
-    ring.style.transition = '';
-    $('quitBtn').classList.remove('holding');
-  }
-
-  function quitHoldStart(){
-    if(quitTimer) return;
+  // leaving mid-match: the button only asks, so one stray tap can't end a game
+  function leaveAskOpen(){
+    if($('quitBtn').hidden || !$('leaveAsk').hidden) return;
     haptics('tick');
-    $('quitBtn').classList.add('holding');
-    const ring = $('quitRing');
-    ring.style.transition = 'stroke-dashoffset ' + QUIT_HOLD_MS + 'ms linear';
-    ring.style.strokeDashoffset = '0';
-    quitTimer = setTimeout(() => {
-      quitTimer = null;
-      if($('quitBtn').hidden) return;   // the match ended on its own mid-hold
-      haptics('heavy');
-      // tell the room first, so the other player's game ends now rather
-      // than after the dropped-connection grace period
-      try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
-      goHome();
-    }, QUIT_HOLD_MS);
+    $('leaveAsk').hidden = false;
+    requestAnimationFrame(() => $('leaveAsk').classList.add('open'));
+    $('leaveStay').focus();
   }
-
-  function quitHoldCancel(){
-    if(!quitTimer) return;
-    clearTimeout(quitTimer);
-    quitTimer = null;
-    resetQuitRing();
+  function leaveAskClose(){
+    if($('leaveAsk').hidden) return;
+    $('leaveAsk').classList.remove('open');
+    $('leaveAsk').hidden = true;
+    if(!$('quitBtn').hidden) $('quitBtn').focus();
   }
-
-  $('quitBtn').addEventListener('pointerdown', e => {
-    e.preventDefault();
-    try{ $('quitBtn').setPointerCapture(e.pointerId); }catch(err){}
-    quitHoldStart();
+  $('quitBtn').addEventListener('click', leaveAskOpen);
+  $('leaveStay').addEventListener('click', leaveAskClose);
+  $('leaveAsk').addEventListener('click', e => { if(e.target === $('leaveAsk')) leaveAskClose(); });
+  $('leaveAsk').addEventListener('keydown', e => {
+    if(e.key === 'Escape'){ e.preventDefault(); leaveAskClose(); }
+    // keep tab inside the two buttons
+    if(e.key === 'Tab'){ e.preventDefault(); (document.activeElement === $('leaveStay') ? $('leaveGo') : $('leaveStay')).focus(); }
   });
-  $('quitBtn').addEventListener('pointerup', quitHoldCancel);
-  $('quitBtn').addEventListener('pointercancel', quitHoldCancel);
-  $('quitBtn').addEventListener('keydown', e => {
-    if((e.key === 'Enter' || e.key === ' ') && !e.repeat){ e.preventDefault(); quitHoldStart(); }
+  $('leaveGo').addEventListener('click', () => {
+    const live = !$('quitBtn').hidden;
+    $('leaveAsk').classList.remove('open'); $('leaveAsk').hidden = true;
+    if(!live) return;   // the match ended on its own while they were deciding
+    haptics('heavy');
+    // tell the room first, so the other player's game ends now rather
+    // than after the dropped-connection grace period
+    try{ if(ws && ws.readyState === 1) ws.send(JSON.stringify({ t:'leave' })); }catch(e){}
+    goHome();
   });
-  $('quitBtn').addEventListener('keyup', e => {
-    if(e.key === 'Enter' || e.key === ' ') quitHoldCancel();
-  });
-  $('quitBtn').addEventListener('blur', quitHoldCancel);
+  // if the match ends while the question is up, there's nothing left to leave
+  new MutationObserver(() => { if($('quitBtn').hidden) leaveAskClose(); })
+    .observe($('quitBtn'), { attributes: true, attributeFilter: ['hidden'] });
 
   // a link pasted into a tab that's already open here is a hash-only change,
   // not a reload, so routing has to be reachable more than once
