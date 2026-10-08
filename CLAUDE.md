@@ -3,7 +3,9 @@
 Two-player study mini games: a familiar game where every move is earned by
 answering a question right. Pool (8-ball), chess, battleships, Towers (a Clash
 Royale-style tower battle) and mini golf so far. Live at
-https://candle-timer.candle-timer.workers.dev. See README.md for how the game
+https://studyduel.fun (custom domain in `wrangler.toml`; the old
+https://candle-timer.candle-timer.workers.dev address stays on with
+`workers_dev = true`, so older links keep working). See README.md for how the game
 plays and DEPLOY.md for deploy details.
 
 ## Layout

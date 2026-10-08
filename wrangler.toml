@@ -1,5 +1,9 @@
 name = "candle-timer"
 main = "worker.js"
+
+# the site's own address. workers.dev keeps working too, so old links still open
+routes = [{ pattern = "studyduel.fun", custom_domain = true }]
+workers_dev = true
 compatibility_date = "2024-09-23"
 
 [assets]
