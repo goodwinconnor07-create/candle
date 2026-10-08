@@ -52,6 +52,7 @@ import * as Golf from './public/golf.js';
 import { Feed, mathsSource, setSource } from './questions.js';
 import * as Library from './library.js';
 import * as Generate from './generate.js';
+import { sendLoginCode } from './mail.js';
 export { SetJob } from './setjob.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
@@ -475,17 +476,22 @@ export class GameRoom {
   async startGame() {
     if (this.starting) return;
     this.starting = true;
-    let feeds;
     try {
       const L = this.lobby;
       const guestSet = L.guestSet === 'host' || L.vsBot ? L.hostSet : L.guestSet;
-      feeds = { host: new Feed(await this.sourceFor(L.hostSet)), guest: new Feed(await this.sourceFor(guestSet)) };
+      const feeds = { host: new Feed(await this.sourceFor(L.hostSet)), guest: new Feed(await this.sourceFor(guestSet)) };
+      // a guest on the host's set can keep a copy if they sign up afterwards
+      let keep = null;
+      if (!L.vsBot && L.hostSet && L.guestSet === 'host' && this.env.DB) {
+        try { keep = { token: await Library.makeKeepToken(this.env.DB, L.hostSet.id), name: L.hostSet.name }; } catch (e) {}
+      }
+      if (this.game && this.game.phase !== 'over') return;
+      this.flushAnswers();
+      this.beginGame(feeds);
+      this.game.keep = keep;
     } finally {
       this.starting = false;
     }
-    if (this.game && this.game.phase !== 'over') return;
-    this.flushAnswers();
-    this.beginGame(feeds);
   }
 
   beginGame(feeds) {
@@ -1697,6 +1703,7 @@ export class GameRoom {
   snapshot(role) {
     const snap = this.snapshotFor(role);
     const g = this.game;
+    if (snap && g && g.phase === 'over' && role === 'guest' && g.keep) snap.keep = g.keep;
     if (snap && g && g.phase !== 'over' && g.gone) {
       const away = Object.keys(g.gone).filter(r => r !== role)[0];
       if (away) snap.away = { role: away, name: g[away].name, ms: Math.max(0, LEAVE_GRACE_MS - (Date.now() - g.gone[away])) };
@@ -1897,7 +1904,35 @@ async function api(request, env) {
   if (parts[1] === 'me' && parts.length === 2 && request.method === 'GET') {
     const id = await Library.deviceFrom(env.DB, request);
     if (!id) return err(401, 'unknown device');
-    return json({ id, sets: await Library.listSets(env.DB, id) });
+    const raw = await Library.rawDeviceFrom(env.DB, request);
+    return json({ id, email: raw && raw.email || null, sets: await Library.listSets(env.DB, id) });
+  }
+
+  // signing in with an emailed code. "start" sends it, "verify" checks it
+  // and links this browser to the account (bringing along a friend's set the
+  // guest just played, if they asked to keep it)
+  if (parts[1] === 'auth' && parts.length === 3 && request.method === 'POST') {
+    const raw = await Library.rawDeviceFrom(env.DB, request);
+    if (!raw) return err(401, 'unknown device');
+    const body = await request.json().catch(() => ({}));
+    if (parts[2] === 'signout') { await Library.signOut(env.DB, raw.id); return json({ ok: true }); }
+    const email = Library.cleanEmail(body.email);
+    if (!email) return err(400, 'that email address doesn’t look right');
+    if (parts[2] === 'start') {
+      if (env.MAIL_MOCK !== '1' && !env.RESEND_API_KEY) return err(503, 'signing in is not set up yet');
+      const code = await Library.newLoginCode(env.DB, email, raw.id);
+      if (!code) return err(429, 'too many codes asked for. Wait a while and try again');
+      const sent = await sendLoginCode(env, email, code);
+      if (!sent.ok) return err(502, sent.why);
+      return json(sent.mock ? { ok: true, mock: sent.mock } : { ok: true });
+    }
+    if (parts[2] === 'verify') {
+      if (!(await Library.checkLoginCode(env.DB, email, body.code))) return err(400, 'that code isn’t right, or it has run out');
+      const home = await Library.signIn(env.DB, raw.id, email);
+      const kept = body.keep ? await Library.keepSet(env.DB, home, body.keep) : null;
+      return json({ email, kept });
+    }
+    return err(404, 'not found');
   }
 
   // share codes: look one up, or add the set behind it to your own list
