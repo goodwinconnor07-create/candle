@@ -44,10 +44,23 @@ export async function createDevice(db, ip) {
 export async function deviceFrom(db, request) {
   const m = /^Bearer ([0-9a-f]{48})$/.exec(request.headers.get('authorization') || '');
   if (!m) return null;
-  const row = await db.prepare('SELECT id FROM devices WHERE secret_hash = ?').bind(await sha256(m[1])).first();
+  const row = await db.prepare(
+    `SELECT d.id, a.home_device AS home FROM devices d LEFT JOIN accounts a ON a.id = d.account WHERE d.secret_hash = ?`
+  ).bind(await sha256(m[1])).first();
   if (!row) return null;
   await db.prepare('UPDATE devices SET last_seen = ? WHERE id = ?').bind(Date.now(), row.id).run();
-  return row.id;
+  // a signed-in browser acts as its account's home device, so every browser
+  // on the account sees the same sets
+  return row.home || row.id;
+}
+
+// the browser itself, ignoring any account (for signing in and out)
+export async function rawDeviceFrom(db, request) {
+  const m = /^Bearer ([0-9a-f]{48})$/.exec(request.headers.get('authorization') || '');
+  if (!m) return null;
+  return db.prepare(
+    `SELECT d.id, a.id AS account, a.email FROM devices d LEFT JOIN accounts a ON a.id = d.account WHERE d.secret_hash = ?`
+  ).bind(await sha256(m[1])).first();
 }
 
 export async function listSets(db, deviceId) {
@@ -220,8 +233,10 @@ export async function failRun(db, setId, runId, note, costMicroTotal, detail) {
 // the device a raw secret belongs to (the guest sends theirs over the socket)
 export async function deviceBySecret(db, secret) {
   if (!/^[0-9a-f]{48}$/.test(String(secret || ''))) return null;
-  const row = await db.prepare('SELECT id FROM devices WHERE secret_hash = ?').bind(await sha256(secret)).first();
-  return row ? row.id : null;
+  const row = await db.prepare(
+    `SELECT d.id, a.home_device AS home FROM devices d LEFT JOIN accounts a ON a.id = d.account WHERE d.secret_hash = ?`
+  ).bind(await sha256(secret)).first();
+  return row ? row.home || row.id : null;
 }
 
 // a set this device may play with: its own, and only once it has questions
@@ -319,4 +334,87 @@ export async function copySet(db, deviceId, src) {
                 SELECT lower(hex(randomblob(8))), ?, kind, a, b, batch, ? FROM facts WHERE set_id = ?`).bind(id, now, src.id),
   ]);
   return { id, name: src.name };
+}
+
+// ---- accounts: email sign-in codes ----
+
+export const CODE_TTL_MS = 10 * 60 * 1000;
+export function cleanEmail(e) {
+  const v = String(e || '').trim().toLowerCase();
+  return v.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
+}
+
+// a new 6-digit code for this email, or null when too many were asked for
+export async function newLoginCode(db, email, deviceId) {
+  const now = Date.now(), hour = now - 3600000;
+  const [byEmail, byDevice] = await db.batch([
+    db.prepare('SELECT COUNT(*) AS n FROM login_codes WHERE email = ? AND created_at >= ?').bind(email, hour),
+    db.prepare('SELECT COUNT(*) AS n FROM login_codes WHERE device = ? AND created_at >= ?').bind(deviceId, hour),
+  ]);
+  if (byEmail.results[0].n >= 5 || byDevice.results[0].n >= 10) return null;
+  const n = new Uint32Array(1);
+  crypto.getRandomValues(n);
+  const code = String(n[0] % 1000000).padStart(6, '0');
+  await db.prepare('INSERT INTO login_codes (email, code_hash, device, expires, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(email, await sha256('login:' + email + ':' + code), deviceId, now + CODE_TTL_MS, now).run();
+  return code;
+}
+
+// checks the newest live code for this email. Five wrong tries and it's spent
+export async function checkLoginCode(db, email, code) {
+  const now = Date.now();
+  const row = await db.prepare('SELECT rowid, code_hash, tries FROM login_codes WHERE email = ? AND expires > ? ORDER BY created_at DESC LIMIT 1')
+    .bind(email, now).first();
+  if (!row || row.tries >= 5) return false;
+  if (row.code_hash !== await sha256('login:' + email + ':' + String(code || '').replace(/\D/g, ''))) {
+    await db.prepare('UPDATE login_codes SET tries = tries + 1 WHERE rowid = ?').bind(row.rowid).run();
+    return false;
+  }
+  await db.prepare('UPDATE login_codes SET expires = 0 WHERE email = ?').bind(email).run();
+  return true;
+}
+
+// links this browser to the email's account, making the account if it's new.
+// A browser joining an existing account brings its sets with it
+export async function signIn(db, deviceId, email) {
+  let acc = await db.prepare('SELECT id, home_device AS home FROM accounts WHERE email = ?').bind(email).first();
+  if (!acc) {
+    acc = { id: newId(), home: deviceId };
+    await db.prepare('INSERT INTO accounts (id, email, home_device, created_at) VALUES (?, ?, ?, ?)').bind(acc.id, email, deviceId, Date.now()).run();
+  }
+  const stmts = [db.prepare('UPDATE devices SET account = ? WHERE id = ?').bind(acc.id, deviceId)];
+  if (acc.home !== deviceId) {
+    stmts.push(
+      db.prepare('UPDATE study_sets SET owner = ? WHERE owner = ?').bind(acc.home, deviceId),
+      db.prepare('UPDATE share_codes SET owner = ? WHERE owner = ?').bind(acc.home, deviceId),
+    );
+  }
+  await db.batch(stmts);
+  return acc.home;
+}
+
+export async function signOut(db, deviceId) {
+  await db.prepare('UPDATE devices SET account = NULL WHERE id = ?').bind(deviceId).run();
+}
+
+// ---- keeping a friend's set after a match ----
+
+export async function makeKeepToken(db, setId) {
+  const token = randomHex(16);
+  await db.prepare('INSERT INTO keep_tokens (token, set_id, expires) VALUES (?, ?, ?)').bind(token, setId, Date.now() + 2 * 86400000).run();
+  return token;
+}
+
+// copies the set behind a keep token, unless it's gone, already theirs, or
+// already copied by them
+export async function keepSet(db, deviceId, token) {
+  if (!/^[0-9a-f]{32}$/.test(String(token || ''))) return null;
+  const t = await db.prepare('SELECT set_id FROM keep_tokens WHERE token = ? AND expires > ?').bind(token, Date.now()).first();
+  if (!t) return null;
+  const src = await db.prepare(`SELECT id, name, owner FROM study_sets WHERE id = ? AND status = 'ready'`).bind(t.set_id).first();
+  if (!src || src.owner === deviceId) return null;
+  const had = await db.prepare('SELECT id, name FROM study_sets WHERE owner = ? AND inherited_from = ?').bind(deviceId, src.id).first();
+  if (had) return had;
+  if (await countSets(db, deviceId) >= MAX_SETS) return null;
+  return copySet(db, deviceId, src);
 }

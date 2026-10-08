@@ -128,6 +128,19 @@
 
   /* "Why?" after a study question: optional, never in the way. it outlives the
      short result pause, and a tap opens the one-line reason */
+  /* after a match on a friend's set: a light offer to sign up and keep it.
+     never blocks the end card or the rematch */
+  .keeptip{
+    position:fixed; z-index:21; left:var(--s4); right:var(--s4); bottom:calc(max(12px, env(safe-area-inset-bottom)) + 34px);
+    max-width:400px; margin:0 auto; padding:var(--s3) var(--s4); border-radius:var(--r-lg);
+    border:1px solid rgba(255,179,71,.45); background:rgba(13,10,8,.95); box-shadow:0 18px 44px -12px rgba(0,0,0,.85);
+    display:flex; flex-direction:column; gap:var(--s2); text-align:left; animation:whyIn var(--settle) var(--ease-out);
+  }
+  .keeptip p{ font:500 .88rem/1.4 var(--sans); color:var(--tallow); }
+  .keepbtns{ display:flex; gap:var(--s2); }
+  .keepbtns .btn{ min-height:var(--tap); padding:8px 16px; font:600 .88rem/1 var(--sans); }
+  @media (prefers-reduced-motion: reduce){ .keeptip{ animation:none; } }
+  #acctRow .rowgo{ width:18px; height:18px; rotate:180deg; fill:var(--ash); flex:0 0 auto; }
   .whytip{
     position:fixed; z-index:21; left:var(--s4); right:var(--s4); bottom:calc(max(12px, env(safe-area-inset-bottom)) + 34px);
     display:flex; justify-content:center; pointer-events:none;
@@ -1706,6 +1719,10 @@
   <div class="tint" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
   <div class="testchip" id="testChip" hidden>Practice</div>
+  <div class="keeptip" id="keepTip" role="status" hidden>
+    <p id="keepTxt"></p>
+    <div class="keepbtns"><button class="btn primary" id="keepGo" type="button">Keep it</button><button class="btn" id="keepNo" type="button">Not now</button></div>
+  </div>
   <div class="whytip" id="whyTip" hidden><button class="whybtn" id="whyBtn" type="button">Why?</button><button class="whytxt" id="whyTxt" type="button" hidden></button></div>
   <div class="yourturn" id="yourTurn" aria-hidden="true">Your turn</div>
   <div class="nudge" id="nudge" role="status" aria-live="polite"></div>
@@ -2277,6 +2294,7 @@
       <p class="lead" id="setupLead">Your opponent sees this next to every move.</p>
       <input class="field" id="introName" type="text" maxlength="16" placeholder="Your name" autocomplete="name" aria-label="Your name">
       <div class="chars" id="charGridHost"></div>
+      <button class="togglerow" id="acctRow" type="button" hidden><span><span id="acctRowHd">Account</span><small id="acctRowSub">Sign in to keep your sets on any device</small></span><svg class="rowgo" aria-hidden="true"><use href="#i-back"/></svg></button>
       <button class="togglerow" id="hapticsRow" type="button" role="switch" aria-checked="true" hidden>
         <span>Haptic feedback<small>A small buzz on taps and answers</small></span><i class="switch"></i>
       </button>
@@ -2561,6 +2579,15 @@
       <div class="dock"><button class="btn" id="setsAdd" type="button">Add a code</button><button class="btn primary" id="setsNew" type="button">New study set</button></div>
     </section>
 
+    <section class="panel" id="scAccount" hidden>
+      <h2 class="hd" id="acctHd">Keep your sets</h2>
+      <p class="lead" id="acctLead">Sign in with your email to keep your study sets and use them on any device. No password: we email you a code.</p>
+      <input class="field" id="acctEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" aria-label="Email">
+      <input class="field codefield" id="acctCode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" aria-label="6-digit code" hidden>
+      <p class="note" id="acctNote" aria-live="polite"></p>
+      <div class="dock"><button class="btn primary" id="acctGo" type="button" disabled>Email me a code</button></div>
+    </section>
+
     <section class="panel" id="scAddSet" hidden>
       <h2 class="hd">Add a friend's set</h2>
       <p class="lead">Type the code they shared. You get your own copy of their questions.</p>
@@ -2713,7 +2740,7 @@
     fire.set = v => { on = !!v; try{ localStorage.setItem('sd-haptics', v ? '1' : '0'); }catch(e){} };
     return fire;
   })();
-  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scSets','scNewSet','scAddSet','scDead'];
+  const PANELS = ['scIntro','scCode','scSetup','scHost','scGuest','scPool','scChess','scSea','scBattle','scGolf','scDeck','scSets','scNewSet','scAddSet','scAccount','scDead'];
   const GAME_NAMES = { pool: 'Pool', chess: 'Chess', battleships: 'Battleships', towers: 'Towers', golf: 'Mini Golf' };
   const GAME_ICON = { pool: 'pool', chess: 'chess', battleships: 'ship', towers: 'towers', golf: 'golf' };
   const CHAR_LIST = [['boy','Boy'],['girl','Girl'],['dino','Dino'],['shades','Shades'],['ponytail','Ponytail'],['nerd','Nerd'],['vampire','Vampire'],['astronaut','Astronaut']];
@@ -2922,12 +2949,12 @@
   // back is an escape hatch for anyone not in a match yet — once a match is
   // running or the link's already dead there's nothing sane to back out to,
   // so it stays hidden
-  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scSets', 'scNewSet', 'scAddSet', 'scDead']);
+  const BACK_SCREENS = new Set(['scCode', 'scSetup', 'scHost', 'scGuest', 'scDeck', 'scSets', 'scNewSet', 'scAddSet', 'scAccount', 'scDead']);
 
   // how deep each screen sits, so moving deeper slides in from the right and
   // backing out slides in from the left. games just fade up, since they
   // measure their own layout as they appear
-  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2, scSets: 1, scNewSet: 2, scAddSet: 2 };
+  const DEPTH = { scIntro: 0, scCode: 1, scSetup: 1, scDead: 1, scHost: 2, scGuest: 2, scDeck: 2, scSets: 1, scNewSet: 2, scAddSet: 2, scAccount: 2 };
   let shownKey = '';
   app.addEventListener('animationend', e => {
     if(e.target.classList && e.target.classList.contains('panel')) e.target.classList.remove('enter', 'enter-back', 'enter-fade');
@@ -7432,6 +7459,7 @@
       return;
     }
 
+    keepOffer(s);
     // your own question, once it's answered, may come with a one-line reason
     if(s.q && !s.q.theirs && s.q.answer != null && s.q.why) offerWhy(s.q.why, s.q.text + '|' + s.q.choices.join('|'));
     if(s.mode === 'chess') applyChess(s);
@@ -7809,6 +7837,8 @@
     $('setupNote').className = 'note';
     $('setupNote').textContent = pickedChar ? '' : 'Pick a character to continue.';
     $('hapticsRow').hidden = !profile;
+    $('acctRow').hidden = !profile;
+    if(profile) acctRowShow();
     if($('scSetup').hidden) pushSub('scSetup');
     $('hapticsRow').setAttribute('aria-checked', String(haptics.isOn()));
     show(['scSetup']);
@@ -8056,6 +8086,7 @@
 
   // back to the games, dropping any match link from the address bar first
   function goHome(){
+    $('keepTip').hidden = true;
     liveMark(false);
     awayHide();
     if(rejoin){ clearTimeout(rejoin.t); rejoin = null; }
@@ -8236,6 +8267,115 @@
 
   $('introSets').addEventListener('click', openSets);
 
+  // ---------- accounts ----------
+  // sign in with an emailed 6-digit code. A signed-in browser shares its
+  // sets with every other browser on the same email. A guest who just
+  // played a friend's set can keep a copy by signing up (keepToken)
+  let keepToken = null, acctFrom = 'scIntro', acctEmail = '';
+  const signedIn = () => { try{ return localStorage.getItem('sd-email') || ''; }catch(e){ return ''; } };
+  function setSignedIn(email){ try{ email ? localStorage.setItem('sd-email', email) : localStorage.removeItem('sd-email'); }catch(e){} }
+  function acctRowShow(){
+    const e = signedIn();
+    $('acctRowHd').textContent = e ? 'Signed in' : 'Account';
+    $('acctRowSub').textContent = e || 'Sign in to keep your sets on any device';
+  }
+  const sayErr = j => j && j.error ? j.error.charAt(0).toUpperCase() + j.error.slice(1) + '.' : 'Something went wrong. Try again.';
+
+  function openAccount(from){
+    acctFrom = from || 'scIntro';
+    const e = signedIn();
+    $('acctNote').className = 'note'; $('acctNote').textContent = '';
+    $('acctCode').hidden = true; $('acctCode').value = '';
+    $('acctEmail').hidden = !!e;
+    $('acctHd').textContent = e ? 'Your account' : keepToken ? 'Keep this set' : 'Keep your sets';
+    $('acctLead').textContent = e ? 'Signed in as ' + e + '. Your study sets follow you to any device you sign in on.'
+      : keepToken ? 'Sign up with your email and a copy of the set you just played goes into your list. No password: we email you a code.'
+      : 'Sign in with your email to keep your study sets and use them on any device. No password: we email you a code.';
+    $('acctGo').textContent = e ? 'Sign out' : 'Email me a code';
+    $('acctGo').disabled = !e && !$('acctEmail').value.trim();
+    acctEmail = '';
+    if($('scAccount').hidden) pushSub('scAccount');
+    show(['scAccount']);
+  }
+  function acctBack(){
+    if(acctFrom === 'scSetup'){ openSetup('profile'); return; }
+    if(acctFrom === 'scSets'){ show(['scSets']); loadSets(); return; }
+    toIntro();
+  }
+  $('acctRow').addEventListener('click', () => openAccount('scSetup'));
+  $('acctEmail').addEventListener('input', () => { if(!acctEmail) $('acctGo').disabled = !$('acctEmail').value.trim(); });
+  $('acctCode').addEventListener('input', () => {
+    const v = $('acctCode').value.replace(/\D/g, '').slice(0, 6);
+    if(v !== $('acctCode').value) $('acctCode').value = v;
+    $('acctGo').disabled = v.length !== 6;
+    if(v.length === 6) $('acctGo').click();
+  });
+  $('acctGo').addEventListener('click', async () => {
+    const note = $('acctNote');
+    $('acctGo').disabled = true;
+    note.className = 'note';
+    try{
+      if(signedIn()){
+        await setsApi('/api/auth/signout', { method:'POST' });
+        setSignedIn('');
+        chooseSet(null);
+        note.textContent = 'Signed out.';
+        openAccount(acctFrom);
+        return;
+      }
+      if(!acctEmail){
+        const email = $('acctEmail').value.trim();
+        note.textContent = 'Sending…';
+        const r = await setsApi('/api/auth/start', { method:'POST', headers:{ 'content-type':'application/json' }, body: JSON.stringify({ email }) });
+        const j = await r.json().catch(() => ({}));
+        if(!r.ok){ note.className = 'note warm'; note.textContent = sayErr(j); $('acctGo').disabled = false; return; }
+        acctEmail = email;
+        if(j.mock) console.info('sign-in code (local testing):', j.mock);
+        $('acctEmail').hidden = true;
+        $('acctCode').hidden = false; $('acctCode').focus();
+        $('acctGo').textContent = 'Sign in';
+        note.textContent = 'We sent a code to ' + email + '. It works for 10 minutes.';
+        return;
+      }
+      note.textContent = 'Checking…';
+      const r = await setsApi('/api/auth/verify', { method:'POST', headers:{ 'content-type':'application/json' },
+        body: JSON.stringify({ email: acctEmail, code: $('acctCode').value, keep: keepToken || undefined }) });
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok){ note.className = 'note warm'; note.textContent = sayErr(j); $('acctCode').value = ''; return; }
+      setSignedIn(j.email);
+      keepToken = null;
+      if(j.kept){ chooseSet({ id: j.kept.id, name: j.kept.name }); }
+      openSets();
+      $('setsNote').textContent = j.kept ? 'Signed in. ' + j.kept.name + ' is in your list and in use.' : 'Signed in as ' + j.email + '.';
+    }catch(e){
+      note.className = 'note warm'; note.textContent = (e && e.say) || "Couldn't reach the server. Check your connection.";
+      $('acctGo').disabled = false;
+    }
+  });
+
+  // the end-of-match offer to a guest who played a friend's set
+  let keepShownFor = '';
+  function keepOffer(s){
+    const k = s.phase === 'over' && s.keep && !signedIn() && myRole === 'guest' ? s.keep : null;
+    if(!k){ $('keepTip').hidden = true; return; }
+    if(keepShownFor === k.token) return;
+    keepShownFor = k.token;
+    const host = (s.host && s.host.name) || 'your friend';
+    $('keepTxt').textContent = 'Want to keep ' + host + '’s ' + k.name + ' set and challenge your own friends? Sign up free.';
+    $('keepGo').onclick = () => {
+      keepToken = k.token;
+      $('keepTip').hidden = true;
+      // leaving the match steps back through history first; open the
+      // account screen once that's done, or it would be stepped back out of
+      const pushed = ownEntry();
+      goHome();
+      if(pushed) window.addEventListener('popstate', () => setTimeout(() => openAccount('scIntro')), { once: true });
+      else openAccount('scIntro');
+    };
+    $('keepTip').hidden = false;
+  }
+  $('keepNo').addEventListener('click', () => { $('keepTip').hidden = true; });
+
   // ---------- share codes ----------
   // the owner hands out a code (or a link with it in); whoever types it gets
   // their own copy of the questions. no API calls, nothing to pay for
@@ -8407,6 +8547,7 @@
     }
     if(!$('scDeck').hidden){ show([deckFrom]); deckRows(); return; }
     if(!$('scNewSet').hidden || !$('scAddSet').hidden){ show(['scSets']); loadSets(); return; }
+    if(!$('scAccount').hidden){ acctBack(); return; }
     if(!$('scSets').hidden){ toIntro(); return; }
     const linked = /[#&]g=/.test(location.hash);
     if((!$('scCode').hidden || !$('scSetup').hidden) && !linked) toIntro();
@@ -8451,7 +8592,7 @@
   // depend on it succeeding
   $('backBtn').addEventListener('click', () => {
     if(!$('scDeck').hidden){ closeDeck(); return; }   // back throws away deck changes
-    if((!$('scSets').hidden && subEntry('scSets')) || (!$('scNewSet').hidden && subEntry('scNewSet')) || (!$('scAddSet').hidden && subEntry('scAddSet'))){ history.back(); return; }
+    if((!$('scSets').hidden && subEntry('scSets')) || (!$('scNewSet').hidden && subEntry('scNewSet')) || (!$('scAddSet').hidden && subEntry('scAddSet')) || (!$('scAccount').hidden && subEntry('scAccount'))){ history.back(); return; }
     if((!$('scCode').hidden && subEntry('scCode')) || (!$('scSetup').hidden && subEntry('scSetup'))){ history.back(); return; }
     goHome();
   });
