@@ -171,7 +171,7 @@ export async function runsToday(db, deviceId, now) {
 // takes the set for a run: only one run at a time, and only for a set that
 // hasn't got questions yet. A run that's been going too long is written off
 // (at its estimate, since we can't know) so the set can be tried again.
-export async function startRun(db, deviceId, setId, estMicro, now) {
+export async function startRun(db, deviceId, setId, estMicro, now, accountId) {
   await db.prepare(`UPDATE gen_runs SET status = 'failed', finished = ?, cost_micro = est_micro
                      WHERE set_id = ? AND status = 'running' AND started < ?`).bind(now, setId, now - STALE_RUN_MS).run();
   const claim = await db.prepare(
@@ -180,8 +180,8 @@ export async function startRun(db, deviceId, setId, estMicro, now) {
   ).bind(now, now, setId, deviceId, now - STALE_RUN_MS).run();
   if (!claim.meta.changes) return null;
   const runId = newId();
-  await db.prepare('INSERT INTO gen_runs (id, set_id, device, started, status, est_micro) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(runId, setId, deviceId, now, 'running', estMicro).run();
+  await db.prepare('INSERT INTO gen_runs (id, set_id, device, started, status, est_micro, account) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(runId, setId, deviceId, now, 'running', estMicro, accountId || null).run();
   return runId;
 }
 
@@ -225,6 +225,8 @@ export async function failRun(db, setId, runId, note, costMicroTotal, detail) {
     db.prepare(`UPDATE study_sets SET status = 'failed', gen_note = ?, updated_at = ? WHERE id = ?`).bind(note, now, setId),
     db.prepare(`UPDATE gen_runs SET status = 'failed', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`)
       .bind(now, costMicroTotal, detail ? JSON.stringify(detail) : null, runId),
+    // the credit comes back, never past the free allowance
+    db.prepare(`UPDATE accounts SET credits = MIN(?, credits + 1) WHERE id = (SELECT account FROM gen_runs WHERE id = ?)`).bind(FREE_CREDITS, runId),
   ]);
 }
 
@@ -344,8 +346,9 @@ export function cleanEmail(e) {
   return v.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
 }
 
-// a new 6-digit code for this email, or null when too many were asked for
-export async function newLoginCode(db, email, deviceId) {
+// a new 6-digit code for this email, or null when too many were asked for.
+// purpose is 'signup' (carrying the chosen password's hash) or 'reset'
+export async function newLoginCode(db, email, deviceId, purpose, pendingHash) {
   const now = Date.now(), hour = now - 3600000;
   const [byEmail, byDevice] = await db.batch([
     db.prepare('SELECT COUNT(*) AS n FROM login_codes WHERE email = ? AND created_at >= ?').bind(email, hour),
@@ -355,32 +358,63 @@ export async function newLoginCode(db, email, deviceId) {
   const n = new Uint32Array(1);
   crypto.getRandomValues(n);
   const code = String(n[0] % 1000000).padStart(6, '0');
-  await db.prepare('INSERT INTO login_codes (email, code_hash, device, expires, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(email, await sha256('login:' + email + ':' + code), deviceId, now + CODE_TTL_MS, now).run();
+  await db.prepare('INSERT INTO login_codes (email, code_hash, device, expires, created_at, purpose, pending_hash) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .bind(email, await sha256('login:' + email + ':' + code), deviceId, now + CODE_TTL_MS, now, purpose, pendingHash || null).run();
   return code;
 }
 
-// checks the newest live code for this email. Five wrong tries and it's spent
-export async function checkLoginCode(db, email, code) {
+// checks the newest live code of this purpose for this email. Five wrong
+// tries and it's spent. Returns the code's row (with any pending password)
+export async function checkLoginCode(db, email, code, purpose) {
   const now = Date.now();
-  const row = await db.prepare('SELECT rowid, code_hash, tries FROM login_codes WHERE email = ? AND expires > ? ORDER BY created_at DESC LIMIT 1')
-    .bind(email, now).first();
-  if (!row || row.tries >= 5) return false;
+  const row = await db.prepare('SELECT rowid, code_hash, tries, pending_hash AS pending FROM login_codes WHERE email = ? AND purpose = ? AND expires > ? ORDER BY created_at DESC LIMIT 1')
+    .bind(email, purpose, now).first();
+  if (!row || row.tries >= 5) return null;
   if (row.code_hash !== await sha256('login:' + email + ':' + String(code || '').replace(/\D/g, ''))) {
     await db.prepare('UPDATE login_codes SET tries = tries + 1 WHERE rowid = ?').bind(row.rowid).run();
-    return false;
+    return null;
   }
-  await db.prepare('UPDATE login_codes SET expires = 0 WHERE email = ?').bind(email).run();
-  return true;
+  await db.prepare('UPDATE login_codes SET expires = 0 WHERE email = ? AND purpose = ?').bind(email, purpose).run();
+  return row;
+}
+
+export async function accountByEmail(db, email) {
+  return db.prepare('SELECT id, home_device AS home, pass_hash AS pass, credits FROM accounts WHERE email = ?').bind(email).first();
+}
+
+export async function setPassword(db, email, hash) {
+  await db.prepare('UPDATE accounts SET pass_hash = ? WHERE email = ?').bind(hash, email).run();
+}
+
+// wrong passwords for this email in the last hour (and note one more)
+export async function recentFails(db, email) {
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM login_fails WHERE email = ? AND at >= ?').bind(email, Date.now() - 3600000).first();
+  return r ? r.n : 0;
+}
+export async function noteFail(db, email) {
+  await db.prepare('INSERT INTO login_fails (email, at) VALUES (?, ?)').bind(email, Date.now()).run();
+}
+
+// ---- credits: 3 per account, one per set made, given back if the run fails ----
+export const FREE_CREDITS = 3;
+export async function creditsLeft(db, accountId) {
+  const r = accountId && await db.prepare('SELECT credits FROM accounts WHERE id = ?').bind(accountId).first();
+  return r ? r.credits : 0;
+}
+export async function takeCredit(db, accountId) {
+  const r = await db.prepare('UPDATE accounts SET credits = credits - 1 WHERE id = ? AND credits > 0').bind(accountId).run();
+  return r.meta.changes > 0;
 }
 
 // links this browser to the email's account, making the account if it's new.
 // A browser joining an existing account brings its sets with it
-export async function signIn(db, deviceId, email) {
+export async function signIn(db, deviceId, email, passHash) {
   let acc = await db.prepare('SELECT id, home_device AS home FROM accounts WHERE email = ?').bind(email).first();
   if (!acc) {
     acc = { id: newId(), home: deviceId };
-    await db.prepare('INSERT INTO accounts (id, email, home_device, created_at) VALUES (?, ?, ?, ?)').bind(acc.id, email, deviceId, Date.now()).run();
+    await db.prepare('INSERT INTO accounts (id, email, home_device, created_at, pass_hash) VALUES (?, ?, ?, ?, ?)').bind(acc.id, email, deviceId, Date.now(), passHash || null).run();
+  } else if (passHash) {
+    await setPassword(db, email, passHash);
   }
   const stmts = [db.prepare('UPDATE devices SET account = ? WHERE id = ?').bind(acc.id, deviceId)];
   if (acc.home !== deviceId) {

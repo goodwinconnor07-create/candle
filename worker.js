@@ -53,6 +53,8 @@ import { Feed, mathsSource, setSource } from './questions.js';
 import * as Library from './library.js';
 import * as Generate from './generate.js';
 import { sendLoginCode } from './mail.js';
+import { viaHasher } from './hasher.js';
+export { Hasher } from './hasher.js';
 export { SetJob } from './setjob.js';
 
 const QUESTION_MS  = 10000;   // how long each question stays up
@@ -1911,6 +1913,9 @@ async function api(request, env) {
   // signing in with an emailed code. "start" sends it, "verify" checks it
   // and links this browser to the account (bringing along a friend's set the
   // guest just played, if they asked to keep it)
+  // accounts: sign up (email + password, then a code to confirm the email),
+  // sign in (email + password), reset (a code by email, then a new password)
+  // and sign out. Signing up or in can bring along a friend's set (keep)
   if (parts[1] === 'auth' && parts.length === 3 && request.method === 'POST') {
     const raw = await Library.rawDeviceFrom(env.DB, request);
     if (!raw) return err(401, 'unknown device');
@@ -1918,19 +1923,52 @@ async function api(request, env) {
     if (parts[2] === 'signout') { await Library.signOut(env.DB, raw.id); return json({ ok: true }); }
     const email = Library.cleanEmail(body.email);
     if (!email) return err(400, 'that email address doesn’t look right');
-    if (parts[2] === 'start') {
-      if (env.MAIL_MOCK !== '1' && !env.RESEND_API_KEY) return err(503, 'signing in is not set up yet');
-      const code = await Library.newLoginCode(env.DB, email, raw.id);
+    const pw = String(body.password || '');
+    const done = async (passHash) => {
+      const home = await Library.signIn(env.DB, raw.id, email, passHash);
+      const kept = body.keep ? await Library.keepSet(env.DB, home, body.keep) : null;
+      const acc = await Library.accountByEmail(env.DB, email);
+      return json({ email, kept, credits: acc ? acc.credits : 0 });
+    };
+    const mailOk = env.MAIL_MOCK === '1' || env.RESEND_API_KEY;
+    const sendCode = async (purpose, pending) => {
+      if (!mailOk) return err(503, 'email isn’t set up yet');
+      const code = await Library.newLoginCode(env.DB, email, raw.id, purpose, pending);
       if (!code) return err(429, 'too many codes asked for. Wait a while and try again');
-      const sent = await sendLoginCode(env, email, code);
+      const sent = await sendLoginCode(env, email, code, purpose);
       if (!sent.ok) return err(502, sent.why);
       return json(sent.mock ? { ok: true, mock: sent.mock } : { ok: true });
+    };
+    if (parts[2] === 'signup') {
+      if (pw.length < 8) return err(400, 'use a password of at least 8 characters');
+      const acc = await Library.accountByEmail(env.DB, email);
+      if (acc && acc.pass) return err(409, 'there’s already an account with that email. Sign in instead');
+      return sendCode('signup', (await viaHasher(env, { op: 'hash', pw })).hash);
     }
     if (parts[2] === 'verify') {
-      if (!(await Library.checkLoginCode(env.DB, email, body.code))) return err(400, 'that code isn’t right, or it has run out');
-      const home = await Library.signIn(env.DB, raw.id, email);
-      const kept = body.keep ? await Library.keepSet(env.DB, home, body.keep) : null;
-      return json({ email, kept });
+      const row = await Library.checkLoginCode(env.DB, email, body.code, 'signup');
+      if (!row) return err(400, 'that code isn’t right, or it has run out');
+      return done(row.pending);
+    }
+    if (parts[2] === 'signin') {
+      if (await Library.recentFails(env.DB, email) >= 10) return err(429, 'too many tries. Wait a while, or reset your password');
+      const acc = await Library.accountByEmail(env.DB, email);
+      if (acc && !acc.pass) return err(409, 'that account doesn’t have a password yet. Tap “Forgot password?” to set one');
+      const ok = acc && (await viaHasher(env, { op: 'check', pw, hash: acc.pass })).ok;
+      if (!ok) { await Library.noteFail(env.DB, email); return err(400, 'that email and password don’t match'); }
+      return done(null);
+    }
+    if (parts[2] === 'reset') {
+      // the same answer whether or not there's an account, so this can't be
+      // used to find out who has one
+      if (!(await Library.accountByEmail(env.DB, email))) return json({ ok: true });
+      return sendCode('reset', null);
+    }
+    if (parts[2] === 'newpass') {
+      if (pw.length < 8) return err(400, 'use a password of at least 8 characters');
+      const row = await Library.checkLoginCode(env.DB, email, body.code, 'reset');
+      if (!row) return err(400, 'that code isn’t right, or it has run out');
+      return done((await viaHasher(env, { op: 'hash', pw })).hash);
     }
     return err(404, 'not found');
   }
@@ -1956,8 +1994,12 @@ async function api(request, env) {
   if (parts[1] === 'sets') {
     const me = await Library.deviceFrom(env.DB, request);
     if (!me) return err(401, 'unknown device');
-    if (parts.length === 2 && request.method === 'GET') return json({ sets: await Library.listSets(env.DB, me) });
+    const acct = await Library.rawDeviceFrom(env.DB, request);
+    if (parts.length === 2 && request.method === 'GET') {
+      return json({ sets: await Library.listSets(env.DB, me), email: acct.email || null, credits: acct.account ? await Library.creditsLeft(env.DB, acct.account) : null });
+    }
     if (parts.length === 2 && request.method === 'POST') {
+      if (!acct.account) return err(403, 'sign up to create sets. It’s free');
       const raw = await request.text();
       if (raw.length > Library.MAX_TEXT * 3 + 1000) return err(413, 'too much text');
       let body;
@@ -1976,6 +2018,8 @@ async function api(request, env) {
       const set = await Library.getSet(env.DB, me, parts[2]);
       if (!set) return err(404, 'no such set');
       if (set.status === 'ready') return err(409, 'that set already has questions');
+      if (!acct.account) return err(403, 'sign up to create sets. It’s free');
+      if (await Library.creditsLeft(env.DB, acct.account) <= 0) return err(402, 'you’ve used your 3 free sets');
       if (env.GENERATION_ENABLED === 'false') return err(503, 'making questions is switched off right now');
       if (env.AI_MOCK !== '1' && !env.ANTHROPIC_API_KEY) return err(503, 'making questions is not set up yet');
       const chunks = await Library.getChunks(env.DB, set.id);
@@ -1987,8 +2031,12 @@ async function api(request, env) {
       if (await Library.runsToday(env.DB, me, now) >= perDay) return err(429, 'you have used all your question runs for today. Try again tomorrow');
       const budget = Math.round((Number(env.DAILY_BUDGET_USD) || 5) * 1e6);
       if (await Library.spentToday(env.DB, now) + est > budget) return err(429, 'making questions is paused for today. Try again tomorrow');
-      const runId = await Library.startRun(env.DB, me, set.id, est, now);
-      if (!runId) return err(409, 'that set is already being made');
+      if (!(await Library.takeCredit(env.DB, acct.account))) return err(402, 'you’ve used your 3 free sets');
+      const runId = await Library.startRun(env.DB, me, set.id, est, now, acct.account);
+      if (!runId) {
+        await env.DB.prepare('UPDATE accounts SET credits = MIN(?, credits + 1) WHERE id = ?').bind(Library.FREE_CREDITS, acct.account).run();
+        return err(409, 'that set is already being made');
+      }
       const job = env.SETJOB.get(env.SETJOB.idFromName(set.id));
       await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ setId: set.id, runId }) });
       return json({ status: 'generating' }, { status: 202 });
