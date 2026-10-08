@@ -1900,6 +1900,24 @@ async function api(request, env) {
     return json({ id, sets: await Library.listSets(env.DB, id) });
   }
 
+  // share codes: look one up, or add the set behind it to your own list
+  if (parts[1] === 'share' && parts.length === 3) {
+    const me = await Library.deviceFrom(env.DB, request);
+    if (!me) return err(401, 'unknown device');
+    const code = Library.cleanCode(parts[2]);
+    if (!code) return err(404, 'no set has that code');
+    if (!(await Library.lookupAllowed(env.DB, me))) return err(429, 'too many codes tried. Wait a while and try again');
+    const src = await Library.codeInfo(env.DB, code);
+    if (!src) return err(404, 'no set has that code');
+    if (request.method === 'GET') return json({ name: src.name, questions: src.questions, yours: src.owner === me });
+    if (request.method === 'POST') {
+      if (src.owner === me) return err(409, 'that set is already yours');
+      if (await Library.countSets(env.DB, me) >= Library.MAX_SETS) return err(409, 'you have the most sets allowed. Delete one first');
+      return json(await Library.copySet(env.DB, me, src), { status: 201 });
+    }
+    return err(404, 'not found');
+  }
+
   if (parts[1] === 'sets') {
     const me = await Library.deviceFrom(env.DB, request);
     if (!me) return err(401, 'unknown device');
@@ -1939,6 +1957,13 @@ async function api(request, env) {
       const job = env.SETJOB.get(env.SETJOB.idFromName(set.id));
       await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ setId: set.id, runId }) });
       return json({ status: 'generating' }, { status: 202 });
+    }
+    if (parts.length === 4 && parts[3] === 'share') {
+      if (request.method === 'POST') {
+        const code = await Library.shareSet(env.DB, me, parts[2]);
+        return code ? json({ code }) : err(409, 'only your own sets with questions can be shared');
+      }
+      if (request.method === 'DELETE') { await Library.unshareSet(env.DB, me, parts[2]); return json({ ok: true }); }
     }
     if (parts.length === 3 && request.method === 'DELETE') {
       return (await Library.deleteSet(env.DB, me, parts[2])) ? json({ ok: true }) : err(404, 'no such set');

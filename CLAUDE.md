@@ -37,6 +37,14 @@ plays and DEPLOY.md for deploy details.
   who answered it, never while it's live). `offerWhy()` shows a small chip
   that outlives the 1.5s result pause; a tap opens the reason, another tap or
   a timeout closes it. It never pauses a clock or blocks play.
+- Share codes: the owner taps **Share** on one of their own ready sets and
+  gets a 6-character code (no 0/O or 1/I/L look-alikes) plus a `#s=CODE`
+  link. Whoever enters it (`#scAddSet`, `/api/share/:code`) gets their own
+  copy (`copySet()`): questions, facts and wording, never the notes. Copies
+  are `copied = 1`, can't be re-shared, cost nothing, and keep working if the
+  original is deleted (`deleteSet()` clears their `inherited_from`). Codes
+  don't expire; the owner can turn one off ("Stop sharing"). Lookups are
+  capped at 30 an hour per device (`share_lookups`).
 - `library.js` and `migrations/`: the D1 database (`DB` binding, named
   `study-duel`): anonymous devices, study sets, source text chunks and
   generated questions. Live matches never live here. A device is a secret the

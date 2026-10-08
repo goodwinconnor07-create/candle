@@ -53,6 +53,8 @@ export async function deviceFrom(db, request) {
 export async function listSets(db, deviceId) {
   const { results } = await db.prepare(
     `SELECT s.id, s.name, s.updated_at AS updatedAt, s.status, s.gen_note AS note,
+            s.copied AS copy,
+            (SELECT code FROM share_codes c WHERE c.set_id = s.id AND c.active = 1 LIMIT 1) AS shareCode,
             (SELECT COUNT(*) FROM questions q WHERE q.set_id = s.id AND q.active = 1) AS questions,
             (SELECT COALESCE(SUM(LENGTH(c.body)), 0) FROM source_chunks c WHERE c.set_id = s.id) AS chars
        FROM study_sets s WHERE s.owner = ? ORDER BY s.updated_at DESC`
@@ -112,8 +114,15 @@ export async function createSet(db, deviceId, name, text) {
 }
 
 export async function deleteSet(db, deviceId, setId) {
-  const r = await db.prepare('DELETE FROM study_sets WHERE id = ? AND owner = ?').bind(setId, deviceId).run();
-  return r.meta.changes > 0;
+  const own = await db.prepare('SELECT id FROM study_sets WHERE id = ? AND owner = ?').bind(setId, deviceId).first();
+  if (!own) return false;
+  // copies made from it keep working; they just stop pointing back at it
+  await db.batch([
+    db.prepare('UPDATE study_sets SET inherited_from = NULL WHERE inherited_from = ?').bind(setId),
+    db.prepare('UPDATE share_codes SET active = 0 WHERE set_id = ?').bind(setId),
+    db.prepare('DELETE FROM study_sets WHERE id = ? AND owner = ?').bind(setId, deviceId),
+  ]);
+  return true;
 }
 
 // ---- making questions: reading a set, the spending caps, saving results ----
@@ -244,4 +253,70 @@ export async function loadSetForGame(db, setId) {
 export async function recordAnswers(db, rows) {
   if (!rows.length) return;
   await batched(db, rows.map(r => db.prepare('UPDATE questions SET shown = shown + ?, right = right + ? WHERE id = ?').bind(r.shown, r.right, r.dbId)));
+}
+
+// ---- share codes ----
+
+const CODE_CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';   // no 0/O, 1/I/L
+export const LOOKUPS_PER_HOUR = 30;
+
+export function cleanCode(c) {
+  const v = String(c || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+  return v.length === 6 && [...v].every(ch => CODE_CHARS.includes(ch)) ? v : null;
+}
+
+// the set's code, made the first time it's shared. only the owner's own
+// sets can be shared, not copies (no re-sharing for now)
+export async function shareSet(db, deviceId, setId) {
+  const set = await db.prepare(`SELECT id FROM study_sets WHERE id = ? AND owner = ? AND status = 'ready' AND copied = 0`)
+    .bind(setId, deviceId).first();
+  if (!set) return null;
+  const had = await db.prepare('SELECT code FROM share_codes WHERE set_id = ? AND active = 1').bind(setId).first();
+  if (had) return had.code;
+  for (let i = 0; i < 6; i++) {
+    const bytes = new Uint8Array(6);
+    crypto.getRandomValues(bytes);
+    const code = [...bytes].map(b => CODE_CHARS[b % CODE_CHARS.length]).join('');
+    const r = await db.prepare('INSERT OR IGNORE INTO share_codes (code, set_id, owner, created_at) VALUES (?, ?, ?, ?)')
+      .bind(code, setId, deviceId, Date.now()).run();
+    if (r.meta.changes) return code;
+  }
+  return null;
+}
+
+export async function unshareSet(db, deviceId, setId) {
+  await db.prepare('UPDATE share_codes SET active = 0 WHERE set_id = ? AND owner = ?').bind(setId, deviceId).run();
+}
+
+// counts this lookup; false once the device has tried too many this hour
+export async function lookupAllowed(db, deviceId) {
+  const now = Date.now();
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM share_lookups WHERE device = ? AND at >= ?').bind(deviceId, now - 3600000).first();
+  if (r && r.n >= LOOKUPS_PER_HOUR) return false;
+  await db.prepare('INSERT INTO share_lookups (device, at) VALUES (?, ?)').bind(deviceId, now).run();
+  return true;
+}
+
+export async function codeInfo(db, code) {
+  return db.prepare(
+    `SELECT s.id, s.name, s.owner,
+            (SELECT COUNT(*) FROM questions q WHERE q.set_id = s.id AND q.active = 1) AS questions
+       FROM share_codes c JOIN study_sets s ON s.id = c.set_id
+      WHERE c.code = ? AND c.active = 1 AND s.status = 'ready'`
+  ).bind(code).first();
+}
+
+// the person's own copy: questions, facts and wording as they are now. the
+// notes stay with the owner. a copy is ready at once and costs nothing
+export async function copySet(db, deviceId, src) {
+  const id = newId(), now = Date.now();
+  await db.batch([
+    db.prepare(`INSERT INTO study_sets (id, owner, name, inherited_from, copied, status, subject, templates, created_at, updated_at)
+                SELECT ?, ?, name, id, 1, 'ready', subject, templates, ?, ? FROM study_sets WHERE id = ?`).bind(id, deviceId, now, now, src.id),
+    db.prepare(`INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, batch, created_at)
+                SELECT lower(hex(randomblob(8))), ?, NULL, text, choices, answer, why, diff, batch, ? FROM questions WHERE set_id = ? AND active = 1`).bind(id, now, src.id),
+    db.prepare(`INSERT INTO facts (id, set_id, kind, a, b, batch, created_at)
+                SELECT lower(hex(randomblob(8))), ?, kind, a, b, batch, ? FROM facts WHERE set_id = ?`).bind(id, now, src.id),
+  ]);
+  return { id, name: src.name };
 }
