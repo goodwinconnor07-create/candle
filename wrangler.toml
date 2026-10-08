@@ -47,10 +47,10 @@ new_sqlite_classes = ["SetJob"]
 DAILY_BUDGET_USD = "5"
 DEVICE_RUNS_PER_DAY = "5"
 GENERATION_ENABLED = "true"
-# who sign-in emails come from. Until a domain is verified in Resend, only
-# onboarding@resend.dev works, and it only delivers to the Resend account's
-# own address. The key is a secret: `npx wrangler secret put RESEND_API_KEY`.
-MAIL_FROM = "Study Duel <onboarding@resend.dev>"
+# who sign-in emails come from: studyduel.fun is verified in Resend (its DKIM,
+# send/rsend and _dmarc records are in Cloudflare DNS). The key is a secret:
+# `npx wrangler secret put RESEND_API_KEY`.
+MAIL_FROM = "Study Duel <codes@studyduel.fun>"
 
 # Study sets, their source text and generated questions. Live matches stay in
 # the GameRoom Durable Objects. Apply schema changes with
