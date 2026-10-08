@@ -204,6 +204,16 @@ PR to the default branch, merge, deploy, then check the live site.
   opens; on narrow screens that button is a round X). `goHome()` steps back out of our entry or clears the link
   in place. Don't add `location.hash =` navigations; use `replaceState`/
   `pushState` with the same `sd` state.
+- Dropped connections mid-match: the room holds the seat for 30s
+  (`LEAVE_GRACE_MS`) and pauses the match meanwhile: `tick()` skips the game's
+  own tick, game messages are ignored, and `resume()` moves every deadline,
+  bot timer and the chess clock on by the length of the pause. Snapshots carry
+  `away` so the other player sees "X dropped out" with a countdown
+  (`#awayBox`). The browser that dropped retries on its own (`tryRejoin()`,
+  about 30s of attempts, and at once when the phone wakes). `sd-live` in
+  localStorage remembers the match, so reopening the site offers "Back to your
+  match" (`#introRejoin`). Live matches are still in memory only, so a
+  redeploy mid-match ends them.
 - Lobby leaving: the browser sends `leave` when backing out of a lobby
   (`toIntro()`). A guest leaving frees the seat and the host gets a new code;
   a host leaving marks the lobby `closed` and the guest gets `t:'closed'`. A

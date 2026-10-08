@@ -114,9 +114,10 @@ const GOLF_AIM_MS    = 30000;   // to take the stroke once it's earned
 const GOLF_PAD_MS    = 900;     // after the ball stops, before the next question
 const GOLF_HOLE_MS   = 4000;    // the scorecard between holes
 
-// a dropped connection mid-match might just be a refresh or a locked phone,
-// so the seat is held this long before the match is called off
-const LEAVE_GRACE_MS = 15000;
+// a dropped connection mid-match might just be a refresh, a locked phone or
+// a train tunnel, so the seat is held this long before the match is called
+// off. the match is paused meanwhile: no clock runs and no move can be made
+const LEAVE_GRACE_MS = 30000;
 // 'bot' isn't pickable: it's only ever given to the test stand-in
 const CHARS        = ['boy', 'girl', 'dino', 'shades', 'ponytail', 'nerd', 'vampire', 'astronaut'];
 const ROOM_TTL_MS  = 24 * 60 * 60 * 1000;
@@ -353,7 +354,10 @@ export class GameRoom {
 
     const conn = { ws, role };
     this.sockets.add(conn);
-    if (this.game && this.game.gone) delete this.game.gone[role];   // back in time
+    if (this.game && this.game.gone) {                              // back in time
+      delete this.game.gone[role];
+      if (!Object.keys(this.game.gone).length) this.resume();
+    }
 
     ws.addEventListener('message', (ev) => {
       let msg;
@@ -361,6 +365,7 @@ export class GameRoom {
       this.onMessage(role, msg).catch(() => {});
     });
     const drop = () => {
+      try { ws.close(1000, 'bye'); } catch (e) {}   // answers the browser's close, so its side finishes now
       if (!this.sockets.delete(conn)) return;
       const g = this.game;
       if (!g) { this.sendState(); return; }   // the lobby shows who's still connected
@@ -368,6 +373,8 @@ export class GameRoom {
       for (const c of this.sockets) if (c.role === role) return;   // still here on another tab
       g.gone = g.gone || {};
       g.gone[role] = Date.now();
+      if (!g.pausedAt) g.pausedAt = Date.now();
+      this.sendState();   // the one still here sees the match pause
     };
     ws.addEventListener('close', drop);
     ws.addEventListener('error', drop);
@@ -411,6 +418,9 @@ export class GameRoom {
       await this.startGame();
       return;
     }
+
+    // nothing moves while the match is paused for someone who dropped out
+    if (this.game && this.game.pausedAt && msg.t !== 'leave') return;
 
     if (msg.t === 'pans') { this.poolAnswer(role, msg.choice); return; }
     if (msg.t === 'shoot') { this.poolShoot(role, msg); return; }
@@ -1627,6 +1637,20 @@ export class GameRoom {
     }
   }
 
+  // everyone's back: every clock and timer moves on by however long the
+  // pause lasted, so nobody loses time to the other player's dropped signal
+  resume() {
+    const g = this.game;
+    if (!g || !g.pausedAt) return;
+    const by = Date.now() - g.pausedAt;
+    g.pausedAt = 0;
+    if (g.phase === 'over') return;
+    const later = (o, k) => { if (o && o[k]) o[k] += by; };
+    later(g, 'deadline'); later(g, 'phaseEnd'); later(g, 'botDueAt');
+    if (g.chess) later(g.chess, 'since');
+    if (g.tq) for (const r of ['host', 'guest']) { later(g.tq[r], 'botAt'); later(g.tq[r], 'readyAt'); }
+  }
+
   // one player walked out: the match is over for both of them. after a match
   // has already finished it just stops a rematch being offered to nobody
   playerLeft(role) {
@@ -1653,10 +1677,11 @@ export class GameRoom {
   tick() {
     const g = this.game;
     if (!g || g.phase === 'over') { this.stopLoop(); return; }
-    if (g.gone) {
+    if (g.gone && Object.keys(g.gone).length) {
       for (const role of Object.keys(g.gone)) {
         if (Date.now() - g.gone[role] > LEAVE_GRACE_MS) { this.playerLeft(role); return; }
       }
+      return;   // paused: the game's own tick waits
     }
     if (g.mode === 'chess') this.chessTick(g);
     else if (g.mode === 'battleships') this.seaTick(g);
@@ -1672,6 +1697,10 @@ export class GameRoom {
   snapshot(role) {
     const snap = this.snapshotFor(role);
     const g = this.game;
+    if (snap && g && g.phase !== 'over' && g.gone) {
+      const away = Object.keys(g.gone).filter(r => r !== role)[0];
+      if (away) snap.away = { role: away, name: g[away].name, ms: Math.max(0, LEAVE_GRACE_MS - (Date.now() - g.gone[away])) };
+    }
     if (snap && snap.q && g) {
       const owner = g.chess ? this.chessTurn() : g.sea ? g.sea.turn : g.golf ? g.golf.turn : g.table ? g.table.turn : null;
       if (owner && owner !== role) snap.q = { text: '', choices: ['', '', '', ''], theirs: true };
