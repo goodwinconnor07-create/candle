@@ -33,6 +33,10 @@ plays and DEPLOY.md for deploy details.
   live question: `snapshot(role)` blanks the other player's (`theirs: true`),
   so they see "X is answering" and the result. Question cards size their text
   by length (`fitCard()`: `.long` question, `.mid`/`.long` answers).
+- "Why?": a resolved question carries its one-line `why` (only to the player
+  who answered it, never while it's live). `offerWhy()` shows a small chip
+  that outlives the 1.5s result pause; a tap opens the reason, another tap or
+  a timeout closes it. It never pauses a clock or blocks play.
 - `library.js` and `migrations/`: the D1 database (`DB` binding, named
   `study-duel`): anonymous devices, study sets, source text chunks and
   generated questions. Live matches never live here. A device is a secret the

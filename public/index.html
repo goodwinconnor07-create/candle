@@ -126,6 +126,24 @@
     background:rgba(13,10,8,.75); pointer-events:none;
   }
 
+  /* "Why?" after a study question: optional, never in the way. it outlives the
+     short result pause, and a tap opens the one-line reason */
+  .whytip{
+    position:fixed; z-index:21; left:var(--s4); right:var(--s4); bottom:calc(max(12px, env(safe-area-inset-bottom)) + 34px);
+    display:flex; justify-content:center; pointer-events:none;
+    animation:whyIn var(--settle) var(--ease-out);
+  }
+  @keyframes whyIn{ from{ opacity:0; translate:0 8px; } }
+  .whytip > *{ pointer-events:auto; max-width:360px; }
+  .whybtn, .whytxt{
+    border:1px solid var(--hair); background:rgba(13,10,8,.92); color:var(--tallow); cursor:pointer;
+    box-shadow:0 10px 26px -10px rgba(0,0,0,.9); transition:scale var(--settle) var(--spring);
+  }
+  .whybtn{ min-height:var(--tap); padding:0 var(--s4); border-radius:999px; font:600 .86rem/1 var(--sans); color:var(--amber); }
+  .whytxt{ padding:var(--s3) var(--s4); border-radius:var(--r-md); font:400 .88rem/1.4 var(--sans); text-align:left; }
+  .whybtn:active, .whytxt:active{ scale:.95; transition-duration:var(--press); }
+  @media (prefers-reduced-motion: reduce){ .whytip{ animation:none; } }
+
   /* the way out, for anyone who isn't in a match yet */
   .backbtn{
     position:fixed; z-index:20;
@@ -1604,6 +1622,7 @@
   <div class="tint" aria-hidden="true"></div>
   <div class="vignette" aria-hidden="true"></div>
   <div class="testchip" id="testChip" hidden>Practice</div>
+  <div class="whytip" id="whyTip" hidden><button class="whybtn" id="whyBtn" type="button">Why?</button><button class="whytxt" id="whyTxt" type="button" hidden></button></div>
   <div class="yourturn" id="yourTurn" aria-hidden="true">Your turn</div>
   <div class="nudge" id="nudge" role="status" aria-live="polite"></div>
   <div class="tip" id="tip" role="status" hidden><svg><use href="#i-share"/></svg><span>Play full screen: tap Share, then <b>Add to Home Screen</b>.</span><button id="tipClose" type="button" aria-label="Dismiss">×</button></div>
@@ -2709,6 +2728,30 @@
   });
   window.addEventListener('resize', () => fitCards(document.querySelectorAll('.pcard, .ccard'), false));
   document.querySelectorAll('.pcard-q, .pcard-choices').forEach(el => qFit.observe(el, { childList: true, characterData: true, subtree: true }));
+
+  // "Why?" after one of your own study questions has been answered. it stays
+  // a few seconds past the result, and the reason stays until it's tapped
+  // away or times out. nothing waits for it
+  let whyKey = '', whyHide = null;
+  function offerWhy(why, key){
+    if(!why || key === whyKey) return;
+    whyKey = key;
+    $('whyTxt').textContent = why;
+    $('whyTxt').hidden = true;
+    $('whyBtn').hidden = false;
+    $('whyTip').hidden = false;
+    clearTimeout(whyHide);
+    whyHide = setTimeout(hideWhy, 5000);
+  }
+  function hideWhy(){ clearTimeout(whyHide); $('whyTip').hidden = true; }
+  $('whyBtn').addEventListener('click', () => {
+    haptics('tick');
+    $('whyBtn').hidden = true;
+    $('whyTxt').hidden = false;
+    clearTimeout(whyHide);
+    whyHide = setTimeout(hideWhy, 9000);
+  });
+  $('whyTxt').addEventListener('click', hideWhy);
 
   let curState = null;   // the latest state from the room, whichever game it's for
   const theirName = () => {
@@ -6921,6 +6964,7 @@
     $('bsWho').textContent = 'Question ' + (q.i + 1) + ' of ' + n + (L.rush ? ' · rush' : '');
     $('bsQ').textContent = q.text;
     const shown = q.state === 'right' || q.state === 'wrong';
+    if(shown && q.why) offerWhy(q.why, 't' + q.id + q.text);
     [...box.children].forEach((b, i) => {
       b.disabled = shown || bv.picked != null;
       b.classList.toggle('picked', !shown && bv.picked === i);
@@ -7279,6 +7323,8 @@
       return;
     }
 
+    // your own question, once it's answered, may come with a one-line reason
+    if(s.q && !s.q.theirs && s.q.answer != null && s.q.why) offerWhy(s.q.why, s.q.text + '|' + s.q.choices.join('|'));
     if(s.mode === 'chess') applyChess(s);
     else if(s.mode === 'battleships') applySea(s);
     else if(s.mode === 'towers') applyTowers(s);
@@ -8022,6 +8068,7 @@
       old.close();
     }
     gameId = null;
+    hideWhy();
     $('conn').hidden = true;
     let savedMode = '';
     try{

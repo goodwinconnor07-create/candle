@@ -1016,7 +1016,7 @@ export class GameRoom {
     if (g.q && (g.phase === 'gq' || g.phase === 'gqres')) {
       snap.q = g.phase === 'gq'
         ? { text: g.q.text, choices: g.q.choices }
-        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer, why: g.q.why || undefined };
     }
     return snap;
   }
@@ -1449,7 +1449,7 @@ export class GameRoom {
     if (q && (Q.state === 'ask' || Q.state === 'right' || Q.state === 'wrong')) {
       out.id = Q.id; out.text = q.text; out.choices = q.choices;
       if (Q.state !== 'ask' && Q.last && Q.last.id === Q.id) {
-        out.answer = q.answer; out.choice = Q.last.choice; out.gain = Q.last.gain;
+        out.answer = q.answer; out.why = q.why || undefined; out.choice = Q.last.choice; out.gain = Q.last.gain;
       }
     }
     return out;
@@ -1740,7 +1740,7 @@ export class GameRoom {
     if (g.q && (g.phase === 'pq' || g.phase === 'pqres')) {
       snap.q = g.phase === 'pq'
         ? { text: g.q.text, choices: g.q.choices }
-        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer, why: g.q.why || undefined };
     }
     return snap;
   }
@@ -1781,7 +1781,7 @@ export class GameRoom {
     if (g.q && (g.phase === 'cq' || g.phase === 'cqres')) {
       snap.q = g.phase === 'cq'
         ? { text: g.q.text, choices: g.q.choices }
-        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer, why: g.q.why || undefined };
     }
     return snap;
   }
@@ -1833,7 +1833,7 @@ export class GameRoom {
     if (g.q && (g.phase === 'bq' || g.phase === 'bqres')) {
       snap.q = g.phase === 'bq'
         ? { text: g.q.text, choices: g.q.choices }
-        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer };
+        : { text: g.q.text, choices: g.q.choices, answer: g.q.answer, why: g.q.why || undefined };
     }
     return snap;
   }
