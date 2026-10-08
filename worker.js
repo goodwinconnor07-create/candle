@@ -52,6 +52,7 @@ import * as Golf from './public/golf.js';
 import { Feed, mathsSource, setSource } from './questions.js';
 import * as Library from './library.js';
 import * as Generate from './generate.js';
+import { squash } from './generate.js';
 import { sendLoginCode } from './mail.js';
 import { viaHasher } from './hasher.js';
 export { Hasher } from './hasher.js';
@@ -259,6 +260,9 @@ export class GameRoom {
         hostDeck: Cards.cleanDeck(body.deck),
         // the host's study set, already checked by the Worker: { id, name } or null for maths
         hostSet: body.set && body.set.id ? { id: String(body.set.id), name: clean(body.set.name, 60) } : null,
+        // who the host is (their account's home device), for their question history
+        hostPlayer: body.player ? String(body.player) : null,
+        guestPlayer: null,
         // the guest's: 'host' (play the host's set), null (maths) or { id, name }
         guestSet: 'host',
         guestDeck: test ? shuffle(Cards.CARD_KEYS.slice()).slice(0, Cards.DECK_SIZE) : Cards.DEFAULT_DECK.slice(),
@@ -406,6 +410,8 @@ export class GameRoom {
       lobby.guestChar = char;
       lobby.guestDeck = Cards.cleanDeck(msg.deck);
       lobby.guestSet = await this.guestSetFrom(msg.set);
+      // the guest's device, if they have one, so their history carries over
+      if (this.env.DB && msg.dev) { try { lobby.guestPlayer = await Library.deviceBySecret(this.env.DB, msg.dev); } catch (e) {} }
       lobby.guestReady = true;
       await this.saveLobby();
       this.sendState();
@@ -467,7 +473,8 @@ export class GameRoom {
     if (!this.sources[set.id]) {
       try {
         const data = await Library.loadSetForGame(this.env.DB, set.id);
-        this.sources[set.id] = data && data.questions.length ? setSource(data) : mathsSource;
+        const src = data ? setSource(data) : null;
+        this.sources[set.id] = src && (src.core.length || src.makers.length) ? src : mathsSource;
       } catch (e) {
         return mathsSource;
       }
@@ -481,7 +488,12 @@ export class GameRoom {
     try {
       const L = this.lobby;
       const guestSet = L.guestSet === 'host' || L.vsBot ? L.hostSet : L.guestSet;
-      const feeds = { host: new Feed(await this.sourceFor(L.hostSet)), guest: new Feed(await this.sourceFor(guestSet)) };
+      const srcH = await this.sourceFor(L.hostSet), srcG = await this.sourceFor(guestSet);
+      const mem = async (player, src) => (this.env.DB && player && src.setId ? Library.loadMemory(this.env.DB, player, src.setId).catch(() => null) : null);
+      const feeds = {
+        host: new Feed(srcH, await mem(L.hostPlayer, srcH)),
+        guest: new Feed(srcG, L.vsBot ? null : await mem(L.guestPlayer, srcG)),
+      };
       // a guest on the host's set can keep a copy if they sign up afterwards
       let keep = null;
       if (!L.vsBot && L.hostSet && L.guestSet === 'host' && this.env.DB) {
@@ -629,30 +641,74 @@ export class GameRoom {
   nextQ(role) {
     const g = this.game;
     if (!g.feeds) g.feeds = { host: new Feed(), guest: new Feed() };
-    return g.feeds[role].next();
+    const q = g.feeds[role].next();
+    if (q.kind) this.maybeReword(g.feeds[role].source, q);
+    return q;
   }
 
-  feedResult(role, q, right) {
+  // An engine question's plain wording gets reworded by a free small model
+  // (Workers AI) in the background, for the next time it comes up. Checked
+  // before it's kept: one line, a question, still names its key term, and
+  // never gives the answer away. Any trouble (like the free daily allowance
+  // running out) and this room stops asking
+  maybeReword(source, q) {
+    const env = this.env;
+    if (!source || !source.setId || !source.reword || source.reword.has(squash(q.stem))) return;
+    if (['truth', 'untruth', 'mixup'].includes(q.kind)) return;
+    if (!env.DB || (!env.AI && env.AI_MOCK !== '1') || this.rewordOff) return;
+    this.rewordBusy = this.rewordBusy || 0;
+    this.rewordCount = this.rewordCount || 0;
+    if (this.rewordBusy >= 2 || this.rewordCount >= 40) return;
+    this.rewordBusy++; this.rewordCount++;
+    const stem = q.stem, key = squash(stem), answer = q.choices[q.answer];
+    (async () => {
+      let text;
+      if (env.AI_MOCK === '1') text = 'Quick one: ' + stem.charAt(0).toLowerCase() + stem.slice(1);
+      else {
+        const out = await env.AI.run('@cf/meta/llama-3.2-3b-instruct', {
+          max_tokens: 80,
+          messages: [
+            { role: 'system', content: 'Reword quiz questions so they sound natural and varied. Keep the exact meaning and every key term. Reply with only the reworded question, on one line.' },
+            { role: 'user', content: stem },
+          ],
+        });
+        text = String((out && out.response) || '').trim().replace(/^["“]|["”]$/g, '');
+      }
+      const k = squash(text);
+      const ok = text && !text.includes('\n') && text.length >= 10 && text.length <= 200 && text.endsWith('?')
+        && (!q.slot || q.slot.length > 60 || k.includes(squash(q.slot)))
+        && !(squash(answer).length >= 4 && k.includes(squash(answer)));
+      if (ok) {
+        source.reword.set(key, text);
+        await Library.saveRewording(env.DB, source.setId, key, text);
+      }
+    })().catch(() => { this.rewordOff = true; }).finally(() => { this.rewordBusy--; });
+  }
+
+  feedResult(role, q, right, picked) {
     const f = this.game.feeds && this.game.feeds[role];
-    if (f) f.result(q, right);
+    if (f) f.result(q, right, !right && q && picked != null ? q.choices[picked] : null);
     // Tester's answers say nothing about how hard a question is
-    if (!(this.game.vsBot && role === 'guest') && q && q.dbId) {
+    if (!(this.game.vsBot && role === 'guest') && q && !String(q.id).startsWith('m:')) {
       clearTimeout(this.flushTimer);
       this.flushTimer = setTimeout(() => this.flushAnswers(), 5000);
     }
   }
 
-  // writes how often each study set question was shown and answered right
+  // writes what each player's match taught us: question counts and
+  // ratings, what they've seen, their level, the wrong answers they chose
   flushAnswers() {
     const g = this.game;
     if (!g || !g.feeds || !this.env.DB) return;
     clearTimeout(this.flushTimer);
-    const rows = [];
+    const L = this.lobby || {};
     for (const role of ['host', 'guest']) {
-      if (g.vsBot && role === 'guest') { g.feeds.guest.take(); continue; }
-      rows.push(...g.feeds[role].take());
+      const t = g.feeds[role].take();
+      if (g.vsBot && role === 'guest') continue;
+      const setId = g.feeds[role].source.setId;
+      if (!setId) continue;
+      Library.recordPlay(this.env.DB, setId, role === 'host' ? L.hostPlayer : L.guestPlayer, t).catch(() => {});
     }
-    if (rows.length) Library.recordAnswers(this.env.DB, rows).catch(() => {});
   }
 
   // ---- Pool ----
@@ -678,7 +734,7 @@ export class GameRoom {
     const T = g.table;
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
-    this.feedResult(role, g.q, right);
+    this.feedResult(role, g.q, right, picked);
     T.stats[role].asked += 1;
     if (right) T.stats[role].right += 1;
     T.pqResult = { choice: picked, right };
@@ -843,7 +899,7 @@ export class GameRoom {
     const G = g.golf;
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
-    this.feedResult(role, g.q, right);
+    this.feedResult(role, g.q, right, picked);
     G.stats[role].asked += 1;
     if (right) G.stats[role].right += 1;
     G.gqResult = { choice: picked, right };
@@ -1089,7 +1145,7 @@ export class GameRoom {
     const C = g.chess;
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
-    this.feedResult(role, g.q, right);
+    this.feedResult(role, g.q, right, picked);
     this.chessStop();
     C.stats[role].asked += 1;
     if (right) {
@@ -1261,7 +1317,7 @@ export class GameRoom {
     const S = g.sea, other = role === 'host' ? 'guest' : 'host';
     const picked = choice == null ? null : Number(choice);
     const right = picked === g.q.answer;
-    this.feedResult(role, g.q, right);
+    this.feedResult(role, g.q, right, picked);
     S.stats[role].asked += 1;
     let reveal = null;
     if (right) {
@@ -1427,7 +1483,7 @@ export class GameRoom {
     const q = Q.list[Q.i];
     const picked = choice == null ? null : Number(choice);
     const right = picked === q.answer;
-    this.feedResult(role, q, right);
+    this.feedResult(role, q, right, picked);
     Q.asked += 1;
     let gain = 0;
     if (right) {
@@ -1887,6 +1943,25 @@ export class GameRoom {
   }
 }
 
+function isAdmin(env, email) {
+  return !!email && String(env.ADMIN_EMAILS || '').toLowerCase().split(',').map(x => x.trim()).includes(email);
+}
+
+// every paid run passes these first: runs per device per day, the app's
+// daily budget, and the account's lifetime budget (ACCOUNT_BUDGET_USD,
+// 50c by default, so 3 sets and their extras stay under it). Returns an
+// error response, or null when it's fine. quiet: just say yes or no
+async function canSpend(env, me, account, est, quiet) {
+  const now = Date.now();
+  const perDay = Number(env.DEVICE_RUNS_PER_DAY) || 5;
+  if (await Library.runsToday(env.DB, me, now) >= perDay) return quiet || err(429, 'you have used all your question runs for today. Try again tomorrow');
+  const budget = Math.round((Number(env.DAILY_BUDGET_USD) || 5) * 1e6);
+  if (await Library.spentToday(env.DB, now) + est > budget) return quiet || err(429, 'making questions is paused for today. Try again tomorrow');
+  const lifetime = Math.round((Number(env.ACCOUNT_BUDGET_USD) || 0.5) * 1e6);
+  if (account && await Library.accountSpent(env.DB, account) + est > lifetime) return quiet || err(402, 'you’ve reached the free limit for making questions on this account');
+  return null;
+}
+
 async function api(request, env) {
   const url = new URL(request.url);
   const parts = url.pathname.split('/').filter(Boolean);   // ['api','games', id?, 'ws'?]
@@ -1973,6 +2048,21 @@ async function api(request, env) {
     return err(404, 'not found');
   }
 
+  // topic sets: ready-made sets anyone can add for free
+  if (parts[1] === 'topics') {
+    const me = await Library.deviceFrom(env.DB, request);
+    if (!me) return err(401, 'unknown device');
+    if (parts.length === 2 && request.method === 'GET') return json({ topics: await Library.listTopics(env.DB) });
+    if (parts.length === 3 && request.method === 'POST') {
+      const src = await Library.publicSet(env.DB, parts[2]);
+      if (!src) return err(404, 'no such topic set');
+      if (src.owner === me) return err(409, 'that set is already yours');
+      if (await Library.countSets(env.DB, me) >= Library.MAX_SETS) return err(409, 'you have the most sets allowed. Delete one first');
+      return json(await Library.copySet(env.DB, me, src), { status: 201 });
+    }
+    return err(404, 'not found');
+  }
+
   // share codes: look one up, or add the set behind it to your own list
   if (parts[1] === 'share' && parts.length === 3) {
     const me = await Library.deviceFrom(env.DB, request);
@@ -2026,11 +2116,23 @@ async function api(request, env) {
       const chars = chunks.reduce((n, c) => n + c.body.length, 0);
       if (chars < Generate.MIN_SOURCE) return err(422, 'there is not enough in that set yet. Add more notes');
       const now = Date.now();
-      const est = Generate.makeSlices(chunks).length * Generate.EST_PER_SLICE;
-      const perDay = Number(env.DEVICE_RUNS_PER_DAY) || 5;
-      if (await Library.runsToday(env.DB, me, now) >= perDay) return err(429, 'you have used all your question runs for today. Try again tomorrow');
-      const budget = Math.round((Number(env.DAILY_BUDGET_USD) || 5) * 1e6);
-      if (await Library.spentToday(env.DB, now) + est > budget) return err(429, 'making questions is paused for today. Try again tomorrow');
+      // the same notes already turned into a set: reuse it, no API call, no credit
+      const twin = await Library.findTwin(env.DB, await Library.sourceHash(chunks), set.id);
+      if (twin) {
+        await Library.fillFromTwin(env.DB, set.id, twin.id);
+        await env.DB.prepare('UPDATE study_sets SET source_hash = ? WHERE id = ?').bind(await Library.sourceHash(chunks), set.id).run();
+        return json({ status: 'ready', reused: true }, { status: 202 });
+      }
+      // each set gets a fair share of what's left of the account's budget:
+      // a big upload reads fewer, evenly spread slices of the notes rather
+      // than being refused, so 3 sets always fit under ACCOUNT_BUDGET_USD
+      const lifetime = Math.round((Number(env.ACCOUNT_BUDGET_USD) || 0.5) * 1e6);
+      const left = lifetime - await Library.accountSpent(env.DB, acct.account);
+      const share = left / Math.max(1, await Library.creditsLeft(env.DB, acct.account));
+      const maxSlices = Math.max(1, Math.floor(share / Generate.EST_PER_SLICE));
+      const est = Generate.pickSlices(Generate.makeSlices(chunks), maxSlices).length * Generate.EST_PER_SLICE;
+      const no = await canSpend(env, me, acct.account, est);
+      if (no) return no;
       if (!(await Library.takeCredit(env.DB, acct.account))) return err(402, 'you’ve used your 3 free sets');
       const runId = await Library.startRun(env.DB, me, set.id, est, now, acct.account);
       if (!runId) {
@@ -2038,8 +2140,78 @@ async function api(request, env) {
         return err(409, 'that set is already being made');
       }
       const job = env.SETJOB.get(env.SETJOB.idFromName(set.id));
-      await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ setId: set.id, runId }) });
+      await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ kind: 'make', setId: set.id, runId, maxSlices }) });
       return json({ status: 'generating' }, { status: 202 });
+    }
+
+    // a set's own screen: its questions, stats and what's on offer
+    if (parts.length === 3 && request.method === 'GET') {
+      const d = await Library.setDetail(env.DB, me, parts[2]);
+      if (!d) return err(404, 'no such set');
+      return json({ ...d, admin: isAdmin(env, acct.email) });
+    }
+
+    // report a question: it leaves the set at once. "Wrong" and "confusing"
+    // also get a replacement from the same part of the notes (a tiny call)
+    if (parts.length === 4 && parts[3] === 'report' && request.method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const reason = ['wrong', 'confusing', 'remove'].includes(body.reason) ? body.reason : 'remove';
+      const r = await Library.reportQuestion(env.DB, me, parts[2], String(body.question || ''), reason);
+      if (!r) return err(404, 'no such question');
+      if (r.limited) return err(429, 'that’s a lot of reports for one day. Try again tomorrow');
+      let replacing = false;
+      if (reason !== 'remove' && r.chunkText && acct.account && env.GENERATION_ENABLED !== 'false' && (env.AI_MOCK === '1' || env.ANTHROPIC_API_KEY)) {
+        const est = 5000;
+        if (!(await canSpend(env, me, acct.account, est, true))) {
+          const runId = await Library.startSideRun(env.DB, me, parts[2], est, acct.account, 'fix');
+          const job = env.SETJOB.get(env.SETJOB.idFromName(parts[2] + ':fix:' + r.reportId));
+          await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ kind: 'fix', setId: parts[2], runId, reportId: r.reportId, chunkId: r.chunkId, chunkText: r.chunkText, oldText: r.text }) });
+          replacing = true;
+        }
+      }
+      return json({ ok: true, replacing });
+    }
+
+    // more (harder) questions for a set that's been played a lot: offered,
+    // never automatic, and it costs a credit
+    if (parts.length === 4 && parts[3] === 'topup' && request.method === 'POST') {
+      if (!acct.account) return err(403, 'sign up to get more questions');
+      const d = await Library.setDetail(env.DB, me, parts[2]);
+      if (!d) return err(404, 'no such set');
+      if (!d.topupOffered) return err(409, 'more questions open up once this set has been played a lot more');
+      const chunks = await Library.getChunks(env.DB, parts[2]);
+      const est = Generate.pickSlices(Generate.makeSlices(chunks)).length * Math.round(Generate.EST_PER_SLICE / 2);
+      const no = await canSpend(env, me, acct.account, est);
+      if (no) return no;
+      if (!(await Library.takeCredit(env.DB, acct.account))) return err(402, 'you’re out of credits');
+      await env.DB.prepare(`UPDATE study_sets SET topup = 'running' WHERE id = ?`).bind(parts[2]).run();
+      const runId = await Library.startSideRun(env.DB, me, parts[2], est, acct.account, 'topup');
+      const job = env.SETJOB.get(env.SETJOB.idFromName(parts[2] + ':topup'));
+      await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ kind: 'topup', setId: parts[2], runId }) });
+      return json({ ok: true }, { status: 202 });
+    }
+
+    // a set made before the master sheet gets one, free (it still counts
+    // toward the account's spending cap)
+    if (parts.length === 4 && parts[3] === 'upgrade' && request.method === 'POST') {
+      if (!acct.account) return err(403, 'sign up to upgrade sets');
+      const d = await Library.setDetail(env.DB, me, parts[2]);
+      if (!d || d.hasSheet || !d.hasNotes) return err(409, 'that set doesn’t need upgrading');
+      const chunks = await Library.getChunks(env.DB, parts[2]);
+      const est = Generate.pickSlices(Generate.makeSlices(chunks)).length * 40000;
+      const no = await canSpend(env, me, acct.account, est);
+      if (no) return no;
+      const runId = await Library.startSideRun(env.DB, me, parts[2], est, acct.account, 'sheet');
+      const job = env.SETJOB.get(env.SETJOB.idFromName(parts[2] + ':sheet'));
+      await job.fetch('https://job/start', { method: 'POST', body: JSON.stringify({ kind: 'sheet', setId: parts[2], runId }) });
+      return json({ ok: true }, { status: 202 });
+    }
+
+    // admins can make one of their sets a topic set anyone can add
+    if (parts.length === 4 && parts[3] === 'public' && request.method === 'POST') {
+      if (!isAdmin(env, acct.email)) return err(403, 'only admins can make topic sets');
+      const body = await request.json().catch(() => ({}));
+      return (await Library.setPublic(env.DB, me, parts[2], !!body.on)) ? json({ ok: true }) : err(409, 'only your own ready sets can be topic sets');
     }
     if (parts.length === 4 && parts[3] === 'share') {
       if (request.method === 'POST') {
@@ -2061,17 +2233,17 @@ async function api(request, env) {
     const id = randomId(9);
     // a study set only counts if this device owns it and it has questions;
     // anything else quietly plays maths, and the reply says so
-    let set = null;
-    if (body.set && env.DB) {
-      const me = await Library.deviceFrom(env.DB, request);
-      const row = await Library.playableSet(env.DB, me, body.set);
+    let set = null, player = null;
+    if (env.DB && request.headers.get('authorization')) {
+      player = await Library.deviceFrom(env.DB, request);
+      const row = body.set ? await Library.playableSet(env.DB, player, body.set) : null;
       if (row) set = { id: row.id, name: row.name };
     }
     const room = env.GAMES.get(env.GAMES.idFromName(id));
     const res = await room.fetch('https://room/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char, test: body.test, deck: body.deck, set }),
+      body: JSON.stringify({ name: body.name, mode: body.mode, char: body.char, test: body.test, deck: body.deck, set, player }),
     });
     const created = await res.json();
     return json({ id, token: created.token, set: set ? set.name : null }, { status: 201 });

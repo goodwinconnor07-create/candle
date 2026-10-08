@@ -56,6 +56,10 @@ new_sqlite_classes = ["Hasher"]
 DAILY_BUDGET_USD = "5"
 DEVICE_RUNS_PER_DAY = "5"
 GENERATION_ENABLED = "true"
+# most any one account can ever cost in API calls (its 3 sets, top-ups, fixes)
+ACCOUNT_BUDGET_USD = "0.5"
+# accounts that can make topic sets (public sets anyone can add)
+ADMIN_EMAILS = "goodwinconnor007@gmail.com"
 # who sign-in emails come from: studyduel.fun is verified in Resend (its DKIM,
 # send/rsend and _dmarc records are in Cloudflare DNS). The key is a secret:
 # `npx wrangler secret put RESEND_API_KEY`.
@@ -64,6 +68,10 @@ MAIL_FROM = "Study Duel <codes@studyduel.fun>"
 # Study sets, their source text and generated questions. Live matches stay in
 # the GameRoom Durable Objects. Apply schema changes with
 # `npx wrangler d1 migrations apply study-duel --remote`.
+# free small model that rewords engine questions so they sound less templated
+[ai]
+binding = "AI"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "study-duel"

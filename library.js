@@ -5,6 +5,7 @@
  */
 
 import { squash } from './generate.js';
+import { mergeSheets, sheetFromFacts, RATING0 } from './questions.js';
 
 const enc = new TextEncoder();
 
@@ -202,18 +203,14 @@ export async function saveRun(db, setId, runId, out, chunks, costMicroTotal) {
     const quote = squash(q.quote);
     const home = chunks.find(c => norm(c).includes(quote));
     stmts.push(db.prepare(
-      `INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, batch, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
-    ).bind(newId(), setId, home ? home.id : null, q.text, JSON.stringify(q.choices), q.answer, q.why, q.diff, now));
-  }
-  for (const f of out.facts) {
-    stmts.push(db.prepare('INSERT INTO facts (id, set_id, kind, a, b, batch, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)')
-      .bind(newId(), setId, f.kind, f.a, f.b, now));
+      `INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, rating, batch, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`
+    ).bind(newId(), setId, home ? home.id : null, q.text, JSON.stringify(q.choices), q.answer, q.why, q.diff, 1300 + q.diff * 400, now));
   }
   await batched(db, stmts);
   await db.batch([
-    db.prepare(`UPDATE study_sets SET status = 'ready', gen_note = NULL, subject = ?, templates = ?, updated_at = ? WHERE id = ?`)
-      .bind(out.subject, JSON.stringify(out.templates), now, setId),
+    db.prepare(`UPDATE study_sets SET status = 'ready', gen_note = NULL, subject = ?, templates = ?, sheet = ?, updated_at = ? WHERE id = ?`)
+      .bind(out.subject, JSON.stringify(out.templates), JSON.stringify(mergeSheets(out.sheets || [])), now, setId),
     db.prepare(`UPDATE gen_runs SET status = 'done', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`)
       .bind(now, costMicroTotal, JSON.stringify({ calls: out.calls.map(c => ({ kind: c.kind, model: c.model, usage: c.usage, cost: c.cost })), dropped: out.dropped, failed: out.failed }), runId),
   ]);
@@ -249,27 +246,196 @@ export async function playableSet(db, deviceId, setId) {
 
 // everything the room needs to ask questions from a set
 export async function loadSetForGame(db, setId) {
-  const set = await db.prepare('SELECT id, name, templates FROM study_sets WHERE id = ?').bind(setId).first();
+  const set = await db.prepare('SELECT id, name, templates, sheet FROM study_sets WHERE id = ?').bind(setId).first();
   if (!set) return null;
-  const [qs, fs] = await db.batch([
-    db.prepare('SELECT id, text, choices, answer, why, diff FROM questions WHERE set_id = ? AND active = 1').bind(setId),
+  const [qs, fs, ps, rw] = await db.batch([
+    db.prepare('SELECT id, text, choices, answer, why, diff, rating FROM questions WHERE set_id = ? AND active = 1').bind(setId),
     db.prepare('SELECT kind, a, b FROM facts WHERE set_id = ?').bind(setId),
+    db.prepare('SELECT vkey, n FROM wrong_picks WHERE set_id = ?').bind(setId),
+    db.prepare('SELECT stem, text FROM rewordings WHERE set_id = ?').bind(setId),
   ]);
-  let templates = null;
-  try { templates = JSON.parse(set.templates || 'null'); } catch (e) {}
+  const parse = t => { try { return JSON.parse(t || 'null'); } catch (e) { return null; } };
   return {
+    id: set.id,
     name: set.name,
-    templates,
-    facts: fs.results,
-    questions: qs.results.map(q => ({ id: q.id, text: q.text, choices: JSON.parse(q.choices), answer: q.answer, why: q.why, diff: q.diff })),
+    templates: parse(set.templates),
+    sheet: parse(set.sheet) || sheetFromFacts(fs.results),
+    picks: new Map(ps.results.map(r => [r.vkey, r.n])),
+    reword: new Map(rw.results.map(r => [r.stem, r.text])),
+    questions: qs.results.map(q => ({ id: q.id, text: q.text, choices: JSON.parse(q.choices), answer: q.answer, why: q.why, diff: q.diff, rating: q.rating })),
   };
 }
 
-// how often each core question was shown and answered right, for picking
-// and difficulty later
-export async function recordAnswers(db, rows) {
-  if (!rows.length) return;
-  await batched(db, rows.map(r => db.prepare('UPDATE questions SET shown = shown + ?, right = right + ? WHERE id = ?').bind(r.shown, r.right, r.dbId)));
+// a player's history on a set: what they've seen and their level
+export async function loadMemory(db, player, setId) {
+  const seen = new Map();
+  if (!player || !setId) return { seen, rating: RATING0 };
+  const [rows, r] = await db.batch([
+    db.prepare('SELECT qkey, shown, right, last FROM seen WHERE player = ? AND set_id = ?').bind(player, setId),
+    db.prepare('SELECT rating FROM player_ratings WHERE player = ? AND set_id = ?').bind(player, setId),
+  ]);
+  for (const x of rows.results) seen.set(x.qkey, { shown: x.shown, right: x.right, last: x.last });
+  return { seen, rating: r.results[0] ? r.results[0].rating : RATING0 };
+}
+
+// everything a match learned about one player on one set (Feed.take()):
+// question counts and ratings, what they saw, their level, wrong answers
+// they fell for. Core questions almost nobody gets right are retired: their
+// answer is probably wrong, and the engine fills the gap for free
+export const RETIRE_SHOWN = 15, RETIRE_RATE = 0.12;
+export async function recordPlay(db, setId, player, t) {
+  const now = Date.now(), stmts = [];
+  for (const q of t.questions) {
+    stmts.push(db.prepare('UPDATE questions SET shown = shown + ?, right = right + ?, rating = COALESCE(rating, 1500) + ? WHERE id = ?').bind(q.shown, q.right, q.dRating, q.dbId));
+  }
+  if (player && setId) {
+    for (const x of t.seen) {
+      stmts.push(db.prepare(`INSERT INTO seen (player, set_id, qkey, shown, right, last) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (player, qkey) DO UPDATE SET shown = shown + excluded.shown, right = right + excluded.right, last = excluded.last`)
+        .bind(player, setId, x.qkey, x.shown, x.right, now));
+    }
+    if (t.rating != null) {
+      stmts.push(db.prepare(`INSERT INTO player_ratings (player, set_id, rating, n) VALUES (?, ?, ?, 1)
+        ON CONFLICT (player, set_id) DO UPDATE SET rating = excluded.rating, n = n + 1`).bind(player, setId, t.rating));
+    }
+  }
+  if (setId) {
+    for (const v of t.picks) {
+      stmts.push(db.prepare(`INSERT INTO wrong_picks (set_id, vkey, n) VALUES (?, ?, 1)
+        ON CONFLICT (set_id, vkey) DO UPDATE SET n = n + 1`).bind(setId, v.slice(0, 120)));
+    }
+  }
+  if (!stmts.length) return;
+  await batched(db, stmts);
+  if (setId && t.questions.length) {
+    await db.prepare(`UPDATE questions SET active = 0 WHERE set_id = ? AND active = 1 AND shown >= ? AND right < shown * ?
+      AND (SELECT COUNT(*) FROM questions q2 WHERE q2.set_id = questions.set_id AND q2.active = 1) > 10`).bind(setId, RETIRE_SHOWN, RETIRE_RATE).run();
+  }
+}
+
+export async function saveRewording(db, setId, stem, text) {
+  await db.prepare('INSERT OR IGNORE INTO rewordings (set_id, stem, text) VALUES (?, ?, ?)').bind(setId, stem, text).run();
+}
+
+// ---- spending per account: never more than ACCOUNT budget over its lifetime ----
+export async function accountSpent(db, accountId) {
+  const r = await db.prepare(`SELECT COALESCE(SUM(CASE WHEN status = 'running' THEN est_micro ELSE cost_micro END), 0) AS micro FROM gen_runs WHERE account = ?`).bind(accountId).first();
+  return r ? r.micro : 0;
+}
+
+// ---- reusing identical notes: the same upload is only ever paid for once ----
+export async function sourceHash(chunks) {
+  return sha256('src:' + chunks.map(c => squash(c.body)).join('|'));
+}
+export async function findTwin(db, hash, notId) {
+  return db.prepare(`SELECT id FROM study_sets WHERE source_hash = ? AND id != ? AND status = 'ready' AND copied = 0 AND sheet IS NOT NULL LIMIT 1`).bind(hash, notId).first();
+}
+// fills a set from its twin: questions, sheet, wording. No API call, no credit
+export async function fillFromTwin(db, setId, twinId) {
+  const now = Date.now();
+  await db.batch([
+    db.prepare('DELETE FROM questions WHERE set_id = ?').bind(setId),
+    db.prepare(`INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, rating, origin, batch, created_at)
+                SELECT lower(hex(randomblob(8))), ?, NULL, text, choices, answer, why, diff, rating, origin, batch, ? FROM questions WHERE set_id = ? AND active = 1`).bind(setId, now, twinId),
+    db.prepare(`UPDATE study_sets SET status = 'ready', gen_note = NULL, gen_started = NULL, updated_at = ?,
+                subject = (SELECT subject FROM study_sets WHERE id = ?), templates = (SELECT templates FROM study_sets WHERE id = ?),
+                sheet = (SELECT sheet FROM study_sets WHERE id = ?) WHERE id = ?`).bind(now, twinId, twinId, twinId, setId),
+  ]);
+}
+
+// ---- a set's own screen: its questions (to report one), stats and offers ----
+export const TOPUP_PLAYS_PER_Q = 4;   // played this heavily, a top-up is offered
+export async function setDetail(db, deviceId, setId) {
+  const set = await db.prepare(`SELECT id, name, status, copied, public, topup, sheet IS NOT NULL AS hasSheet,
+      (SELECT COUNT(*) FROM source_chunks c WHERE c.set_id = s.id) AS chunks
+    FROM study_sets s WHERE id = ? AND owner = ?`).bind(setId, deviceId).first();
+  if (!set) return null;
+  const { results } = await db.prepare('SELECT id, text, choices, answer, shown, origin FROM questions WHERE set_id = ? AND active = 1 ORDER BY created_at, id').bind(setId).all();
+  const plays = results.reduce((n, q) => n + q.shown, 0);
+  return {
+    id: set.id, name: set.name, status: set.status, copy: !!set.copied, public: !!set.public,
+    hasSheet: !!set.hasSheet, hasNotes: set.chunks > 0, topupRunning: set.topup === 'running', plays,
+    // offered (never automatic) once the set's questions have been played a lot
+    topupOffered: !set.copied && set.chunks > 0 && set.topup !== 'running' && results.length > 0 && plays >= TOPUP_PLAYS_PER_Q * results.length,
+    questions: results.map(q => ({ id: q.id, text: q.text, answer: JSON.parse(q.choices)[q.answer] })),
+  };
+}
+
+// ---- reports: a player takes a question out of their own set ----
+export const REPORTS_PER_DAY = 20;
+export async function reportQuestion(db, deviceId, setId, questionId, reason) {
+  const q = await db.prepare(`SELECT q.id, q.text, q.chunk_id AS chunk FROM questions q JOIN study_sets s ON s.id = q.set_id
+    WHERE q.id = ? AND q.set_id = ? AND s.owner = ? AND q.active = 1`).bind(questionId, setId, deviceId).first();
+  if (!q) return null;
+  const r = await db.prepare('SELECT COUNT(*) AS n FROM reports WHERE device = ? AND at >= ?').bind(deviceId, Date.now() - 86400000).first();
+  if (r && r.n >= REPORTS_PER_DAY) return { limited: true };
+  const id = newId();
+  await db.batch([
+    db.prepare('UPDATE questions SET active = 0, reports = reports + 1 WHERE id = ?').bind(questionId),
+    db.prepare('INSERT INTO reports (id, set_id, question_id, device, reason, at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, setId, questionId, deviceId, reason, Date.now()),
+  ]);
+  const chunk = q.chunk ? await db.prepare('SELECT body FROM source_chunks WHERE id = ?').bind(q.chunk).first() : null;
+  return { reportId: id, text: q.text, chunkId: q.chunk, chunkText: chunk ? chunk.body : null };
+}
+export async function saveFix(db, setId, chunkId, reportId, q) {
+  await db.batch([
+    db.prepare(`INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, rating, origin, batch, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'fix', 1, ?)`).bind(newId(), setId, chunkId, q.text, JSON.stringify(q.choices), q.answer, q.why, q.diff, 1300 + q.diff * 400, Date.now()),
+    db.prepare(`UPDATE reports SET outcome = 'replaced' WHERE id = ?`).bind(reportId),
+  ]);
+}
+
+// ---- top-ups (offered, paid with a credit, made through the Batch API) ----
+export async function existingStems(db, setId) {
+  const { results } = await db.prepare('SELECT text FROM questions WHERE set_id = ? AND active = 1').bind(setId).all();
+  return results.map(r => r.text);
+}
+export async function saveTopup(db, setId, runId, questions, chunks, costMicroTotal, detail) {
+  const now = Date.now();
+  const norm = c => c.norm || (c.norm = squash(c.body));
+  const have = new Set((await existingStems(db, setId)).map(squash));
+  const stmts = [];
+  for (const q of questions) {
+    if (have.has(squash(q.text))) continue;
+    have.add(squash(q.text));
+    const home = chunks.find(c => norm(c).includes(squash(q.quote)));
+    stmts.push(db.prepare(`INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, rating, origin, batch, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'topup', 2, ?)`).bind(newId(), setId, home ? home.id : null, q.text, JSON.stringify(q.choices), q.answer, q.why, q.diff, 1300 + q.diff * 400, now));
+  }
+  stmts.push(db.prepare(`UPDATE study_sets SET topup = NULL, updated_at = ? WHERE id = ?`).bind(now, setId));
+  stmts.push(db.prepare(`UPDATE gen_runs SET status = 'done', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`).bind(now, costMicroTotal, JSON.stringify(detail), runId));
+  await batched(db, stmts);
+  return stmts.length - 2;
+}
+export async function failTopup(db, setId, runId, costMicroTotal, detail) {
+  const now = Date.now();
+  await db.batch([
+    db.prepare(`UPDATE study_sets SET topup = NULL WHERE id = ?`).bind(setId),
+    db.prepare(`UPDATE gen_runs SET status = 'failed', finished = ?, cost_micro = ?, detail = ? WHERE id = ?`).bind(now, costMicroTotal, detail ? JSON.stringify(detail) : null, runId),
+    db.prepare(`UPDATE accounts SET credits = MIN(?, credits + 1) WHERE id = (SELECT account FROM gen_runs WHERE id = ?)`).bind(FREE_CREDITS, runId),
+  ]);
+}
+
+// a run that doesn't change the set's own status (top-up, fix, sheet)
+export async function startSideRun(db, deviceId, setId, est, accountId, kind) {
+  const runId = newId();
+  await db.prepare('INSERT INTO gen_runs (id, set_id, device, started, status, est_micro, account, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(runId, setId, deviceId, Date.now(), 'running', est, accountId || null, kind).run();
+  return runId;
+}
+
+// ---- topic sets: sets the app's admins make public for anyone to add ----
+export async function listTopics(db) {
+  const { results } = await db.prepare(`SELECT s.id, s.name, (SELECT COUNT(*) FROM questions q WHERE q.set_id = s.id AND q.active = 1) AS questions
+    FROM study_sets s WHERE s.public = 1 AND s.status = 'ready' ORDER BY s.name`).all();
+  return results;
+}
+export async function setPublic(db, deviceId, setId, on) {
+  const r = await db.prepare(`UPDATE study_sets SET public = ? WHERE id = ? AND owner = ? AND copied = 0 AND status = 'ready'`).bind(on ? 1 : 0, setId, deviceId).run();
+  return r.meta.changes > 0;
+}
+export async function publicSet(db, setId) {
+  return db.prepare(`SELECT id, name, owner FROM study_sets WHERE id = ? AND public = 1 AND status = 'ready'`).bind(setId).first();
 }
 
 // ---- share codes ----
@@ -328,10 +494,10 @@ export async function codeInfo(db, code) {
 export async function copySet(db, deviceId, src) {
   const id = newId(), now = Date.now();
   await db.batch([
-    db.prepare(`INSERT INTO study_sets (id, owner, name, inherited_from, copied, status, subject, templates, created_at, updated_at)
-                SELECT ?, ?, name, id, 1, 'ready', subject, templates, ?, ? FROM study_sets WHERE id = ?`).bind(id, deviceId, now, now, src.id),
-    db.prepare(`INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, batch, created_at)
-                SELECT lower(hex(randomblob(8))), ?, NULL, text, choices, answer, why, diff, batch, ? FROM questions WHERE set_id = ? AND active = 1`).bind(id, now, src.id),
+    db.prepare(`INSERT INTO study_sets (id, owner, name, inherited_from, copied, status, subject, templates, sheet, created_at, updated_at)
+                SELECT ?, ?, name, id, 1, 'ready', subject, templates, sheet, ?, ? FROM study_sets WHERE id = ?`).bind(id, deviceId, now, now, src.id),
+    db.prepare(`INSERT INTO questions (id, set_id, chunk_id, text, choices, answer, why, diff, rating, origin, batch, created_at)
+                SELECT lower(hex(randomblob(8))), ?, NULL, text, choices, answer, why, diff, rating, origin, batch, ? FROM questions WHERE set_id = ? AND active = 1`).bind(id, now, src.id),
     db.prepare(`INSERT INTO facts (id, set_id, kind, a, b, batch, created_at)
                 SELECT lower(hex(randomblob(8))), ?, kind, a, b, batch, ? FROM facts WHERE set_id = ?`).bind(id, now, src.id),
   ]);
