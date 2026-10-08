@@ -26,6 +26,11 @@ class_name = "JoinCode"
 name = "SETJOB"
 class_name = "SetJob"
 
+# Hashes passwords (slow on purpose, so it runs here rather than in a request).
+[[durable_objects.bindings]]
+name = "HASHER"
+class_name = "Hasher"
+
 # SQLite-backed classes are the ones the free plan allows.
 [[migrations]]
 tag = "v1"
@@ -38,6 +43,10 @@ new_sqlite_classes = ["JoinCode"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["SetJob"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["Hasher"]
 
 # Spending caps for making questions. DAILY_BUDGET_USD is the most the whole app
 # will spend on the API per day (UTC); DEVICE_RUNS_PER_DAY is how many runs one

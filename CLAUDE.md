@@ -47,17 +47,23 @@ plays and DEPLOY.md for deploy details.
   original is deleted (`deleteSet()` clears their `inherited_from`). Codes
   don't expire; the owner can turn one off ("Stop sharing"). Lookups are
   capped at 30 an hour per device (`share_lookups`).
-- Accounts (stage 8): email sign-in with a 6-digit code (`/api/auth/start`,
-  `/verify`, `/signout`; `mail.js` sends through Resend with the Worker secret
-  `RESEND_API_KEY` and `MAIL_FROM`; `MAIL_MOCK=1` in `.dev.vars` logs the code
-  to the browser console instead). Codes are hashed, last 10 minutes, allow 5
-  tries, and are rate-limited per email and per device. An account has a
-  `home_device`; `deviceFrom()` returns it for every signed-in browser, so all
-  owner checks, caps and sets work unchanged across devices. A guest who
-  played the host's set gets `keep` on the end-of-match snapshot (a token in
-  `keep_tokens`); the `#keepTip` offer sends them to `#scAccount`, and
-  verifying with the token adds a copy of that set. The profile screen has an
-  Account row (`#acctRow`).
+- Accounts: email + password. Sign-up confirms the email with a 6-digit code
+  (`/api/auth/signup` then `/verify`); sign-in is email + password
+  (`/signin`, 10 wrong tries an hour per email); "Forgot password?" emails a
+  code (`/reset`) that goes with a new password (`/newpass`). Passwords are
+  PBKDF2-SHA256 (100,000 rounds) in the `Hasher` Durable Object
+  (`hasher.js`), never in the Worker request. All of it is one popup
+  (`#authAsk`, `openAuth(mode, after)`). `mail.js` sends the codes through
+  Resend (`RESEND_API_KEY`, `MAIL_FROM` = codes@studyduel.fun);
+  `MAIL_MOCK=1` in `.dev.vars` logs them to the browser console instead. An
+  account has a `home_device`; `deviceFrom()` returns it for every signed-in
+  browser, so sets, owner checks and caps follow the email. A guest who played
+  the host's set gets `keep` on the end-of-match snapshot (`keep_tokens`); the
+  `#keepTip` offer opens the popup, and signing up or in with it adds a copy.
+- Credits: making a set needs an account (the New study set button is locked
+  until then) and costs one of the account's 3 credits (`accounts.credits`,
+  `takeCredit()`); a failed run gives it back. Copies from share codes or
+  keeping a friend's set are free. Paid credits come later.
 - `library.js` and `migrations/`: the D1 database (`DB` binding, named
   `study-duel`): anonymous devices, study sets, source text chunks and
   generated questions. Live matches never live here. A device is a secret the
